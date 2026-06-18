@@ -1,0 +1,32 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.htpasswd
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# data / scan output (never commit scan results — they contain PII)
+data/
+scans/
+*.sqlite
+*.db
+screenshots/
+
+# node (frontend, later)
+node_modules/
+.next/
+dist/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
