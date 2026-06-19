@@ -12,10 +12,39 @@ from pydantic import BaseModel
 from aresis.db import models
 from aresis.db.session import init_db, session_scope
 from aresis.schemas import Identifier
-from aresis.service import create_subject
+from aresis.service import (
+    create_subject,
+    generate_finding_remediation,
+    resolve_finding,
+)
 from aresis.worker.tasks import run_scan_task
 
 app = FastAPI(title="Aresis", version="0.1.0")
+
+
+def _finding_dict(f: models.Finding) -> dict:
+    r = f.remediation
+    return {
+        "id": f.id,
+        "category": f.category,
+        "severity": f.severity,
+        "action": f.action,
+        "title": f.title,
+        "rationale": f.rationale,
+        "confidence": f.confidence,
+        "fix_difficulty": f.fix_difficulty,
+        "easy_fix": f.easy_fix,
+        "questions": f.questions,
+        "member_locators": f.member_locators,
+        "remediation": None
+        if r is None
+        else {
+            "tier": r.tier,
+            "summary": r.summary,
+            "steps": r.steps,
+            "artifact": r.artifact,
+        },
+    }
 
 
 @app.on_event("startup")
@@ -58,22 +87,42 @@ def get_scan(scan_id: str) -> dict:
             "finished_at": scan.finished_at,
             "expires_at": scan.expires_at,
             "coverage_gaps": scan.config_snapshot.get("coverage_gaps", []),
-            "findings": [
-                {
-                    "category": f.category,
-                    "severity": f.severity,
-                    "action": f.action,
-                    "title": f.title,
-                    "rationale": f.rationale,
-                    "confidence": f.confidence,
-                    "fix_difficulty": f.fix_difficulty,
-                    "easy_fix": f.easy_fix,
-                    "questions": f.questions,
-                    "member_locators": f.member_locators,
-                }
-                for f in findings
-            ],
+            "findings": [_finding_dict(f) for f in findings],
         }
+
+
+@app.get("/findings/{finding_id}")
+def get_finding(finding_id: str) -> dict:
+    with session_scope() as s:
+        f = s.get(models.Finding, finding_id)
+        if f is None:
+            raise HTTPException(404, "finding not found")
+        return _finding_dict(f)
+
+
+@app.post("/findings/{finding_id}/remediation")
+def create_remediation(finding_id: str) -> dict:
+    """Generate the involved, tailored fix for a finding on demand (paywall point)."""
+    try:
+        generate_finding_remediation(finding_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return get_finding(finding_id)
+
+
+class ResolveRequest(BaseModel):
+    # question index -> yes(True) / no(False); unanswered questions stay contingent
+    answers: dict[int, bool]
+
+
+@app.post("/findings/{finding_id}/resolve")
+def resolve_finding_endpoint(finding_id: str, req: ResolveRequest) -> dict:
+    """Resolve a DEPENDS finding from the user's yes/no answers — free, no LLM."""
+    try:
+        resolve_finding(finding_id, req.answers)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return get_finding(finding_id)
 
 
 @app.get("/healthz")

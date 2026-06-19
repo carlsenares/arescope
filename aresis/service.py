@@ -13,7 +13,20 @@ from aresis.config import get_settings
 from aresis.db import models
 from aresis.db.session import session_scope
 from aresis.pipeline.orchestrator import run_scan
+from aresis.pipeline.remediation import generate_remediation
 from aresis.pipeline.report import ScanReport, render_markdown
+from aresis.pipeline.resolution import resolve
+from aresis.schemas import (
+    ActionBucket,
+    Category,
+    ContingencyQuestion,
+    EvidenceCluster,
+    FixDifficulty,
+    JudgedFinding,
+    Remediation,
+    Severity,
+    Verdict,
+)
 from aresis.schemas import Identifier as IdentifierSchema
 from aresis.schemas import InputType
 
@@ -97,6 +110,8 @@ def _persist_report(scan_id: str, report: ScanReport) -> None:
                 easy_fix=v.easy_fix,
                 questions=[q.model_dump() for q in v.questions],
                 member_locators=jf.cluster.member_locators,
+                subject_type=jf.cluster.subject_type.value,
+                subject_value=jf.cluster.subject_value,
             )
             s.add(finding_row)
             s.flush()
@@ -119,3 +134,96 @@ def _persist_report(scan_id: str, report: ScanReport) -> None:
 
 def report_markdown(report: ScanReport) -> str:
     return render_markdown(report)
+
+
+# --- On-demand: reconstruct engine units from a persisted Finding row ---------
+#
+# After a scan the verdict is flattened into columns + separate Signal rows. The
+# two on-demand actions (generate an involved remediation, resolve a DEPENDS
+# finding) need the in-memory schemas back. resolve() only touches the verdict;
+# generate_remediation() reads member_locators + the subject — both persisted —
+# so a members-less cluster is sufficient and we avoid rehydrating every signal.
+
+
+def _verdict_from_row(f: models.Finding) -> Verdict:
+    return Verdict(
+        category=Category(f.category),
+        severity=Severity(f.severity),
+        action=ActionBucket(f.action),
+        title=f.title,
+        rationale=f.rationale,
+        confidence=f.confidence,
+        fix_difficulty=FixDifficulty(f.fix_difficulty) if f.fix_difficulty else None,
+        easy_fix=f.easy_fix,
+        questions=[ContingencyQuestion.model_validate(q) for q in (f.questions or [])],
+    )
+
+
+def _cluster_from_row(f: models.Finding) -> EvidenceCluster:
+    return EvidenceCluster(
+        signature=f.id,
+        category_hint=Category(f.category),
+        subject_value=f.subject_value or "",
+        subject_type=InputType(f.subject_type) if f.subject_type else InputType.EMAIL,
+        kind=f.category,
+        members=[],
+        member_locators=f.member_locators or [],
+    )
+
+
+def generate_finding_remediation(finding_id: str) -> Remediation:
+    """Generate (or regenerate) the involved fix for one finding. The paywall point.
+
+    The Opus call runs outside the DB session; we persist the result as the
+    finding's single remediation (upsert).
+    """
+    with session_scope() as s:
+        f = s.get(models.Finding, finding_id)
+        if f is None:
+            raise ValueError(f"finding {finding_id} not found")
+        verdict = _verdict_from_row(f)
+        cluster = _cluster_from_row(f)
+
+    rem = generate_remediation(verdict, cluster)
+
+    with session_scope() as s:
+        f = s.get(models.Finding, finding_id)
+        if f is None:
+            raise ValueError(f"finding {finding_id} not found")
+        existing = f.remediation
+        steps = [step.model_dump() for step in rem.steps]
+        if existing is not None:
+            existing.tier = rem.tier.value
+            existing.summary = rem.summary
+            existing.steps = steps
+            existing.artifact = rem.artifact
+        else:
+            s.add(
+                models.Remediation(
+                    finding_id=finding_id,
+                    tier=rem.tier.value,
+                    summary=rem.summary,
+                    steps=steps,
+                    artifact=rem.artifact,
+                )
+            )
+    return rem
+
+
+def resolve_finding(finding_id: str, answers: dict[int, bool]) -> Verdict:
+    """Apply yes/no answers to a DEPENDS finding — deterministic, free, no LLM.
+
+    Persists the resolved severity/action/rationale and clears the questions.
+    Returns the resolved verdict (unchanged if the finding wasn't contingent).
+    """
+    with session_scope() as s:
+        f = s.get(models.Finding, finding_id)
+        if f is None:
+            raise ValueError(f"finding {finding_id} not found")
+        jf = JudgedFinding(verdict=_verdict_from_row(f), cluster=_cluster_from_row(f))
+        rv = resolve(jf, answers).verdict
+        f.severity = rv.severity.value
+        f.action = rv.action.value
+        f.rationale = rv.rationale
+        f.questions = [q.model_dump() for q in rv.questions]
+        return rv

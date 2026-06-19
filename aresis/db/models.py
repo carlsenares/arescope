@@ -120,6 +120,10 @@ class Finding(Base):
     easy_fix: Mapped[str | None] = mapped_column(Text, nullable=True)
     questions: Mapped[list] = mapped_column(JSON, default=list)
     member_locators: Mapped[list] = mapped_column(JSON, default=list)
+    # The cluster's subject — needed to reconstruct a Verdict+cluster for the
+    # on-demand involved remediation (subject_value is PII -> encrypted at rest).
+    subject_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    subject_value: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
 
     scan: Mapped["Scan"] = relationship(back_populates="findings")
     remediation: Mapped["Remediation | None"] = relationship(
