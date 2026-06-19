@@ -113,6 +113,13 @@ class Finding(Base):
     title: Mapped[str] = mapped_column(String)
     rationale: Mapped[str] = mapped_column(Text)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    # Verdict fields (AI_PIPELINE.md): action bucket, inline easy fix, contingency
+    # questions, and the clustered locators this finding rolls up.
+    action: Mapped[str] = mapped_column(String, default="no_action")
+    fix_difficulty: Mapped[str | None] = mapped_column(String, nullable=True)
+    easy_fix: Mapped[str | None] = mapped_column(Text, nullable=True)
+    questions: Mapped[list] = mapped_column(JSON, default=list)
+    member_locators: Mapped[list] = mapped_column(JSON, default=list)
 
     scan: Mapped["Scan"] = relationship(back_populates="findings")
     remediation: Mapped["Remediation | None"] = relationship(

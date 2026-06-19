@@ -87,14 +87,64 @@ class Evidence(BaseModel):
     signals: list[Signal]
 
 
-class Finding(BaseModel):
-    """The judge's verdict on one Evidence item (the schema the LLM fills)."""
+class ActionBucket(str, enum.Enum):
+    FIX_NOW = "fix_now"            # dangerous regardless of context
+    WORTH_FIXING = "worth_fixing"  # should probably act; minor context dependence
+    DEPENDS = "depends"            # severity hinges on answers to questions
+    NO_ACTION = "no_action"        # info/low; rolled up in the report
+
+
+class FixDifficulty(str, enum.Enum):
+    EASY = "easy"          # universally known fix; shown inline, no extra LLM call
+    INVOLVED = "involved"  # tailored fix / artifact, generated on demand
+
+
+class Resolution(BaseModel):
+    """One branch of a contingency question — precomputed so resolution is free."""
+
+    severity: Severity
+    action: ActionBucket
+    note: str = ""
+
+
+class ContingencyQuestion(BaseModel):
+    """A yes/no factor the verdict depends on, with both branches precomputed."""
+
+    prompt: str
+    if_yes: Resolution
+    if_no: Resolution
+
+
+class EvidenceCluster(BaseModel):
+    """Tier-0 grouping: similar evidence collapsed into one unit to judge.
+
+    Bounds Opus cost (250 old breaches -> one cluster) and improves the report
+    (one "you're in N breaches" finding, not N walls of text).
+    """
+
+    signature: str
+    category_hint: Category
+    subject_value: str
+    subject_type: InputType
+    kind: str
+    members: list[Evidence]
+    member_locators: list[str]
+    force_escalate: bool = False
+    escalate_reason: str | None = None
+
+
+class Verdict(BaseModel):
+    """The judge's structured verdict on a cluster (the schema Opus fills)."""
 
     category: Category
     severity: Severity
+    action: ActionBucket
     title: str
     rationale: str
-    confidence: float = Field(ge=0.0, le=1.0)
+    confidence: float
+    fix_difficulty: FixDifficulty | None = None  # set for fix_now / worth_fixing
+    easy_fix: str | None = None                   # inline one-liner when difficulty == easy
+    questions: list[ContingencyQuestion] = Field(default_factory=list)  # only when depends
 
 
 class RemediationStep(BaseModel):
@@ -111,11 +161,11 @@ class Remediation(BaseModel):
 
 
 class JudgedFinding(BaseModel):
-    """A Finding bound to its evidence + remediation, for the report."""
+    """A verdict bound to its evidence cluster + (optional, on-demand) remediation."""
 
-    finding: Finding
-    evidence: Evidence
-    remediation: Remediation | None = None
+    verdict: Verdict
+    cluster: EvidenceCluster
+    remediation: Remediation | None = None  # involved fix, generated on demand
 
 
 class CoverageGap(BaseModel):

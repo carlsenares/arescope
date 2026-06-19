@@ -62,9 +62,14 @@ def get_scan(scan_id: str) -> dict:
                 {
                     "category": f.category,
                     "severity": f.severity,
+                    "action": f.action,
                     "title": f.title,
                     "rationale": f.rationale,
                     "confidence": f.confidence,
+                    "fix_difficulty": f.fix_difficulty,
+                    "easy_fix": f.easy_fix,
+                    "questions": f.questions,
+                    "member_locators": f.member_locators,
                 }
                 for f in findings
             ],

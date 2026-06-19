@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     retention_days: int = 30
 
     # LLM. anthropic SDK reads ANTHROPIC_API_KEY itself (no ARESIS_ prefix).
+    # Tiered (AI_PIPELINE.md): Haiku triages 100% of clusters, Opus judges the
+    # escalated head + writes involved remediations.
+    triage_model: str = "claude-haiku-4-5"
     judge_model: str = "claude-opus-4-8"
     remediation_model: str = "claude-opus-4-8"
 

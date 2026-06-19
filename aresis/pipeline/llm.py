@@ -21,24 +21,63 @@ def client() -> anthropic.Anthropic:
     return anthropic.Anthropic()
 
 
-JUDGE_SYSTEM = f"""You are the severity judge for Aresis, a personal exposure scanner.
-For each piece of evidence about identifiers the operator OWNS, classify it into
-exactly one finding category and assign a severity, scoring four dimensions:
-takeover potential, data sensitivity, recency, and exploitability.
-
-Severity levels:
+_SEVERITY = """Severity levels:
 - critical: enables account takeover or device compromise right now.
 - high: strong attack enabler; fixable but urgent.
 - medium: privacy/footprint exposure enabling targeted attacks.
 - low: minor footprint, low actionability.
-- info: neutral context, no action needed.
+- info: neutral context, no action needed."""
 
-This is a SELF-AUDIT tool. Frame the title and rationale as defensive guidance to
-the owner shrinking their footprint — never as how to attack someone.
+JUDGE_SYSTEM = f"""You are the severity judge for Aresis, a personal exposure scanner.
+You judge a CLUSTER of related evidence about identifiers the operator OWNS
+(e.g. many breaches sharing a risk profile) as ONE finding. Score four
+dimensions: takeover potential, data sensitivity, recency, exploitability.
+
+{_SEVERITY}
+
+Output via the structured schema:
+- category + severity (rubric below).
+- action: fix_now (dangerous regardless of context) | worth_fixing (should
+  probably act; minor context dependence) | depends (severity genuinely hinges
+  on facts you don't have) | no_action (info/low).
+- For fix_now / worth_fixing set fix_difficulty:
+    easy     -> the fix is universally known (change the password, enable 2FA,
+                close the port). PUT the one-line fix in easy_fix. Recognising
+                it's easy means you already know the fix, so write it — never
+                withhold an easy fix to upsell; that's user-hostile.
+    involved -> needs tailoring or a generated artifact (GDPR/opt-out letter,
+                infostealer recovery playbook). Leave easy_fix null; the tailored
+                fix is generated later, on demand.
+- For action=depends: do NOT propose a fix. Emit the FEWEST yes/no questions
+  whose answers resolve the severity, each with both branches filled
+  (if_yes / if_no -> severity + action + short note). Only ask when the answer
+  changes the outcome — never when it's bad either way or fine either way. One
+  decisive question beats three weak ones.
+
+This is a SELF-AUDIT tool. Frame everything as defensive guidance to the owner —
+never as how to attack someone.
+
+{taxonomy_prompt_block()}"""
+
+TRIAGE_SYSTEM = f"""You are the fast triage layer for Aresis, a self-audit exposure
+scanner. For each evidence cluster, assign a provisional severity and decide
+whether it needs a deeper look. Bias HARD toward escalation: if a cluster might
+be medium or worse, or its true severity depends on context you can't see, set
+escalate=true. Missing a real risk is far worse than escalating a harmless one.
+Be terse.
+
+{_SEVERITY}
 
 {taxonomy_prompt_block()}"""
 
 
+def _cached(text: str) -> list[dict]:
+    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
+
+
 def judge_system_blocks() -> list[dict]:
-    """System prompt as a single cached text block."""
-    return [{"type": "text", "text": JUDGE_SYSTEM, "cache_control": {"type": "ephemeral"}}]
+    return _cached(JUDGE_SYSTEM)
+
+
+def triage_system_blocks() -> list[dict]:
+    return _cached(TRIAGE_SYSTEM)

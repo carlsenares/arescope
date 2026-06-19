@@ -69,28 +69,34 @@ def _persist_report(scan_id: str, report: ScanReport) -> None:
             "coverage_gaps": [g.model_dump() for g in report.coverage_gaps],
         }
         for jf in report.findings:
+            v = jf.verdict
             signal_ids: list[str] = []
-            for sig in jf.evidence.signals:
-                row = models.Signal(
-                    scan_id=scan_id,
-                    source=sig.source,
-                    kind=sig.kind,
-                    locator=sig.locator,
-                    raw=sig.raw,
-                )
-                s.add(row)
-                s.flush()
-                signal_ids.append(row.id)
+            for ev in jf.cluster.members:
+                for sig in ev.signals:
+                    row = models.Signal(
+                        scan_id=scan_id,
+                        source=sig.source,
+                        kind=sig.kind,
+                        locator=sig.locator,
+                        raw=sig.raw,
+                    )
+                    s.add(row)
+                    s.flush()
+                    signal_ids.append(row.id)
 
-            f = jf.finding
             finding_row = models.Finding(
                 scan_id=scan_id,
                 signal_ids=signal_ids,
-                category=f.category.value,
-                severity=f.severity.value,
-                title=f.title,
-                rationale=f.rationale,
-                confidence=f.confidence,
+                category=v.category.value,
+                severity=v.severity.value,
+                title=v.title,
+                rationale=v.rationale,
+                confidence=v.confidence,
+                action=v.action.value,
+                fix_difficulty=v.fix_difficulty.value if v.fix_difficulty else None,
+                easy_fix=v.easy_fix,
+                questions=[q.model_dump() for q in v.questions],
+                member_locators=jf.cluster.member_locators,
             )
             s.add(finding_row)
             s.flush()
