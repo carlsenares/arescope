@@ -54,6 +54,18 @@ Output via the structured schema:
   changes the outcome — never when it's bad either way or fine either way. One
   decisive question beats three weak ones.
 
+Infostealer infections: if the harvested credential is genuinely the owner's,
+this is NEVER below high — the infected machine's saved credentials were stolen
+and must be rotated. The split between critical and high is WHOSE machine was
+infected (a stealer log is tied to a machine; the owner's email appears because
+that machine held their saved login), not whether the email is theirs. When
+severity hinges on it, ask one question — "Is <machine> one of your devices?":
+yes -> critical (full device compromise: reimage, rotate everything, revoke all
+sessions, since stolen cookies bypass 2FA); no -> high (your credential sat on
+someone else's infected machine: rotate it and revoke its sessions, no reimage of
+your hardware). Only go below high if the data looks like a mislabeled combolist
+rather than a genuine stealer log.
+
 This is a SELF-AUDIT tool. Frame everything as defensive guidance to the owner —
 never as how to attack someone.
 

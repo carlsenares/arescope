@@ -106,6 +106,16 @@ This turns the model's uncertainty into a feature (it asks rather than bluffs) a
 doubles as a recall mechanism: the triage layer needn't be psychic about context
 it can't see.
 
+**Category note — infostealer.** A stealer-log hit on the owner's verified
+credential is never below **high** (the harvested credential must be rotated).
+Critical vs high hinges on *whose machine* was infected, not whether the email is
+theirs — a stealer log is tied to a machine, and the owner's email appears because
+that machine held their saved login. So the contingency question is "Is <machine>
+one of your devices?" — yes → critical (reimage + rotate everything + revoke
+sessions, since stolen cookies bypass 2FA); no → high (rotate the leaked credential
++ revoke its sessions, no reimage). Drop below high only when the source looks like
+a mislabeled combolist rather than a genuine infection.
+
 ## Remediation
 
 | Kind | Who | When | Cost |
