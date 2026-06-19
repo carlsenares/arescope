@@ -26,8 +26,11 @@ adding a thin gate + per-user storage on top (never a rewrite). See `ARCHITECTUR
 - Connector resilience: backoff, coverage-gap reporting, optional outbound proxy.
 
 ## Phase 2 — Turn it into a service
-- **Auth + ownership verification** (the gate flips from no-op to mandatory): email magic-link
-  / username-bio-token / domain proof before any scan runs.
+- **Auth + ownership verification** (the gate flips from no-op to mandatory). Per-input proof,
+  fields optional & independently verified — full design in `OWNERSHIP_VERIFICATION.md`:
+  email = magic-link; username = OAuth (bio-token fallback) + linked verified email;
+  ip = source-match, residential/mobile only. Name never seeds a scan (filter-only).
+  Detailed, explained error states (ⓘ → "why we verify" page).
 - Multi-tenant: populate + enforce `user_id`; per-user isolation + encryption.
 - Next.js frontend (matches the ares house style) for input, report, and the remediation
   checklist.
@@ -40,7 +43,21 @@ adding a thin gate + per-user storage on top (never a rewrite). See `ARCHITECTUR
 - Scheduled re-scans + "exposure score over time" tracking.
 - Alerting on new breaches/leaks for monitored identifiers.
 
+## Phase 4 — Aresis for Business (expansion)
+Audit a **non-person entity** (company / domain / brand / infrastructure), not an individual.
+This is where the inputs *deferred from personal* become first-class — same engine, the gate
+just swaps strategy. The portability rules (nullable `user_id`, config-gated connectors,
+ownership-gate-as-strategy) already support it; this is additive, not a rewrite.
+- **Ownership proof = DNS-TXT domain control** — one robust standard proof legitimately unlocks
+  the domain, its IP ranges, and its corporate mailboxes.
+- Sources that personal excludes become core: HIBP `breachedDomain` (which company addresses are
+  breached), Hudson Rock domain infostealer, Shodan/Censys attack-surface on datacenter IPs,
+  leaked-secret + typosquat/brand monitoring.
+- Tailored business report (asset inventory + exposure posture over time), org-level billing.
+
 ## Non-goals
 - People-search / investigating others. Self-audit only (legal + positioning).
 - Fully automated login-and-change-settings remediation (T3 outside data-broker opt-outs).
 - Storing user account credentials.
+- **Business edition scans the org's own assets only** — employee-exposure angles stay
+  consent/authorization-gated (the company's HR/legal call), never ad-hoc people-search.
