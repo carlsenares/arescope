@@ -33,12 +33,21 @@ adding a thin gate + per-user storage on top (never a rewrite). See `ARCHITECTUR
   Detailed, explained error states (ⓘ → "why we verify" page).
 - Multi-tenant: populate + enforce `user_id`; per-user isolation + encryption.
 - Next.js frontend (matches the ares house style) for input, report, and the remediation
-  checklist.
+  checklist — including the **identity graph** (colour-coded by severity; every node anchored
+  to the verified identity, so it visualises how much is exposed + how it connects). See
+  `POSITIONING.md` for why this is a differentiator.
 - Billing + the legal layer (ToS, consent, data-processing terms) — required before opening up.
 - **Automated remediation, scoped:** data-broker opt-out submission (T2→T3, the Incogni/DeleteMe
   model). *Not* automated changes to arbitrary user accounts.
 
 ## Phase 3 — Optional extensions
+- **Data-broker (#7) opt-out:** surface people-search listings (name + location as removal
+  *targets*, not a search seed) and generate the opt-out/GDPR artifact. Complements, does not
+  out-cover, Incogni/DeleteMe (`POSITIONING.md`).
+- **Content/post exposure:** flag PII the user over-shared through their *own* accounts
+  (address in a bio, phone in a photo, travel plans). Read via **OAuth-connected accounts**
+  (their own posts, via the platform API — no scraping/ToS issues), never by scraping arbitrary
+  profiles. Owned-accounts-only keeps it self-audit.
 - Face/photo exposure (#9) via FaceCheck.ID or manual Pimeyes, with strict consent gating.
 - Scheduled re-scans + "exposure score over time" tracking.
 - Alerting on new breaches/leaks for monitored identifiers.

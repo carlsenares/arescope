@@ -1,87 +1,107 @@
 # Aresis — Ownership Verification (anti-abuse)
 
 Aresis is a **self-audit** tool. The single thing that keeps it from being a
-people-search / stalking tool is the **ownership gate**: you can only scan an
-identifier you can prove is yours. This doc defines how that proof works per
-input. It's a no-op in P0 (operator asserts ownership) and becomes mandatory as
-the pluggable `VerifyOwnership` strategy in P2 (`ARCHITECTURE.md` §4.2).
+people-search / stalking tool is the **ownership gate**: you only ever get
+information about identities you can prove are yours. This doc is the final model.
+It's a no-op in P0 (operator asserts ownership) and becomes mandatory as the
+pluggable `VerifyOwnership` strategy in P2 (`ARCHITECTURE.md` §4.2).
 
 ## Why gate at all, if the underlying tools are public?
 
-HIBP, Maigret, Hudson Rock and Shodan are each usable without proof. So why add
-friction? Because **the harm is the aggregation, not the single lookup**. Aresis
-combines those sources, correlates across identifiers, runs an LLM that
-synthesizes the result into a readable dossier, and proposes actions. By hand
-that takes skill and an afternoon; unguarded, we turn it into one click.
+HIBP, Maigret, Hudson Rock and Shodan are each usable without proof. We gate
+because **the harm is the aggregation, not the single lookup**: Aresis combines
+those sources, builds an identity graph, runs an LLM that synthesizes a readable
+dossier, and proposes actions. By hand that takes skill and an afternoon;
+unguarded, we'd turn it into one click. The gate doesn't try to prevent what's
+possible elsewhere (a determined attacker uses the raw tools, and then *they* did
+it) — it keeps **us** from being a people-search operator, removes the
+casual-abuse easy button, and lets us honestly call it self-audit.
 
-The gate is therefore **not** trying to prevent what's technically possible
-elsewhere — a determined attacker will go use the raw tools, and then *they* did
-it. The gate exists to:
+**Design rule:** strictness scales with *how much non-public harm an input
+unlocks*. Infostealer logs and handle de-anonymization (not cheaply public) are
+strict; data-broker listings (already a $5 public purchase) are looser.
 
-1. Keep **us** from *being* a people-search operator (legal, reputational, ethical).
-2. Remove the **casual-abuse easy button** — almost all real abuse is low-effort
-   and opportunistic (ex, coworker). Light friction filters those out while barely
-   touching a legitimate self-auditor who actually owns the input.
-3. Let us honestly call it self-audit.
+## The core model: seeds vs. filters
 
-**Design rule that keeps it easy:** verification strength scales with the
-*marginal harm we add* and *how much the input exposes a third party*. Not every
-field gets the same gate, and no unverified identifier may ever **seed** a scan.
+A username is not an ownable global identifier — the only thing any proof can
+establish is "I control account-with-handle-H on platform-Y right now," never "H
+is mine across the internet." So we split inputs:
 
-## Fields are optional and independently verified
+- **Seeds** — provable ownership, *key* a search:
+  - **email** → verified by **magic-link / OTP** (control = receiving mail; the
+    only proof that fits an email — no public profile to inspect).
+  - **ip** → verified by **source-IP match** (we only scan the IP you're
+    connecting from) **and residential/mobile only** (IP→ASN→usage-type via
+    IPinfo/MaxMind; datacenter/hosting/VPN excluded for a personal audit).
+    Misclassification (e.g. a VPN user) is a *benign block*, never a stranger scan.
+- **Filters** — refine/label seeded results, *never* seed a search:
+  - **username**, **name**.
 
-Every identifier is verified and scannable on its own — IP-only, email-only, etc.
-There is **no universal email requirement**. The one coupling: scanning a
-**username** requires a linked, verified email as a correlation anchor (a bare
-username is the core stalking vector).
+### How username works without becoming a stalking tool
 
-## Per-input verification
+Username findings are surfaced two safe ways, never by bare enumeration of a
+user-typed handle:
 
-| Input | Tools → what they expose | Proof of ownership | Effort |
-|---|---|---|---|
-| **email** | HIBP, Holehe, Hudson Rock → breach creds, infostealer logs, site footprint | **Magic-link / OTP** sent to the address (control = receiving mail) | 1 click |
-| **username** | Maigret, Hudson Rock → whole cross-site footprint from one handle | **OAuth** ("Connect account") — primary; **bio-token** fallback. Plus a linked verified email. | 1–2 clicks |
-| **ip** | Shodan → exposed services / ports / CVEs of the host | **Source-IP match** (scan only the IP you're connecting from) **and residential/mobile only** | 0–1 step |
-| **name** | *No connector consumes it yet*; future data-broker (#7) filter | **None — filter-only, never seeds a scan** | 0 |
-| **photo/face** | (deferred) FaceCheck/Pimeyes → find-by-face | **Liveness selfie-match** only | (deferred) |
+1. **Derived from a seed (the main path).** When the verified email's records
+   (HIBP / Hudson Rock / Epieos) *contain* a username, that handle is corroborated
+   to the user. We can then safely pivot — e.g. run Maigret on that derived handle
+   to map the user's *other* accounts — because an attacker can't fabricate a
+   breach record linking *their* verified email to a *victim's* handle. Residual:
+   handle collisions surface a stranger's account → flagged "we think this is
+   yours; confirm" (a contingency question).
+2. **Strict co-occurrence (user supplies username + email).** A user-typed
+   username only yields findings where that handle and the verified email *actually
+   appear together* in real evidence. Un-trickable: renaming an account doesn't
+   help, because the data — not the assertion — proves the link.
 
-### Mechanisms in detail
+OAuth / bio-token only ever *confirm a specific account you control*; they do not
+license bare enumeration. (Multi-email reality: verifying email A shows the A-half;
+the B-half needs email B verified — run per combo.)
 
-- **Magic-link / OTP (email).** Standard. The only proof that fits an email,
-  since an email account has no public profile to inspect. Covers Gmail et al.
-- **OAuth (username — primary).** Google, GitHub, Microsoft, Reddit, Discord,
-  Apple, LinkedIn, X all offer free OAuth. One click returns a cryptographically
-  definite "this account is mine," usually with the verified email + handle. For
-  Google/Microsoft it also satisfies the email proof. Cost: register an OAuth app
-  per provider (basic profile/email scope — light).
-  - *Honest limit:* OAuth proves the handle on **that provider**. Maigret may surface
-    the same handle elsewhere that isn't the same person — results are framed
-    "accounts matching your handle (some may not be you)."
-- **Bio-token (username — fallback).** We issue a random token
-  (`aresis-verify-<rand>`); the user pastes it into a **public profile bio**; we
-  fetch the public page and confirm. Proves control because only the owner edits
-  the bio. **Only works on platforms with a public, editable profile** (X, GitHub,
-  Reddit, Instagram…) — *not* email accounts.
-- **Source-IP match (ip).** The server already sees the IP you connect from; we
-  only scan that one. Being *on* a network isn't owning it, so we additionally
-  require the IP to classify as **residential/mobile** (IP→ASN→usage-type via
-  IPinfo/MaxMind). Datacenter/hosting/VPN IPs are excluded — consistent with a
-  personal audit, and the classification catches the datacenter case reliably.
-  Misclassification (e.g. a VPN user) yields a *benign block*, never a stranger
-  scan, and is explained in the error (below).
-- **Name — no verification.** A name can't be owned and never seeds a search; it
-  only disambiguates results already anchored to a verified email/username
-  ("which John Smith"). No ID/document upload — that's antithetical to a privacy
-  tool and unnecessary given filter-only use.
+### Name
+
+Filter only — disambiguates results already anchored to a seed ("which John
+Smith"). Never seeds a search. **No ID/document upload** — antithetical to a
+privacy tool, and ID proves your legal name, not *which* leaked record is yours,
+so it doesn't even solve the problem.
+
+### Data brokers (#7) — the one looser category
+
+Brokers (Spokeo, WhitePages, Radaris, Acxiom…) are keyed on name + location, which
+email can't reach. So this is a distinct **removal-oriented** feature, not a
+people-search seed: the user supplies name + address as *removal targets*, the
+output is self-disambiguated (you recognise your own listing), and the action is
+**opt-out**. Abuse is bounded because broker data is already cheaply public (low
+marginal harm), and a per-account **audit log + rate-limit** is the compensating
+control. We surface + generate the opt-out artifact; we do not try to out-cover
+the dedicated removal services (Incogni/DeleteMe/Optery) — see `POSITIONING.md`.
+
+## Accountability layer (enables the looser bits)
+
+A verified-identity account behind every search, a minimal **audit log**
+(who-searched-what, on the retention TTL), rate-limits, and anomaly flagging (one
+account fanning out across many distinct names/handles = the stalking signature).
+This is a *detective* control, not preventive — its job is to let us safely loosen
+(brokers, derived-pivot) while staying accountable. Logging is itself a privacy
+cost, so keep it minimal and TTL'd.
+
+## Residual gaps (accepted)
+
+- **Lost-email + username only:** if the only proof-bearing channel is gone, a
+  non-ownable handle can't be searched safely — that request is byte-for-byte a
+  stalker's. Accepted. (Active-threat findings stay reachable via *any* email seed
+  the user can still verify.)
+- **Pseudonymous handle, no email:** identical to a stalker's de-anonymization
+  query; for that exact request the feature would help the attacker more than the
+  owner (who already knows their own accounts). Not offered.
 
 ## Error UX — explain, don't just block
 
-Every blocked input or failed verification shows a **specific reason** plus an
-**ⓘ** linking to a *"Why Aresis verifies inputs"* page that explains the
-self-audit philosophy. Example:
+Every blocked input / failed verification shows a **specific reason** + an **ⓘ**
+linking to a *"Why Aresis verifies inputs"* page. Example:
 
 > **Can't run this IP scan.** `203.0.113.10` belongs to a hosting/VPN provider.
 > Personal audits only cover the residential connection you're currently using.
 > ⓘ Why? → /about/verification
 
-This is both UX and the public statement of the project's ethics.
+Both UX and the public statement of the project's ethics.
