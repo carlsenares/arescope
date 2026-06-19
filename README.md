@@ -8,12 +8,35 @@ digital footprint*, not investigating others.
 
 ## Status
 
-Pre-implementation. Currently: architecture + design docs only. See `docs/`.
+Phase 0 scaffold + Phase 1 pipeline built. The full path runs end to end:
+connectors → normalize → judge → T0/T1 remediation → report. Connectors:
+HIBP, Hudson Rock, Holehe, Maigret (hand-rolled, not SpiderFoot-backed — see below).
 
 - Phase 0 (now): private, single-user tool. No auth. Run scans on identifiers you own,
   to test the engine and build the findings → severity → remediation pipeline cheaply.
 - Phase 1+: optional auth + ownership verification turns it into a privacy SaaS. The
   engine is the same; only a thin gate and per-user storage are added. See `docs/ROADMAP.md`.
+
+**Collection-layer decision:** hand-rolled connectors, not a SpiderFoot sidecar. The four
+Phase-1 sources are trivial REST (HIBP, Hudson Rock) or in-process Python libs (Holehe,
+Maigret); a SpiderFoot service was more weight than the pipeline needs. Reversible — a
+SpiderFoot-backed connector slots into the same `Connector` interface later.
+
+## Running it
+
+```bash
+cp .env.example .env          # fill in ANTHROPIC_API_KEY + any connector keys
+pip install -e ".[dev]"
+
+# Fastest loop — synchronous scan, no Postgres/Redis, prints a Markdown report:
+python -m aresis.cli --email you@example.com --username you
+
+# Full async stack (api + celery + postgres + redis):
+docker compose up
+```
+
+Connectors degrade gracefully: a missing key logs a coverage gap, never a failed scan.
+So the CLI works with only `ANTHROPIC_API_KEY` set (Holehe/Maigret need no keys).
 
 ## Positioning (read this before building)
 
