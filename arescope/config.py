@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     encryption_key: str = ""
     retention_days: int = 30
 
+    # Web app + auth (self-hosted; no third-party identity provider — the product's
+    # data-minimization promise extends to its own accounts).
+    session_secret: str = "dev-insecure-change-me"  # signs the session cookie
+    session_max_age: int = 60 * 60 * 24 * 14  # 14 days; keeps users logged in
+    cookie_secure: bool = False  # set True behind HTTPS in production
+    base_url: str = "http://localhost:8000"
+
+    # Admin seed — consumed by `python -m arescope.cli create-admin`.
+    admin_email: str = ""
+    admin_username: str = ""
+    admin_password: str = ""
+
     # LLM. anthropic SDK reads ANTHROPIC_API_KEY itself (no ARESCOPE_ prefix).
     # Tiered (AI_PIPELINE.md): Haiku triages 100% of clusters, Opus judges the
     # escalated head + writes involved remediations.

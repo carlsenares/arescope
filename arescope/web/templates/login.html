@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Log in · Arescope{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <span class="eyebrow">Welcome back</span>
+  <h1>Log in</h1>
+  {% if error %}<p class="formerror">{{ error }}</p>{% endif %}
+  <form method="post" action="/login" class="form">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <input type="hidden" name="next" value="{{ next }}" />
+    <label>Email or username
+      <input type="text" name="identifier" autocomplete="username" required value="{{ values.identifier or '' }}" />
+    </label>
+    <label>Password
+      <input type="password" name="password" autocomplete="current-password" required />
+    </label>
+    <button class="btn btn-primary" type="submit">Log in</button>
+  </form>
+  <p class="muted swap">New here? <a href="/signup">Create an account</a>.</p>
+</section>
+{% endblock %}

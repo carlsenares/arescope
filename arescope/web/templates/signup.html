@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Sign up · Arescope{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <span class="eyebrow">Create account</span>
+  <h1>Start your self-audit</h1>
+  <p class="muted">You'll only ever scan identifiers you can prove are yours. Self-audit only, by design.</p>
+  {% if error %}<p class="formerror">{{ error }}</p>{% endif %}
+  <form method="post" action="/signup" class="form">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <input type="hidden" name="next" value="{{ next }}" />
+    <label>Email
+      <input type="email" name="email" autocomplete="email" required value="{{ values.email or '' }}" />
+    </label>
+    <label>Username
+      <input type="text" name="username" autocomplete="username" required value="{{ values.username or '' }}" />
+    </label>
+    <label>Password
+      <input type="password" name="password" autocomplete="new-password" minlength="8" required />
+      <small class="hint">At least 8 characters.</small>
+    </label>
+    <button class="btn btn-primary" type="submit">Create account</button>
+  </form>
+  <p class="muted swap">Already have an account? <a href="/login">Log in</a>.</p>
+</section>
+{% endblock %}

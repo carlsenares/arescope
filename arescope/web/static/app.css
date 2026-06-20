@@ -1,0 +1,343 @@
+/* Arescope app — shares the marketing site's tokens so it reads as one product.
+   Black + white, single toxic-green accent. OKLCH throughout. */
+
+@font-face {
+  font-family: 'Bricolage Grotesque Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('/app/static/fonts/bricolage.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Geist Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/app/static/fonts/geist.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Geist Mono Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/app/static/fonts/geist-mono.woff2') format('woff2');
+}
+
+:root {
+  --bg: oklch(0.04 0 0);
+  --surface: oklch(0.1 0 0);
+  --surface-2: oklch(0.15 0 0);
+  --ink: oklch(0.98 0 0);
+  --muted: oklch(0.72 0 0);
+  --faint: oklch(0.55 0 0);
+
+  --accent: oklch(0.86 0.26 143);
+  --accent-bright: oklch(0.91 0.28 142);
+  --accent-dim: oklch(0.52 0.16 144);
+  --accent-deep: oklch(0.46 0.16 146);
+  --matrix: oklch(0.78 0.24 145);
+  --matrix-glow: oklch(0.78 0.24 145 / 0.55);
+
+  --hairline: oklch(1 0 0 / 0.1);
+  --hairline-strong: oklch(1 0 0 / 0.18);
+
+  --sev-critical: oklch(0.64 0.2 18);
+  --sev-high: oklch(0.78 0.15 70);
+
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.3rem);
+  margin: 0.5rem 0 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+a:hover {
+  color: var(--accent-bright);
+}
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--ink);
+}
+:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.muted {
+  color: var(--muted);
+}
+.hint,
+small.hint {
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+.mono {
+  font-family: var(--font-mono);
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+/* ── app bar ── */
+.appbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 64px;
+  padding-inline: clamp(1rem, 0.5rem + 2vw, 2.5rem);
+  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in oklch, var(--bg) 80%, transparent);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+}
+.brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+.brand:hover {
+  color: var(--ink);
+}
+.appbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.navlink {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.who {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--faint);
+}
+.inline {
+  margin: 0;
+}
+
+/* ── layout ── */
+.appmain {
+  max-width: 720px;
+  margin-inline: auto;
+  padding: clamp(2rem, 1rem + 4vw, 4rem) clamp(1rem, 0.5rem + 2vw, 2rem);
+}
+.stack {
+  display: grid;
+  gap: 1.6rem;
+}
+.rowbetween {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* ── cards / forms ── */
+.auth-card {
+  max-width: 420px;
+  margin-inline: auto;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: clamp(1.4rem, 1rem + 1.5vw, 2.2rem);
+}
+.auth-card.wide {
+  max-width: 560px;
+}
+.auth-card h1 {
+  margin-bottom: 0.4rem;
+}
+.form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.4rem;
+}
+.form label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+.form input[type='text'],
+.form input[type='email'],
+.form input[type='password'] {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
+  padding: 0.7em 0.9em;
+  font: inherit;
+  transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+.form input::placeholder {
+  color: var(--faint);
+}
+.form input:focus-visible {
+  outline: none;
+  border-color: var(--accent-bright);
+  box-shadow: 0 0 0 3px oklch(0.86 0.26 143 / 0.25);
+}
+.check {
+  grid-auto-flow: column;
+  justify-content: start;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--muted);
+}
+.check input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+}
+.swap {
+  margin-top: 1.2rem;
+  font-size: 0.9rem;
+}
+.formerror {
+  margin-top: 1rem;
+  padding: 0.7em 0.9em;
+  border-radius: var(--radius-sm);
+  background: oklch(0.64 0.2 18 / 0.12);
+  border: 1px solid oklch(0.64 0.2 18 / 0.4);
+  color: oklch(0.85 0.08 18);
+  font-size: 0.88rem;
+}
+
+/* ── buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.8em 1.3em;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease), background 0.16s var(--ease),
+    border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+.btn-sm {
+  padding: 0.5em 0.9em;
+  font-size: 0.86rem;
+}
+.btn-primary {
+  background: var(--matrix);
+  color: oklch(0.08 0 0);
+}
+.btn-primary:hover {
+  background: var(--accent-bright);
+  color: oklch(0.08 0 0);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px -14px var(--matrix-glow);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+.btn-ghost:hover {
+  color: var(--ink);
+  border-color: var(--accent-dim);
+  transform: translateY(-1px);
+}
+
+/* ── scans table ── */
+.scans {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.scans th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--hairline);
+}
+.scans td {
+  padding: 0.8rem;
+  border-bottom: 1px solid var(--hairline);
+}
+.chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.25em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
+  color: var(--muted);
+}
+.chip-queued {
+  border-color: var(--hairline-strong);
+  color: var(--faint);
+}
+.chip-running {
+  border-color: oklch(0.78 0.15 70 / 0.5);
+  color: var(--sev-high);
+}
+.chip-complete {
+  border-color: var(--accent-dim);
+  color: var(--matrix);
+}
+.empty {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+  padding: 2rem;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--radius);
+}

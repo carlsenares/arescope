@@ -6,20 +6,44 @@ the engine + service layer.
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+import os
 
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from starlette.middleware.sessions import SessionMiddleware
+
+from arescope.config import get_settings
 from arescope.db import models
 from arescope.db.session import init_db, session_scope
 from arescope.schemas import Identifier
 from arescope.service import (
+    create_scan as create_scan_record,
     create_subject,
     generate_finding_remediation,
     resolve_finding,
 )
+from arescope.web.routes import APP_STATIC_DIR, router as web_router
 from arescope.worker.tasks import run_scan_task
 
+_cfg = get_settings()
+
 app = FastAPI(title="Arescope", version="0.1.0")
+
+# Signed session cookie (httpOnly) — carries only the user id; see arescope.auth.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_cfg.session_secret,
+    max_age=_cfg.session_max_age,
+    https_only=_cfg.cookie_secure,
+    same_site="lax",
+)
+
+# Server-rendered app pages (signup / login / dashboard / new scan).
+app.include_router(web_router)
+
+# App assets (its own stylesheet + fonts), served under /app/static.
+app.mount("/app/static", StaticFiles(directory=APP_STATIC_DIR), name="app-static")
 
 
 def _finding_dict(f: models.Finding) -> dict:
@@ -67,7 +91,8 @@ def create_scan(req: ScanRequest) -> ScanCreated:
         raise HTTPException(400, "at least one identifier required")
     # P0: operator asserts ownership of every identifier (gate is a no-op).
     subject_id = create_subject(req.identifiers)
-    task = run_scan_task.delay(subject_id)
+    scan_id = create_scan_record(subject_id)
+    task = run_scan_task.delay(scan_id)
     return ScanCreated(subject_id=subject_id, task_id=task.id)
 
 
@@ -128,3 +153,11 @@ def resolve_finding_endpoint(finding_id: str, req: ResolveRequest) -> dict:
 @app.get("/healthz")
 def healthz() -> dict:
     return {"ok": True}
+
+
+# The static marketing site (Astro build) is served LAST as a catch-all, so the
+# whole thing is one origin: app routes above win, everything else falls through
+# to the landing. Skipped if the site hasn't been built yet (API still runs).
+_DIST = os.path.join(os.path.dirname(__file__), "..", "..", "web", "dist")
+if os.path.isdir(_DIST):
+    app.mount("/", StaticFiles(directory=_DIST, html=True), name="site")

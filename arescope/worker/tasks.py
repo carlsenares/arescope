@@ -11,8 +11,8 @@ from arescope.worker.celery_app import celery_app
 
 
 @celery_app.task(name="arescope.run_scan")
-def run_scan_task(subject_id: str) -> str:
-    return run_and_store_scan(subject_id)
+def run_scan_task(scan_id: str) -> str:
+    return run_and_store_scan(scan_id)
 
 
 @celery_app.task(name="arescope.prune_expired")

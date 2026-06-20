@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from arescope.config import get_settings
@@ -39,7 +39,17 @@ def _expiry() -> datetime:
 class User(Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    # Account identity. email/username are unique; lookups use the lowercased form.
+    email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    username: Mapped[str] = mapped_column(String, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    display_name: Mapped[str | None] = mapped_column(String, nullable=True)  # profile
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # email_verified flips when magic-link / verification lands (additive, P1).
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    subjects: Mapped[list["Subject"]] = relationship(back_populates="user")
 
 
 class Subject(Base):
@@ -51,6 +61,7 @@ class Subject(Base):
     label: Mapped[str] = mapped_column(String, default="self")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
+    user: Mapped["User | None"] = relationship(back_populates="subjects")
     identifiers: Mapped[list["Identifier"]] = relationship(
         back_populates="subject", cascade="all, delete-orphan"
     )

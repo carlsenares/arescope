@@ -49,14 +49,33 @@ def create_subject(identifiers: list[IdentifierSchema], user_id: str | None = No
         return subject.id
 
 
-def run_and_store_scan(subject_id: str) -> str:
-    """Run a full scan for a subject and persist results. Returns scan_id."""
-    cfg = get_settings()
+def create_scan(subject_id: str) -> str:
+    """Create a queued scan row so it's visible the instant the user submits.
 
+    The worker picks it up and runs it; splitting create from run means the
+    dashboard shows a real record even before a worker is free.
+    """
     with session_scope() as s:
         subject = s.get(models.Subject, subject_id)
         if subject is None:
             raise ValueError(f"subject {subject_id} not found")
+        scan = models.Scan(subject_id=subject_id, status="queued")
+        s.add(scan)
+        s.flush()
+        return scan.id
+
+
+def run_and_store_scan(scan_id: str) -> str:
+    """Run the engine for a queued scan and persist results. Returns scan_id."""
+    cfg = get_settings()
+
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is None:
+            raise ValueError(f"scan {scan_id} not found")
+        subject = s.get(models.Subject, scan.subject_id)
+        if subject is None:
+            raise ValueError(f"subject {scan.subject_id} not found")
         identifiers = [
             IdentifierSchema(
                 type=InputType(i.type),
@@ -65,10 +84,7 @@ def run_and_store_scan(subject_id: str) -> str:
             )
             for i in subject.identifiers
         ]
-        scan = models.Scan(subject_id=subject_id, status="running")
-        s.add(scan)
-        s.flush()
-        scan_id = scan.id
+        scan.status = "running"
 
     report = run_scan(identifiers, cfg)
     _persist_report(scan_id, report)
