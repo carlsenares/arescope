@@ -2,14 +2,16 @@
 // The hero globe. A slowly Y-spinning dotted sphere with real continents
 // (land-point cloud sampled from an equirectangular mask at build time).
 //
-// On load it plays a ONE-TIME intro (~3s): the globe spins up, continent dots
-// materialise, and a red "datapoint network" forms — nodes pop in across the
-// land and straight geodesic lines (lying flat on the sphere's surface, not
-// bouncy arcs) draw between them into a dense connected graph. After the intro
-// the graph just rides the spin; nothing regenerates.
-//
-// The globe fills the viewport top-to-bottom on load and shrinks as the user
-// scrolls. Dependency-free; static settled frame under prefers-reduced-motion.
+// One-time intro, deliberately paced:
+//   1. continent dots + red datapoint nodes appear (~0–1.3s)
+//   2. brief pause
+//   3. a network GRAPH draws on slowly (~1.5–3.8s): a connected spanning tree
+//      plus a few long cross-ocean links. Straight geodesic lines that lie flat
+//      on the sphere surface — not bouncy arcs. It's a graph, not a mesh: the
+//      tree has no cycles, so no triangulated cells.
+// After the intro the finished graph just rides the spin (lines are static on
+// the surface and never re-draw). Constant size; no scroll coupling.
+// Static settled frame under prefers-reduced-motion.
 ---
 
 <canvas class="globe-canvas" aria-hidden="true"></canvas>
@@ -49,6 +51,15 @@
     const GRID = '120, 240, 110';
     const RED = '255, 52, 52';
 
+    // ---- intro timeline (ms) — dots first, then a slow line draw ----
+    const NODES = 46;
+    const NODE_SPREAD = 900; // red nodes finish popping ~1.3s
+    const NODE_DUR = 420;
+    const LINE_START = 1500; // pause after dots, then lines begin
+    const LINE_SPREAD = 1300; // edges staggered across this window
+    const EDGE_DUR = 1000; // each line draws slowly
+    const RK = 0.3; // constant radius factor (smaller than before)
+
     // ---- land base vectors ----
     const land: V[] = points.map(([lat, lng]) => {
       const la = lat * DEG;
@@ -57,20 +68,11 @@
       return { x: cl * Math.cos(lo), y: Math.sin(la), z: cl * Math.sin(lo) };
     });
 
-    // ---- intro timeline (ms) ----
-    const NODES = 60;
-    const SEG = 22; // samples per geodesic line
-    const DOT_FADE = 1100;
-    const NODE_SPREAD = 1700; // last node starts popping at ~1.9s
-    const NODE_DUR = 480;
-    const EDGE_LAG = 260; // edge waits this long after both endpoints
-    const EDGE_DUR = 760;
+    const dot = (a: V, b: V) => a.x * b.x + a.y * b.y + a.z * b.z;
+    const d2 = (a: V, b: V) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2;
+    const angle = (a: V, b: V) => Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
 
-    // ---- build the fixed network once ----
     // Farthest-point sampling → nodes spread evenly across every continent.
-    function d2(a: V, b: V) {
-      return (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2;
-    }
     function pickNodes(n: number): number[] {
       const start = (Math.random() * land.length) | 0;
       const chosen = [start];
@@ -92,14 +94,15 @@
       return chosen;
     }
 
+    // Geodesic samples between two unit vectors, resolution scaled to arc length
+    // so long lines stay smooth (no visible re-tessellation while spinning).
     function slerp(a: V, b: V): V[] {
-      let d = a.x * b.x + a.y * b.y + a.z * b.z;
-      d = Math.max(-1, Math.min(1, d));
-      const th = Math.acos(d);
+      const th = angle(a, b);
       const st = Math.sin(th);
+      const seg = Math.max(10, Math.min(64, Math.round(th / 0.1)));
       const pts: V[] = [];
-      for (let i = 0; i <= SEG; i++) {
-        const t = i / SEG;
+      for (let i = 0; i <= seg; i++) {
+        const t = i / seg;
         let s1: number;
         let s2: number;
         if (st < 1e-4) {
@@ -109,11 +112,7 @@
           s1 = Math.sin((1 - t) * th) / st;
           s2 = Math.sin(t * th) / st;
         }
-        pts.push({
-          x: a.x * s1 + b.x * s2,
-          y: a.y * s1 + b.y * s2,
-          z: a.z * s1 + b.z * s2,
-        });
+        pts.push({ x: a.x * s1 + b.x * s2, y: a.y * s1 + b.y * s2, z: a.z * s1 + b.z * s2 });
       }
       return pts;
     }
@@ -122,29 +121,55 @@
     const nodeV = nodeIdx.map((i) => land[i]);
     const nodeDelay = nodeV.map((_, i) => (i / NODES) * NODE_SPREAD);
 
-    type Edge = { a: number; b: number; pts: V[]; delay: number };
-    const edges: Edge[] = [];
-    const seen = new Set<string>();
-    for (let i = 0; i < NODES; i++) {
-      const order = [];
-      for (let j = 0; j < NODES; j++) if (j !== i) order.push({ j, d: d2(nodeV[i], nodeV[j]) });
-      order.sort((p, q) => p.d - q.d);
-      const k = 2 + (Math.random() < 0.28 ? 1 : 0);
-      for (let n = 0; n < k; n++) {
-        const j = order[n].j;
-        const key = i < j ? `${i}-${j}` : `${j}-${i}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        edges.push({
-          a: i,
-          b: j,
-          pts: slerp(nodeV[i], nodeV[j]),
-          delay: Math.max(nodeDelay[i], nodeDelay[j]) + EDGE_LAG,
-        });
+    // ---- build a graph (not a mesh) ----
+    // Spanning tree: attach each node (added in farthest-point order, so each is
+    // far from the rest) to a connected node — mostly the nearest, sometimes a
+    // random one, giving long hops. No cycles → reads as a graph, not cells.
+    type RawEdge = { a: number; b: number };
+    const raw: RawEdge[] = [];
+    const seenEdge = new Set<string>();
+    const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+    const conn = [0];
+    for (let i = 1; i < NODES; i++) {
+      let target = conn[0];
+      if (Math.random() < 0.62) {
+        let bd = Infinity;
+        for (const j of conn) {
+          const d = d2(nodeV[i], nodeV[j]);
+          if (d < bd) {
+            bd = d;
+            target = j;
+          }
+        }
+      } else {
+        target = conn[(Math.random() * conn.length) | 0]; // long hop
       }
+      raw.push({ a: i, b: target });
+      seenEdge.add(key(i, target));
+      conn.push(i);
+    }
+    // a handful of long cross-ocean links to emphasise global connectivity
+    let added = 0;
+    for (let t = 0; t < 300 && added < 7; t++) {
+      const a = (Math.random() * NODES) | 0;
+      const b = (Math.random() * NODES) | 0;
+      if (a === b || seenEdge.has(key(a, b))) continue;
+      if (angle(nodeV[a], nodeV[b]) < 1.45) continue; // require a genuinely long span
+      raw.push({ a, b });
+      seenEdge.add(key(a, b));
+      added++;
     }
 
-    // ---- viewport + scroll-driven scale ----
+    type Edge = { a: number; b: number; pts: V[]; delay: number };
+    const NE = raw.length;
+    const edges: Edge[] = raw.map((e, idx) => ({
+      a: e.a,
+      b: e.b,
+      pts: slerp(nodeV[e.a], nodeV[e.b]),
+      delay: LINE_START + (idx / NE) * LINE_SPREAD,
+    }));
+
+    // ---- viewport (constant size) ----
     let W = 0;
     let H = 0;
     let cx = 0;
@@ -161,13 +186,7 @@
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       cx = W / 2;
       cy = H / 2;
-    }
-    function computeR() {
-      const big = Math.min(H * 0.47, W * 0.5); // fills top-to-bottom
-      const small = Math.min(W, H) * 0.3; // a bit smaller after scroll
-      const p = Math.max(0, Math.min(1, scrollY / (H * 0.7)));
-      const e = p * p * (3 - 2 * p); // smoothstep
-      R = big + (small - big) * e;
+      R = Math.min(W, H) * RK;
     }
 
     // ---- rotation ----
@@ -203,7 +222,8 @@
     function drawEdge(e: Edge, now: number) {
       const p = smooth(clamp01((now - e.delay) / EDGE_DUR));
       if (p <= 0) return;
-      const upto = Math.max(1, Math.round(SEG * p));
+      const seg = e.pts.length - 1;
+      const upto = Math.max(1, Math.round(seg * p));
       const rp: { x: number; y: number; vis: boolean }[] = [];
       for (let i = 0; i <= upto; i++) {
         const r = rot(e.pts[i]);
@@ -212,16 +232,14 @@
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      // soft underglow
       ctx.shadowColor = `rgba(${RED}, 0.9)`;
       ctx.shadowBlur = 9;
       ctx.strokeStyle = `rgba(${RED}, 0.16)`;
-      ctx.lineWidth = Math.max(3.5, R * 0.018);
+      ctx.lineWidth = Math.max(3.5, R * 0.022);
       strokePoly(rp);
-      // bright core — kept clearly visible, not a solid cage
       ctx.shadowBlur = 5;
       ctx.strokeStyle = `rgba(${RED}, 0.92)`;
-      ctx.lineWidth = Math.max(1.9, R * 0.0095);
+      ctx.lineWidth = Math.max(1.9, R * 0.011);
       strokePoly(rp);
       ctx.restore();
     }
@@ -240,22 +258,16 @@
       ctx.shadowBlur = 12;
       ctx.fillStyle = `rgba(${RED}, ${a})`;
       ctx.beginPath();
-      ctx.arc(x, y, (2.2 + 1.8 * depth) * t, 0, 7);
+      ctx.arc(x, y, (2.4 + 1.9 * depth) * t, 0, 7);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.fillStyle = `rgba(255, 210, 210, ${a * 0.9})`;
       ctx.beginPath();
-      ctx.arc(x, y, (0.8 + 0.6 * depth) * t, 0, 7);
+      ctx.arc(x, y, (0.9 + 0.7 * depth) * t, 0, 7);
       ctx.fill();
       ctx.restore();
     }
 
-    function drawGraticule() {
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = `rgba(${GRID}, 0.06)`;
-      for (let lng = -150; lng <= 180; lng += 30) drawRing('m', lng);
-      for (let lat = -60; lat <= 60; lat += 30) drawRing('p', lat);
-    }
     function drawRing(kind: 'm' | 'p', deg: number) {
       ctx.beginPath();
       let pen = false;
@@ -284,12 +296,16 @@
       }
       ctx.stroke();
     }
+    function drawGraticule() {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(${GRID}, 0.06)`;
+      for (let lng = -150; lng <= 180; lng += 30) drawRing('m', lng);
+      for (let lat = -60; lat <= 60; lat += 30) drawRing('p', lat);
+    }
 
     function draw(now: number) {
-      computeR();
       ctx.clearRect(0, 0, W, H);
 
-      // atmosphere halo
       const halo = ctx.createRadialGradient(cx, cy, R * 0.85, cx, cy, R * 1.28);
       halo.addColorStop(0, `rgba(${GRID}, 0.10)`);
       halo.addColorStop(1, 'rgba(0,0,0,0)');
@@ -298,7 +314,6 @@
       ctx.arc(cx, cy, R * 1.28, 0, 7);
       ctx.fill();
 
-      // sphere body
       const body = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.35, R * 0.1, cx, cy, R);
       body.addColorStop(0, 'rgba(22, 30, 24, 0.95)');
       body.addColorStop(1, 'rgba(4, 6, 5, 0.98)');
@@ -309,7 +324,6 @@
 
       drawGraticule();
 
-      // land dots — sparkle in over the first ~1.1s
       for (let i = 0; i < land.length; i++) {
         const r = rot(land[i]);
         if (r.z <= 0.02) continue;
@@ -321,14 +335,12 @@
         ctx.fillRect(cx + r.x * R - size / 2, cy - r.y * R - size / 2, size, size);
       }
 
-      // green rim
       ctx.strokeStyle = `rgba(${GRID}, 0.18)`;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(cx, cy, R, 0, 7);
       ctx.stroke();
 
-      // network
       for (const e of edges) drawEdge(e, now);
       for (let i = 0; i < NODES; i++) drawNode(i, now);
     }
@@ -345,7 +357,7 @@
       const dt = prev ? ts - prev : 16;
       prev = ts;
       clock += dt;
-      spin += dt * 0.00011; // slow Y rotation
+      spin += dt * 0.0001;
       draw(clock);
       if (!live) {
         live = true;
@@ -366,23 +378,23 @@
 
     metrics();
     let rt: number;
-    addEventListener('resize', () => {
-      clearTimeout(rt);
-      rt = window.setTimeout(metrics, 150);
-    });
 
     if (reduce) {
-      // static settled frame; redraw only on scroll/resize for the shrink
-      const settled = 99999;
-      const render = () => draw(settled);
+      const render = () => draw(99999);
       render();
       canvas.classList.add('is-live');
-      addEventListener('scroll', render, { passive: true });
       addEventListener('resize', () => {
-        metrics();
-        render();
+        clearTimeout(rt);
+        rt = window.setTimeout(() => {
+          metrics();
+          render();
+        }, 150);
       });
     } else {
+      addEventListener('resize', () => {
+        clearTimeout(rt);
+        rt = window.setTimeout(metrics, 150);
+      });
       const io = new IntersectionObserver(
         (entries) => {
           if (entries[0].isIntersecting && !document.hidden) start();

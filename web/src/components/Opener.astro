@@ -10,11 +10,7 @@ import Globe from './Globe.astro';
   <div class="opener-vignette" aria-hidden="true"></div>
 
   <div class="opener-inner">
-    <h1 class="tagline">
-      <span style="--i:0">Protect</span>
-      <span style="--i:1">your</span>
-      <span style="--i:2">privacy.</span>
-    </h1>
+    <h1 class="tagline">See what the internet knows about you.</h1>
   </div>
 
   <a class="scroll-cue" href="#how" aria-label="Scroll to learn more">
@@ -39,10 +35,10 @@ import Globe from './Globe.astro';
     inset: 0;
     z-index: 1;
     background: radial-gradient(
-      ellipse 48% 32% at 50% 56%,
-      oklch(0 0 0 / 0.74) 0%,
-      oklch(0 0 0 / 0.4) 45%,
-      transparent 72%
+      ellipse 34% 24% at 50% 50%,
+      oklch(0 0 0 / 0.72) 0%,
+      oklch(0 0 0 / 0.35) 50%,
+      transparent 75%
     );
     pointer-events: none;
   }
@@ -52,25 +48,22 @@ import Globe from './Globe.astro';
     z-index: 2;
     text-align: center;
     padding-inline: var(--gutter);
-    /* nudge below the globe's equator so the wordmark/network breathe above */
-    margin-top: clamp(2rem, 8vh, 6rem);
   }
 
-  /* ---- tagline (appears after the brand reveal) ---- */
+  /* ---- slogan: a restrained subhead so the globe stays the hero; rises in
+     after the wordmark finishes writing ---- */
   .tagline {
     font-family: var(--font-display);
-    font-size: clamp(2.4rem, 1.4rem + 4.6vw, 5rem);
-    font-weight: 650;
-    letter-spacing: -0.035em;
-    line-height: 1;
-    margin: 0;
-  }
-  .tagline span {
-    display: inline-block;
+    font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.3rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+    margin: 0 auto;
+    max-width: 16ch;
+    text-shadow: 0 2px 24px oklch(0 0 0 / 0.7);
     opacity: 0;
     transform: translateY(18px);
-    animation: rise 0.7s var(--ease) forwards;
-    animation-delay: calc(3.4s + var(--i) * 0.1s);
+    animation: rise 0.8s var(--ease) 4.9s forwards;
   }
   @keyframes rise {
     to {
@@ -96,7 +89,7 @@ import Globe from './Globe.astro';
     text-transform: uppercase;
     color: var(--faint);
     opacity: 0;
-    animation: rise 0.7s var(--ease) 4s forwards;
+    animation: rise 0.7s var(--ease) 5.5s forwards;
   }
   .scroll-cue:hover {
     color: var(--muted);
@@ -105,7 +98,7 @@ import Globe from './Globe.astro';
     width: 1px;
     height: 34px;
     background: linear-gradient(var(--accent-bright), transparent);
-    animation: cue 1.8s var(--ease) 4.4s infinite;
+    animation: cue 1.8s var(--ease) 5.9s infinite;
     transform-origin: top;
   }
   @keyframes cue {
@@ -121,7 +114,7 @@ import Globe from './Globe.astro';
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .tagline span,
+    .tagline,
     .scroll-cue,
     .scroll-cue i {
       opacity: 1;

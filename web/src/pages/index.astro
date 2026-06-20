@@ -47,13 +47,13 @@ const steps = [
   <header class="nav">
     <div class="container nav-inner">
       <a class="brand" href="/" aria-label="Arescope home">
-        <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
+        <svg class="brand-mark" viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
           <circle cx="16" cy="16" r="8.5" fill="none" stroke="var(--accent-bright)"
                   stroke-width="2.4" stroke-dasharray="40 14" stroke-dashoffset="6"
                   stroke-linecap="round" transform="rotate(-45 16 16)" />
           <circle cx="16" cy="16" r="2.3" fill="var(--accent-bright)" />
         </svg>
-        <span>arescope</span>
+        <span class="word"><span class="txt">arescope</span><i class="caret" aria-hidden="true"></i></span>
       </a>
       <nav class="nav-links" aria-label="Primary">
         <a href="#how">How it works</a>
@@ -232,30 +232,100 @@ const steps = [
 
 <style>
   /* ───── nav ───── */
-  /* fixed so the hero globe can fill the viewport top-to-bottom; the whole bar
-     fades in once the globe intro settles (~3s) — "arescope" arrives top-left. */
+  /* Fixed so the hero globe owns the viewport. Nothing shows during the globe
+     intro; once it settles (~3.8s) the bar fades in, then "arescope" writes
+     itself in top-left (caret wipe), then the links/CTA arrive. */
   .nav {
     position: fixed;
     inset: 0 0 auto 0;
     z-index: 50;
     backdrop-filter: blur(12px);
-    background: color-mix(in oklch, var(--bg) 70%, transparent);
-    border-bottom: 1px solid var(--hairline);
-    opacity: 0;
-    transform: translateY(-10px);
-    animation: nav-in 0.8s var(--ease) 3s forwards;
+    background-color: transparent;
+    border-bottom: 1px solid transparent;
+    animation: bar-in 0.6s var(--ease) 3.8s forwards;
   }
-  @keyframes nav-in {
+  @keyframes bar-in {
+    to {
+      background-color: color-mix(in oklch, var(--bg) 70%, transparent);
+      border-bottom-color: var(--hairline);
+    }
+  }
+  .brand-mark {
+    opacity: 0;
+    transform: scale(0.6);
+    animation: mark-in 0.5s var(--ease) 3.8s forwards;
+  }
+  @keyframes mark-in {
     to {
       opacity: 1;
       transform: none;
     }
   }
+  .word {
+    position: relative;
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .word .txt {
+    display: inline-block;
+    clip-path: inset(0 100% 0 0);
+    animation: type 0.85s linear 3.95s forwards;
+  }
+  @keyframes type {
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+  .word .caret {
+    position: absolute;
+    top: 14%;
+    bottom: 14%;
+    left: 0;
+    width: 2px;
+    background: var(--accent-bright);
+    opacity: 0;
+    animation: caret 0.85s linear 3.95s forwards;
+  }
+  @keyframes caret {
+    0% {
+      left: 0;
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      left: 100%;
+      opacity: 0;
+    }
+  }
+  .nav-links,
+  .nav-cta {
+    opacity: 0;
+    animation: fade-in 0.6s var(--ease) 4.85s forwards;
+  }
+  @keyframes fade-in {
+    to {
+      opacity: 1;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .nav {
+    .nav,
+    .brand-mark,
+    .word .txt,
+    .nav-links,
+    .nav-cta {
       opacity: 1;
       transform: none;
+      clip-path: none;
       animation: none;
+    }
+    .nav {
+      background-color: color-mix(in oklch, var(--bg) 70%, transparent);
+      border-bottom-color: var(--hairline);
+    }
+    .word .caret {
+      display: none;
     }
   }
   .nav-inner {
