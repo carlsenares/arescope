@@ -36,7 +36,7 @@ docker run --rm \
 echo "==> Writing HTTPS vhost..."
 cat > "$CONF" <<NGINX
 # ============================================================
-# Aresis — arescope.com (HTTPS). Additive vhost on insureai_nginx.
+# Arescope — arescope.com (HTTPS). Additive vhost on insureai_nginx.
 # Proxies to the static site container on the bridge gateway 172.18.0.1:$PORT
 # (deploy/docker-compose.web.yml). Static marketing site, no app/auth.
 # ============================================================

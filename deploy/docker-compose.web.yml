@@ -1,4 +1,4 @@
-# Aresis website (arescope.com) — static server.
+# Arescope website (arescope.com) — static server.
 #
 # Serves the built Astro site (web/dist) as a tiny standalone nginx, bound to the
 # docker bridge gateway 172.18.0.1:5190 (NOT a public interface). The shared

@@ -1,6 +1,6 @@
-# Aresis — Distribution & Business Model
+# Arescope — Distribution & Business Model
 
-How Aresis reaches a lot of people without losing money. The space is crowded
+How Arescope reaches a lot of people without losing money. The space is crowded
 (see `POSITIONING.md`), so the goal is **reach + break-even**, not margin
 maximization. Model: **open-core, AGPL**.
 
@@ -109,7 +109,7 @@ aggregation + correlation) stays the reason to pay for hosted.
 ## Open questions
 
 - Exact monthly cost + pricing model (flat vs PAYG) of Dehashed, Shodan, Epieos
-  at the tier Aresis needs — fill the real numbers into the break-even model.
+  at the tier Arescope needs — fill the real numbers into the break-even model.
 - Premium price point (the `$12` above is a placeholder) — set after measuring `F`.
 - Outbound proxy cost (rate-limit mitigation, see `TOOLS.md`) — a second smaller
   fixed cost to fold into `F` once username/email volume grows.

@@ -1,4 +1,4 @@
-# Deploying the Aresis site (arescope.com)
+# Deploying the Arescope site (arescope.com)
 
 The marketing site is a **static** Astro build (`web/dist`) served by a small
 dedicated nginx, reverse-proxied by the shared `insureai_nginx` gateway — the

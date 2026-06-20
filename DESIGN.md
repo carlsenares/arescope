@@ -1,6 +1,6 @@
 # Design
 
-Visual system for the Aresis brand site. Seeded pre-implementation; re-run
+Visual system for the Arescope brand site. Seeded pre-implementation; re-run
 `/impeccable document` once the site has real tokens to capture the built system.
 
 ## Theme

@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
+import Opener from '../components/Opener.astro';
 
 const findings = [
   {
@@ -64,51 +65,8 @@ const steps = [
   </header>
 
   <main>
-    <!-- ───────────────────────── hero ───────────────────────── -->
-    <section class="hero">
-      <div class="ambient" aria-hidden="true"></div>
-      <div class="container hero-grid">
-        <div class="hero-copy">
-          <span class="eyebrow">Personal exposure scanner</span>
-          <h1>See what's exposed.<br />Then shut it down.</h1>
-          <p class="prose hero-sub">
-            Arescope scans the identifiers you own: emails, usernames, your IP. It
-            checks them against breaches, infostealer logs, and public records,
-            judges every finding by real-world severity, and hands you the exact
-            fix. Built to shrink your footprint, not investigate anyone.
-          </p>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="#waitlist">Join the waitlist</a>
-            <a class="btn btn-ghost" href="#how">See how it works</a>
-          </div>
-          <p class="hero-note">
-            <span>Self-audit only</span><i></i><span>Ownership verified</span
-            ><i></i><span>PII encrypted</span>
-          </p>
-        </div>
-
-        <!-- show, don't tell: a real finding card -->
-        <aside class="hero-card reveal" aria-label="Example finding">
-          <div class="card finding">
-            <div class="finding-top">
-              <span class={`chip chip-critical`}>
-                <i class="dot"></i>Critical
-              </span>
-              <span class="finding-src">Hudson Rock · infostealer log</span>
-            </div>
-            <h3 class="finding-title">Credentials captured by infostealer malware</h3>
-            <p class="finding-detail">
-              3 logins exfiltrated from an infected device, including a reused
-              password.
-            </p>
-            <div class="finding-fix">
-              <span class="fix-label">Recommended fix</span>
-              <span class="fix-text">Rotate 3 passwords · enable 2FA · clean the device</span>
-            </div>
-          </div>
-        </aside>
-      </div>
-    </section>
+    <!-- ───────────────────────── opener ───────────────────────── -->
+    <Opener />
 
     <!-- ───────────────────────── how it works ───────────────────────── -->
     <section id="how" class="section">

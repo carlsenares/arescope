@@ -16,8 +16,8 @@ what's exposed and shut it down — not idle browsing.
 
 ## Product Purpose
 
-Aresis is a **personal exposure scanner + privacy remediation engine**. The user
-provides identifiers they own (name, username, email, photo, IP); Aresis runs
+Arescope is a **personal exposure scanner + privacy remediation engine**. The user
+provides identifiers they own (name, username, email, photo, IP); Arescope runs
 them through OSINT sources, an LLM judges each finding by real-world severity
 (info → critical), and it proposes concrete fixes for the dangerous ones. The
 goal is to **shrink the user's footprint, not investigate others.** Success =
@@ -43,7 +43,7 @@ capable hands"), never anxiety.
 This site must **not** look or feel like any of these:
 
 1. **Creepy OSINT / hacker tool** — terminal-green, dark-web aesthetic, "we found
-   EVERYTHING about them," surveillance / people-search framing. Aresis audits
+   EVERYTHING about them," surveillance / people-search framing. Arescope audits
    *your own* data; the design must make that unmistakable and never voyeuristic.
 2. **Fear-mongering security vendor** — red-alert FUD walls, "YOU ARE AT RISK!!!",
    scare-to-sell urgency, trust-badge/certification soup. We inform calmly; we
