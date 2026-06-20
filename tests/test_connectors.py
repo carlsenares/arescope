@@ -1,9 +1,9 @@
 """Connector gating + graceful degradation — the hard rule (ARCHITECTURE §4.5)."""
 
-from aresis.config import Settings
-from aresis.connectors.hibp import HIBPConnector
-from aresis.connectors.registry import available_connectors
-from aresis.schemas import InputType
+from arescope.config import Settings
+from arescope.connectors.hibp import HIBPConnector
+from arescope.connectors.registry import available_connectors
+from arescope.schemas import InputType
 
 
 def test_hibp_unavailable_without_key():
@@ -31,7 +31,7 @@ def test_available_connectors_respects_toggles():
 
 
 def test_connectors_declare_consumed_input_types():
-    from aresis.connectors.registry import REGISTRY
+    from arescope.connectors.registry import REGISTRY
 
     for connector in REGISTRY:
         assert connector.consumes

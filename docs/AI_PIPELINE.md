@@ -1,4 +1,4 @@
-# Aresis — AI Pipeline, Triage & Cost Model
+# Arescope — AI Pipeline, Triage & Cost Model
 
 How raw evidence becomes a prioritized set of severity-rated findings with fixes,
 while keeping LLM cost bounded and recall high. This is the core intelligence

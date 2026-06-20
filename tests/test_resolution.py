@@ -1,7 +1,7 @@
 """Contingency-question resolution — deterministic, free, no LLM."""
 
-from aresis.pipeline.resolution import resolve
-from aresis.schemas import (
+from arescope.pipeline.resolution import resolve
+from arescope.schemas import (
     ActionBucket,
     Category,
     ContingencyQuestion,

@@ -2,8 +2,8 @@
 
 from datetime import datetime, timezone
 
-from aresis.pipeline.clustering import cluster_evidence
-from aresis.schemas import Category, Evidence, InputType, Signal
+from arescope.pipeline.clustering import cluster_evidence
+from arescope.schemas import Category, Evidence, InputType, Signal
 
 YEAR = datetime.now(timezone.utc).year
 

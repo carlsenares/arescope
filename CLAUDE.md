@@ -1,4 +1,4 @@
-# CLAUDE.md — Aresis build context
+# CLAUDE.md — Arescope build context
 
 **What this is:** a personal exposure scanner + privacy remediation engine. Inputs you own
 (name, username(s), email(s), photo, IP) → OSINT sources → LLM judges each finding by
@@ -23,7 +23,7 @@ investigate others. Read `README.md` then `docs/` before writing code.
 
 ## Stack
 Python 3.12 · FastAPI · Celery + Redis · Postgres · Anthropic SDK. Mirrors InsureAI so it
-deploys behind the shared nginx on the consolidated server (vhost e.g. `aresis.<domain>`).
+deploys behind the shared nginx on the consolidated server (vhost e.g. `arescope.<domain>`).
 
 ## LLM
 - Judge (Signal→Finding+severity) and remediation: `claude-opus-4-8` with **structured

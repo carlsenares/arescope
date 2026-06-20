@@ -1,6 +1,6 @@
-# Aresis — Findings Taxonomy, Severity Model & Remediation
+# Arescope — Findings Taxonomy, Severity Model & Remediation
 
-This is the core of Aresis: the map from *what a source can surface* → *how dangerous it is*
+This is the core of Arescope: the map from *what a source can surface* → *how dangerous it is*
 → *what fix helps*. The LLM judge classifies each piece of evidence into one of these
 categories and assigns a severity using the rubric below; the remediation engine looks up
 the fix track for the category + severity.
@@ -47,7 +47,7 @@ Levels:
 | **T0 — Guidance** | Exact steps + deep links ("change password here", "close this port", "enable 2FA here"). | Easy, always works. | P1 (MVP) |
 | **T1 — Generated artifact** | Auto-draft the GDPR/CCPA deletion email, broker opt-out request, or takedown letter for the user to send. | Easy. High value. | P1.5 |
 | **T2 — Assisted flow** | Pre-filled opt-out forms; one-click deep-links into broker removal portals. | Medium. | P2 |
-| **T3 — Automated submission** | Aresis submits the opt-out/removal on the user's behalf (with permission). | Hard but viable **for data-broker opt-outs specifically** (#7). Avoid for arbitrary account changes — fragile, CAPTCHA/ToS/credential-liability. | P2+ (scoped to #7) |
+| **T3 — Automated submission** | Arescope submits the opt-out/removal on the user's behalf (with permission). | Hard but viable **for data-broker opt-outs specifically** (#7). Avoid for arbitrary account changes — fragile, CAPTCHA/ToS/credential-liability. | P2+ (scoped to #7) |
 
 **Design implication:** every `finding` gets a `remediation` with a `tier`. P1 ships T0+T1
 for all categories. Automation (T2/T3) is added later and *only* where it's safe and

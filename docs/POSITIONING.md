@@ -1,7 +1,7 @@
-# Aresis — Positioning (what it is, and how it differs from what exists)
+# Arescope — Positioning (what it is, and how it differs from what exists)
 
 Honest version. This is a **crowded space**: the components all exist, and some
-combinations of them exist commercially. Aresis's edge is a *specific combination*
+combinations of them exist commercially. Arescope's edge is a *specific combination*
 + an ethical posture, not a first-of-its-kind primitive. The near-term goal is a
 standout **portfolio** build (architecture + applied AI + security judgement), not
 to out-scale incumbents.
@@ -38,14 +38,14 @@ report + (planned) **identity graph** visualisation.
 - **Data-broker removal** — Incogni, DeleteMe, Optery, Onerep. Mature, automated,
   400–850 brokers. A *commodity* we will not out-cover.
 
-## Where Aresis is genuinely differentiated
+## Where Arescope is genuinely differentiated
 
 1. **Self-audit by design (the real moat).** The aggregators are dual-use and
-   ungated — structurally capable of doxxing. Aresis's seeds-vs-filters gate
+   ungated — structurally capable of doxxing. Arescope's seeds-vs-filters gate
    (`OWNERSHIP_VERIFICATION.md`) makes it *structurally unable* to be a
    people-search tool. That ethical posture is the identity and the Epieos story.
 2. **AI judgement depth, not a score.** Incumbents output a numeric exposure
-   score. Aresis runs an LLM judge that gives per-finding *rationale*, asks
+   score. Arescope runs an LLM judge that gives per-finding *rationale*, asks
    *contingency questions* that actually resolve severity, and writes *tailored*
    remediation/artifacts — judgement, not a gauge.
 3. **The identity graph.** Because every node is anchored to a verified identity,

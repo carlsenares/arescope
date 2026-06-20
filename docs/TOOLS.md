@@ -1,4 +1,4 @@
-# Aresis — OSINT Source Connectors
+# Arescope — OSINT Source Connectors
 
 Each source is a **connector**: declares the input types it consumes, runs its query, and
 emits normalized `Signal`s. Connectors are config-gated (API key / enabled flag) and must
@@ -24,7 +24,7 @@ degrade gracefully — a missing key or a rate-limit logs a coverage gap, never 
 
 **SpiderFoot already is an aggregator** (200+ modules incl. HIBP/Shodan/breach/username,
 with an API). Strongly consider running it as the **collection engine** for v1 and putting
-the Aresis judge + remediation layer on top, instead of hand-integrating every source. It
+the Arescope judge + remediation layer on top, instead of hand-integrating every source. It
 gets to a working pipeline far faster; replace individual modules with bespoke connectors
 later where precision matters. Decision to make at build time: SpiderFoot-backed vs
 hand-rolled connectors (or hybrid).

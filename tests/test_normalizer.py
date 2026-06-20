@@ -1,7 +1,7 @@
 """Normalizer dedup behaviour — pure code, no keys/network."""
 
-from aresis.pipeline.normalizer import normalize
-from aresis.schemas import InputType, Signal
+from arescope.pipeline.normalizer import normalize
+from arescope.schemas import InputType, Signal
 
 
 def _sig(source: str, kind: str, locator: str, value: str = "you@example.com") -> Signal:

@@ -7,8 +7,8 @@ the deterministic resolve() on top of it — no DB, no LLM.
 
 from types import SimpleNamespace
 
-from aresis.pipeline.resolution import resolve
-from aresis.schemas import (
+from arescope.pipeline.resolution import resolve
+from arescope.schemas import (
     ActionBucket,
     Category,
     FixDifficulty,
@@ -16,7 +16,7 @@ from aresis.schemas import (
     JudgedFinding,
     Severity,
 )
-from aresis.service import _cluster_from_row, _verdict_from_row
+from arescope.service import _cluster_from_row, _verdict_from_row
 
 
 def _depends_row():

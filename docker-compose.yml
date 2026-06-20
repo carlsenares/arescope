@@ -1,15 +1,15 @@
 # Mirrors InsureAI: api + celery_worker + redis + postgres, behind the shared
-# nginx as another vhost (aresis.<domain>). Self-hosted OSINT tools (holehe,
+# nginx as another vhost (arescope.<domain>). Self-hosted OSINT tools (holehe,
 # maigret) are vendored into the worker image via pyproject deps.
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: aresis
-      POSTGRES_PASSWORD: aresis
-      POSTGRES_DB: aresis
+      POSTGRES_USER: arescope
+      POSTGRES_PASSWORD: arescope
+      POSTGRES_DB: arescope
     volumes:
-      - aresis_pg:/var/lib/postgresql/data
+      - arescope_pg:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
@@ -20,23 +20,23 @@ services:
 
   api:
     build: .
-    command: uvicorn aresis.api.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn arescope.api.main:app --host 0.0.0.0 --port 8000
     env_file: .env
     environment:
-      ARESIS_DATABASE_URL: postgresql+psycopg://aresis:aresis@postgres:5432/aresis
-      ARESIS_REDIS_URL: redis://redis:6379/0
+      ARESCOPE_DATABASE_URL: postgresql+psycopg://arescope:arescope@postgres:5432/arescope
+      ARESCOPE_REDIS_URL: redis://redis:6379/0
     depends_on: [postgres, redis]
     ports:
       - "8000:8000"
 
   celery_worker:
     build: .
-    command: celery -A aresis.worker.celery_app.celery_app worker --loglevel=info
+    command: celery -A arescope.worker.celery_app.celery_app worker --loglevel=info
     env_file: .env
     environment:
-      ARESIS_DATABASE_URL: postgresql+psycopg://aresis:aresis@postgres:5432/aresis
-      ARESIS_REDIS_URL: redis://redis:6379/0
+      ARESCOPE_DATABASE_URL: postgresql+psycopg://arescope:arescope@postgres:5432/arescope
+      ARESCOPE_REDIS_URL: redis://redis:6379/0
     depends_on: [postgres, redis]
 
 volumes:
-  aresis_pg:
+  arescope_pg:

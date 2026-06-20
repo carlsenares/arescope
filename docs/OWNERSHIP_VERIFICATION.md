@@ -1,6 +1,6 @@
-# Aresis — Ownership Verification (anti-abuse)
+# Arescope — Ownership Verification (anti-abuse)
 
-Aresis is a **self-audit** tool. The single thing that keeps it from being a
+Arescope is a **self-audit** tool. The single thing that keeps it from being a
 people-search / stalking tool is the **ownership gate**: you only ever get
 information about identities you can prove are yours. This doc is the final model.
 It's a no-op in P0 (operator asserts ownership) and becomes mandatory as the
@@ -9,7 +9,7 @@ pluggable `VerifyOwnership` strategy in P2 (`ARCHITECTURE.md` §4.2).
 ## Why gate at all, if the underlying tools are public?
 
 HIBP, Maigret, Hudson Rock and Shodan are each usable without proof. We gate
-because **the harm is the aggregation, not the single lookup**: Aresis combines
+because **the harm is the aggregation, not the single lookup**: Arescope combines
 those sources, builds an identity graph, runs an LLM that synthesizes a readable
 dossier, and proposes actions. By hand that takes skill and an afternoon;
 unguarded, we'd turn it into one click. The gate doesn't try to prevent what's
@@ -98,7 +98,7 @@ cost, so keep it minimal and TTL'd.
 ## Error UX — explain, don't just block
 
 Every blocked input / failed verification shows a **specific reason** + an **ⓘ**
-linking to a *"Why Aresis verifies inputs"* page. Example:
+linking to a *"Why Arescope verifies inputs"* page. Example:
 
 > **Can't run this IP scan.** `203.0.113.10` belongs to a hosting/VPN provider.
 > Personal audits only cover the residential connection you're currently using.

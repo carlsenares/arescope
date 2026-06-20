@@ -1,4 +1,4 @@
-# Aresis — Architecture
+# Arescope — Architecture
 
 ## 1. Pipeline overview
 
@@ -107,5 +107,5 @@ remediation     (id, finding_id, tier, summary, steps jsonb, artifact?, status) 
 Containerized like InsureAI: `api`, `celery_worker`, `redis`, `postgres`, plus the OSINT
 tools either vendored into the worker image (Maigret/Sherlock/Holehe/GHunt are pip/CLI) or
 run as a sidecar (SpiderFoot). Sits behind the shared InsureAI nginx as another vhost
-(e.g. `aresis.<domain>`) on the consolidated server. Watch disk: cap scan/screenshot
+(e.g. `arescope.<domain>`) on the consolidated server. Watch disk: cap scan/screenshot
 retention; add outbound proxy support when single-IP rate-limiting starts to bite.

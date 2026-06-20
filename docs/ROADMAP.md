@@ -1,4 +1,4 @@
-# Aresis — Roadmap
+# Arescope — Roadmap
 
 Phased so the private tool and the eventual service are the *same engine*, with the service
 adding a thin gate + per-user storage on top (never a rewrite). See `ARCHITECTURE.md` §4.
@@ -52,7 +52,7 @@ adding a thin gate + per-user storage on top (never a rewrite). See `ARCHITECTUR
 - Scheduled re-scans + "exposure score over time" tracking.
 - Alerting on new breaches/leaks for monitored identifiers.
 
-## Phase 4 — Aresis for Business (expansion)
+## Phase 4 — Arescope for Business (expansion)
 Audit a **non-person entity** (company / domain / brand / infrastructure), not an individual.
 This is where the inputs *deferred from personal* become first-class — same engine, the gate
 just swaps strategy. The portability rules (nullable `user_id`, config-gated connectors,

@@ -1,6 +1,6 @@
-# Aresis
+# Arescope
 
-**Personal exposure scanner & privacy remediation engine.** Aresis takes a set of
+**Personal exposure scanner & privacy remediation engine.** Arescope takes a set of
 optional identifiers you own (name, username(s), email(s), photo, IP), runs them through
 a battery of OSINT sources, has an LLM judge each finding by severity (info → critical),
 and proposes concrete fixes for the dangerous ones — with the goal of *shrinking your
@@ -29,7 +29,7 @@ cp .env.example .env          # fill in ANTHROPIC_API_KEY + any connector keys
 pip install -e ".[dev]"
 
 # Fastest loop — synchronous scan, no Postgres/Redis, prints a Markdown report:
-python -m aresis.cli --email you@example.com --username you
+python -m arescope.cli --email you@example.com --username you
 
 # Full async stack (api + celery + postgres + redis):
 docker compose up
@@ -40,7 +40,7 @@ So the CLI works with only `ANTHROPIC_API_KEY` set (Holehe/Maigret need no keys)
 
 ## Positioning (read this before building)
 
-Aresis is a **self-audit** tool. It scans identifiers the operator owns or has consented
+Arescope is a **self-audit** tool. It scans identifiers the operator owns or has consented
 access to. It is **not** a people-search / investigation product — that direction is
 legally fraught (ToS, doxxing, payment processors) and low-value in everyday use. The
 ownership-verification gate (`docs/ARCHITECTURE.md` §Auth) is a no-op in Phase 0 (you

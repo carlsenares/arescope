@@ -1,8 +1,8 @@
 """Shodan connector gating + signal shape (no network)."""
 
-from aresis.config import Settings
-from aresis.connectors.shodan import ShodanConnector
-from aresis.schemas import InputType
+from arescope.config import Settings
+from arescope.connectors.shodan import ShodanConnector
+from arescope.schemas import InputType
 
 
 def test_shodan_unavailable_without_key():
@@ -18,6 +18,6 @@ def test_shodan_consumes_ip_only():
 
 
 def test_shodan_registered():
-    from aresis.connectors.registry import REGISTRY
+    from arescope.connectors.registry import REGISTRY
 
     assert any(c.name == "shodan" for c in REGISTRY)
