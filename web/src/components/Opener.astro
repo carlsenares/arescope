@@ -1,17 +1,16 @@
 ---
-// The opener: a full-viewport globe forms (its graph grows organically), then
-// the chrome arrives over it.
+// The opener: a full-viewport globe forms (its graph grows organically); near
+// the tail of that intro the masthead arrives over it.
 //
-// Top-left: the wordmark "ARESCOPE" drawn as true SVG vector outlines — each
-// letter is framed in dark toxic green (no fill), lines built cleanly with no
-// overlap. A single light travels through the whole word: a second, brighter
-// stroke layer revealed under a narrow band that sweeps across.
+// Centered masthead "ARESCOPE": true SVG vector outlines (dark toxic-green
+// frame, wide HUD tracking so strokes never touch — clean), lit by a single
+// green scan beam that sweeps through like a scanner pass, with two diagonal
+// reticle corner brackets framing it like a viewfinder. The product is a
+// "scope" — the wordmark behaves like one.
 //
-// Lower-left, detached and dropped down the viewport: a slogan whose final word
-// "you" decrypts in place in matrix-green, then the two CTAs.
-//
-// Top-right: log in / sign up. No nav bar, no scroll cue.
-// Dependency-free (no React/Tailwind); the static Astro build stays as-is.
+// Then the slogan reveals word-by-word down the vertical middle ("you" decrypts
+// in matrix-green), and the two CTAs follow. Auth sits top-right.
+// No nav bar, no scroll cue. Dependency-free; the static Astro build stays.
 import Globe from './Globe.astro';
 ---
 
@@ -26,22 +25,34 @@ import Globe from './Globe.astro';
   </nav>
 
   <div class="opener-inner">
-    <!-- top-left wordmark -->
+    <!-- centered masthead -->
     <h1 class="wordmark" aria-label="Arescope">
       <span class="brand">
-        <svg class="brand-svg base" viewBox="0 0 1000 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
-          <text x="3" y="124" textLength="994" lengthAdjust="spacing">ARESCOPE</text>
-        </svg>
-        <svg class="brand-svg light" viewBox="0 0 1000 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
-          <text x="3" y="124" textLength="994" lengthAdjust="spacing">ARESCOPE</text>
+        <!-- ONE outline only (no second layer = no doubled edges). The single
+             moving light is a bright band inside the stroke's gradient that
+             sweeps across the word, same technique as the ACET reference. -->
+        <svg class="brand-svg" viewBox="-8 -703 5880 747" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <defs>
+            <linearGradient id="ares-sweep" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="0">
+              <stop class="g-dim" offset="0" />
+              <stop class="g-dim" offset="0.4" />
+              <stop class="g-lit" offset="0.5" />
+              <stop class="g-dim" offset="0.6" />
+              <stop class="g-dim" offset="1" />
+              <animateTransform attributeName="gradientTransform" type="translate" from="-1 0" to="1 0" dur="4.5s" begin="4s" repeatCount="indefinite" />
+            </linearGradient>
+          </defs>
+          <path d="M4093 13.3Q4021 13.3 3964.7 -9.7Q3908.3 -32.7 3868.8 -76.5Q3829.3 -120.3 3809.2 -183.3Q3789 -246.3 3789 -327.3Q3789 -443.7 3828.5 -520.2Q3868 -596.7 3937.8 -635Q4007.7 -673.3 4096.3 -673.3Q4165.3 -673.3 4221.3 -650.8Q4277.3 -628.3 4317.3 -584.5Q4357.3 -540.7 4379.2 -476.2Q4401 -411.7 4401 -328.7Q4401 -246.3 4379.5 -182.8Q4358 -119.3 4318 -75.7Q4278 -32 4221.2 -9.3Q4164.3 13.3 4093 13.3ZM852.3 0V-660H1107.7Q1160.3 -660 1203.8 -651.7Q1247.3 -643.3 1280.8 -627.2Q1314.3 -611 1337.5 -587.7Q1360.7 -564.3 1372.5 -533.8Q1384.3 -503.3 1384.3 -466.3Q1384.3 -431.3 1373.5 -402.8Q1362.7 -374.3 1341 -353Q1319.3 -331.7 1286.5 -318.3Q1253.7 -305 1211 -299.3V-285.7Q1257.7 -280.3 1286.8 -263.2Q1316 -246 1334.2 -215.8Q1352.3 -185.7 1365.7 -139.3L1406 0H1267L1235.3 -128Q1226 -168.3 1207.5 -191.8Q1189 -215.3 1161 -225.7Q1133 -236 1093.3 -236H978.7V0ZM4621.3 0V-660H4871.3Q4935.3 -660 4986.5 -645Q5037.7 -630 5073.7 -600.8Q5109.7 -571.7 5128.5 -527.5Q5147.3 -483.3 5147.3 -425Q5147.3 -348.7 5112.7 -296.7Q5078 -244.7 5010.3 -218Q4942.7 -191.3 4842.7 -191.3H4747.7V0ZM22 0 250 -660H434.7L663 0H525.3L482.5 -136H202.4L159.7 0ZM2557.7 13.3Q2493.3 13.3 2442.3 0.5Q2391.3 -12.3 2355.5 -38.2Q2319.7 -64 2300.7 -103.3Q2281.7 -142.7 2281.3 -194L2393 -226.7Q2392.7 -179 2413.7 -147.7Q2434.7 -116.3 2473.7 -101Q2512.7 -85.7 2564 -85.7Q2613 -85.7 2646.8 -97.8Q2680.7 -110 2697.8 -130.7Q2715 -151.3 2715 -177Q2715 -206 2693.7 -223.7Q2672.3 -241.3 2636.7 -252.5Q2601 -263.7 2555.7 -273.7Q2507.3 -284.7 2460.5 -298Q2413.7 -311.3 2375.7 -333Q2337.7 -354.7 2315.5 -389.2Q2293.3 -423.7 2293.3 -476.7Q2293.3 -536.7 2323.7 -580.5Q2354 -624.3 2410.7 -648.8Q2467.3 -673.3 2547.7 -673.3Q2627.7 -673.3 2686.2 -649.5Q2744.7 -625.7 2777.8 -581.2Q2811 -536.7 2813.3 -474.3L2698.3 -443.7Q2698.7 -476 2687.8 -500.7Q2677 -525.3 2657.2 -541.5Q2637.3 -557.7 2609.5 -566Q2581.7 -574.3 2546.7 -574.3Q2505.3 -574.3 2475.2 -563Q2445 -551.7 2429.2 -532.3Q2413.3 -513 2413.3 -487Q2413.3 -455.3 2437 -436.3Q2460.7 -417.3 2500.5 -405.7Q2540.3 -394 2587 -383.3Q2630 -374.3 2673.7 -361.3Q2717.3 -348.3 2754.3 -327.2Q2791.3 -306 2813.8 -270.7Q2836.3 -235.3 2836.3 -181.3Q2836.3 -122.7 2805.3 -78.8Q2774.3 -35 2712.2 -10.8Q2650 13.3 2557.7 13.3ZM1611.3 0V-660H2103V-556.3H1738.3V-382.7H2055.7V-287H1738.3V-104.3H2105V0ZM5348.3 0V-660H5840V-556.3H5475.3V-382.7H5792.7V-287H5475.3V-104.3H5842V0ZM3342 13.3Q3267.3 13.3 3208.2 -8.2Q3149 -29.7 3107.7 -72.8Q3066.3 -116 3045.2 -178.2Q3024 -240.3 3024 -322.3Q3024 -406 3045.7 -470.8Q3067.3 -535.7 3108.7 -581.2Q3150 -626.7 3206.8 -650Q3263.7 -673.3 3333.7 -673.3Q3388.7 -673.3 3434.3 -659.2Q3480 -645 3513.8 -617.5Q3547.7 -590 3566.3 -551.3Q3585 -512.7 3585.7 -464L3467.7 -432Q3468.3 -478.7 3448.7 -508.3Q3429 -538 3397.8 -553.2Q3366.7 -568.3 3329.7 -568.3Q3297.7 -568.3 3266.2 -555.3Q3234.7 -542.3 3209.7 -514Q3184.7 -485.7 3170.2 -440.3Q3155.7 -395 3155.7 -329.3Q3155.7 -245 3179.7 -192.8Q3203.7 -140.7 3247.2 -116.3Q3290.7 -92 3345.7 -92Q3402.3 -92 3435.3 -114.5Q3468.3 -137 3483.3 -174.2Q3498.3 -211.3 3500 -255.3L3611 -237.3Q3610 -185 3595 -139Q3580 -93 3548.2 -58.8Q3516.3 -24.7 3465.3 -5.7Q3414.3 13.3 3342 13.3ZM4095.7 -89Q4152.3 -89 4191.5 -116.5Q4230.7 -144 4251.2 -196Q4271.7 -248 4271.7 -322.7Q4271.7 -400.3 4250.5 -455Q4229.3 -509.7 4189.5 -538.3Q4149.7 -567 4093 -567Q4038.3 -567 3999.3 -539.3Q3960.3 -511.7 3939.3 -458.3Q3918.3 -405 3918.3 -327.7Q3918.3 -270.3 3930.3 -225.8Q3942.3 -181.3 3964.3 -151Q3986.3 -120.7 4019.8 -104.8Q4053.3 -89 4095.7 -89ZM4747.7 -560.3V-292.3H4859.7Q4939.7 -292.3 4979.5 -324Q5019.3 -355.7 5019.3 -428.7Q5019.3 -494 4982.3 -527.2Q4945.3 -560.3 4867.7 -560.3H4747.7ZM978.7 -333H1098.7Q1173.7 -333 1213.3 -361Q1253 -389 1253 -447.3Q1253 -505.3 1215.7 -533.2Q1178.3 -561 1101.3 -561H978.7ZM454.5 -225 349.3 -558.7H335.3L230.4 -225H454.5Z" />
         </svg>
       </span>
     </h1>
 
-    <!-- lower-left lede: slogan + actions, pushed down and given air -->
+    <!-- slogan reveals word-by-word, then the CTAs -->
     <div class="lede">
       <p class="tagline">
-        What the internet knows about <span class="enc">you</span>.
+        <span class="w">What</span> <span class="w">the</span> <span class="w">internet</span>
+        <span class="w">knows</span> <span class="w">about</span>
+        <span class="w"><span class="enc">you</span>.</span>
       </p>
 
       <div class="actions">
@@ -60,19 +71,17 @@ import Globe from './Globe.astro';
     isolation: isolate;
   }
 
-  /* darken the left edge + bottom so left-aligned chrome stays legible */
+  /* darken the central column so the centered chrome stays legible over the globe */
   .opener-vignette {
     position: absolute;
     inset: 0;
     z-index: 1;
-    background:
-      linear-gradient(
-        90deg,
-        oklch(0 0 0 / 0.72) 0%,
-        oklch(0 0 0 / 0.28) 32%,
-        transparent 58%
-      ),
-      linear-gradient(0deg, oklch(0 0 0 / 0.55) 0%, transparent 36%);
+    background: radial-gradient(
+      ellipse 58% 82% at 50% 46%,
+      oklch(0 0 0 / 0.62) 0%,
+      oklch(0 0 0 / 0.28) 40%,
+      transparent 72%
+    );
     pointer-events: none;
   }
 
@@ -115,34 +124,52 @@ import Globe from './Globe.astro';
     box-shadow: 0 8px 24px -10px oklch(1 0 0 / 0.5);
   }
 
-  /* ───── hero scaffold: wordmark top, lede dropped to the lower third ───── */
+  /* ───── centered hero scaffold ───── */
   .opener-inner {
     position: absolute;
     inset: 0;
     z-index: 2;
     display: flex;
     flex-direction: column;
-    padding-top: clamp(1.5rem, 4.5vh, 3rem);
-    padding-bottom: clamp(3.5rem, 10vh, 6.5rem);
-  }
-  .opener-inner > * {
-    width: 100%;
-    max-width: var(--container);
-    margin-inline: auto;
-    padding-inline: var(--gutter);
+    align-items: center;
+    text-align: center;
+    padding: clamp(2.25rem, 7vh, 4.5rem) var(--gutter) clamp(3rem, 11vh, 6.5rem);
   }
 
-  /* ---- wordmark: clean SVG outlines + one traveling light ---- */
+  /* ---- masthead: clean SVG outlines + scan beam + reticle brackets ---- */
   .wordmark {
     margin: 0;
     line-height: 1;
     opacity: 0;
-    animation: fade 0.7s var(--ease) 3.9s forwards;
+    animation: fade 0.9s var(--ease) 3.4s forwards;
   }
   .brand {
     position: relative;
     display: block;
-    width: min(80vw, 880px);
+    width: min(78vw, 820px);
+  }
+  /* diagonal reticle corner brackets (viewfinder framing) */
+  .brand::before,
+  .brand::after {
+    content: '';
+    position: absolute;
+    width: clamp(14px, 2vw, 22px);
+    height: clamp(14px, 2vw, 22px);
+    border: 1.6px solid var(--accent-dim);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+  .brand::before {
+    top: -0.7rem;
+    left: -1rem;
+    border-right: 0;
+    border-bottom: 0;
+  }
+  .brand::after {
+    right: -1rem;
+    bottom: -0.7rem;
+    border-left: 0;
+    border-top: 0;
   }
   .brand-svg {
     display: block;
@@ -150,94 +177,80 @@ import Globe from './Globe.astro';
     height: auto;
     overflow: visible;
   }
-  .brand-svg text {
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 150px; /* user-space units; stroke-width scales with it */
+  .brand-svg path {
     fill: none;
+    stroke: url(#ares-sweep); /* single merged outline; the gradient carries the moving light */
+    stroke-width: 11.8; /* font-unit space (viewBox ~5880 wide) → ~1.8px on screen */
     stroke-linejoin: round;
     stroke-linecap: round;
   }
-  .base text {
-    stroke: var(--accent-deep); /* dark toxic green frame */
-    stroke-width: 2.4;
+  .g-dim {
+    stop-color: var(--accent-deep); /* dark toxic-green frame */
   }
-  /* the moving light: a brighter stroke shown only under a sweeping band */
-  .light {
-    position: absolute;
-    inset: 0;
-    -webkit-mask-image: linear-gradient(
-      105deg,
-      transparent 43%,
-      #000 48%,
-      #000 52%,
-      transparent 57%
-    );
-    mask-image: linear-gradient(
-      105deg,
-      transparent 43%,
-      #000 48%,
-      #000 52%,
-      transparent 57%
-    );
-    -webkit-mask-size: 240% 100%;
-    mask-size: 240% 100%;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    animation: brand-sweep 5.5s linear 4.4s infinite;
-  }
-  .light text {
-    stroke: var(--accent-bright);
-    stroke-width: 2.8;
-    filter: drop-shadow(0 0 3px var(--matrix-glow));
-  }
-  @keyframes brand-sweep {
-    0% {
-      -webkit-mask-position: 140% 0;
-      mask-position: 140% 0;
-    }
-    100% {
-      -webkit-mask-position: -40% 0;
-      mask-position: -40% 0;
-    }
+  .g-lit {
+    stop-color: var(--accent-bright); /* the travelling light */
   }
 
-  /* ---- lede: dropped to the lower third, left-aligned, spaced out ---- */
+  /* ---- lede: vertically centered in the space below the masthead ---- */
   .lede {
-    margin-top: auto; /* push to the bottom band of the hero */
+    margin-block: auto;
   }
   .tagline {
     margin: 0;
     font-family: var(--font-display);
-    font-size: clamp(1.4rem, 1.05rem + 1.5vw, 2.2rem);
+    font-size: clamp(1.6rem, 1.1rem + 2.2vw, 2.9rem);
     font-weight: 500;
     letter-spacing: -0.015em;
-    line-height: 1.25;
-    max-width: 20ch;
-    color: var(--muted);
-    text-shadow: 0 1px 20px oklch(0 0 0 / 0.6);
+    line-height: 1.18;
+    max-width: 18ch;
+    margin-inline: auto;
+    color: var(--ink);
+    text-shadow: 0 1px 22px oklch(0 0 0 / 0.7);
+  }
+  /* each word rises in, one after another */
+  .tagline .w {
+    display: inline-block;
     opacity: 0;
-    transform: translateY(14px);
-    animation: rise 0.8s var(--ease) 4.6s forwards;
+    transform: translateY(12px);
+    animation: rise 0.6s var(--ease) forwards;
+  }
+  .tagline .w:nth-child(1) {
+    animation-delay: 4.7s;
+  }
+  .tagline .w:nth-child(2) {
+    animation-delay: 4.92s;
+  }
+  .tagline .w:nth-child(3) {
+    animation-delay: 5.14s;
+  }
+  .tagline .w:nth-child(4) {
+    animation-delay: 5.36s;
+  }
+  .tagline .w:nth-child(5) {
+    animation-delay: 5.58s;
+  }
+  .tagline .w:nth-child(6) {
+    animation-delay: 5.8s;
   }
   .tagline .enc {
     font-family: var(--font-mono);
     font-weight: 600;
     letter-spacing: 0;
     color: var(--matrix);
-    text-shadow: 0 0 14px var(--matrix-glow);
+    text-shadow: 0 0 16px var(--matrix-glow);
     font-variant-numeric: tabular-nums; /* stable width while scrambling */
   }
 
-  /* ---- hero buttons: filled green vs. green outline (distinct treatments) ---- */
+  /* ---- CTAs: one flat-green action, one neutral ghost ---- */
   .actions {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: 0.9rem;
-    margin-top: clamp(1.8rem, 1rem + 2vw, 2.8rem);
+    margin-top: clamp(2rem, 1rem + 2.5vw, 3.2rem);
     opacity: 0;
-    transform: translateY(14px);
-    animation: rise 0.8s var(--ease) 5.1s forwards;
+    transform: translateY(12px);
+    animation: rise 0.7s var(--ease) 6.6s forwards;
   }
   .cta {
     display: inline-flex;
@@ -246,7 +259,7 @@ import Globe from './Globe.astro';
     font-size: var(--step-0);
     font-weight: 600;
     line-height: 1;
-    padding: 0.9em 1.5em;
+    padding: 0.9em 1.6em;
     border-radius: var(--radius-sm);
     border: 1px solid transparent;
     transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease),
@@ -255,23 +268,22 @@ import Globe from './Globe.astro';
   }
   .cta-primary {
     color: oklch(0.08 0 0);
-    background: linear-gradient(135deg, var(--accent-bright), var(--matrix));
-    box-shadow: 0 10px 36px -14px var(--matrix-glow);
+    background: var(--matrix);
   }
   .cta-primary:hover {
     transform: translateY(-1px);
-    box-shadow: 0 0 0 1px var(--accent-bright), 0 14px 40px -12px var(--accent);
+    background: var(--accent-bright);
+    box-shadow: 0 12px 36px -14px var(--matrix-glow);
   }
   .cta-secondary {
-    color: var(--matrix);
-    background: oklch(0.46 0.16 146 / 0.08);
-    border-color: var(--accent-deep);
+    color: var(--ink);
+    background: transparent;
+    border-color: var(--hairline-strong);
   }
   .cta-secondary:hover {
     transform: translateY(-1px);
-    color: var(--accent-bright);
-    border-color: var(--accent-bright);
-    background: oklch(0.46 0.16 146 / 0.16);
+    border-color: var(--accent-dim);
+    background: oklch(1 0 0 / 0.04);
   }
 
   @keyframes fade {
@@ -288,24 +300,18 @@ import Globe from './Globe.astro';
 
   @media (max-width: 600px) {
     .brand {
-      width: min(92vw, 880px);
+      width: min(90vw, 820px);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .wordmark,
-    .tagline,
+    .tagline .w,
     .actions,
     .auth {
       opacity: 1;
       transform: none;
       animation: none;
-    }
-    .light {
-      animation: none;
-      /* hold the light mid-word so the wordmark still reads as framed + lit */
-      -webkit-mask-position: 50% 0;
-      mask-position: 50% 0;
     }
   }
 </style>
@@ -315,6 +321,14 @@ import Globe from './Globe.astro';
   // the static Astro build stays as-is. Starts scrambled, settles left→right,
   // and re-runs on hover. Skipped entirely under reduced motion.
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Under reduced motion, freeze the wordmark's scan (SMIL ignores the CSS
+  // media query) so the light holds mid-word instead of travelling.
+  if (reduce) {
+    const brandSvg = document.querySelector<SVGSVGElement>('.brand-svg');
+    brandSvg?.pauseAnimations?.();
+  }
+
   const enc = document.querySelector<HTMLElement>('.tagline .enc');
   if (enc && !reduce) {
     const final = enc.textContent ?? '';
@@ -342,8 +356,8 @@ import Globe from './Globe.astro';
       }, 45);
     }
 
-    enc.textContent = rand(); // avoid flashing the plain word as the slogan rises
-    setTimeout(decode, 4900); // just after the slogan has risen in
+    enc.textContent = rand(); // avoid flashing the plain word before its word rises in
+    setTimeout(decode, 6300); // just after the last word ("you.") has risen in
     enc.addEventListener('mouseenter', decode);
   }
 </script>
