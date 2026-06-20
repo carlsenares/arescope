@@ -1,27 +1,15 @@
 ---
-// The opener: the "arescope" signature writes itself, then "Protect your privacy."
-// rises in. A signature = taking ownership of your own data (self-audit ethos).
-// Path generated once from the Allura script font (see web/src/data/signature.json).
-import sig from '../data/signature.json';
+// The opener: a full-viewport globe plays its intro; once it settles the brand
+// (top-left, in the nav) and then this tagline fade in. Text is kept legible
+// over the globe by a soft radial vignette.
 import Globe from './Globe.astro';
 ---
 
 <section class="opener">
   <Globe />
-  <div class="opener-glow" aria-hidden="true"></div>
   <div class="opener-vignette" aria-hidden="true"></div>
 
   <div class="opener-inner">
-    <svg
-      class="sig"
-      viewBox={sig.viewBox}
-      role="img"
-      aria-label="arescope"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <path d={sig.d} pathLength="1" />
-    </svg>
-
     <h1 class="tagline">
       <span style="--i:0">Protect</span>
       <span style="--i:1">your</span>
@@ -38,40 +26,22 @@ import Globe from './Globe.astro';
 <style>
   .opener {
     position: relative;
-    min-height: calc(100svh - 64px);
+    min-height: 100svh;
     display: grid;
     place-items: center;
     overflow: hidden;
     isolation: isolate;
   }
 
-  .opener-glow {
-    position: absolute;
-    inset: 50% auto auto 50%;
-    translate: -50% -50%;
-    width: min(90vw, 900px);
-    height: 560px;
-    z-index: 1;
-    background: radial-gradient(
-      50% 50% at 50% 50%,
-      oklch(0.86 0.26 143 / 0.12),
-      transparent 70%
-    );
-    filter: blur(40px);
-    opacity: 0;
-    animation: glow-in 2.4s var(--ease) 0.3s forwards;
-    pointer-events: none;
-  }
-
-  /* darkens the globe directly behind the wordmark so text stays legible */
+  /* darkens the globe directly behind the tagline so it stays legible */
   .opener-vignette {
     position: absolute;
     inset: 0;
-    z-index: 2;
+    z-index: 1;
     background: radial-gradient(
-      ellipse 52% 40% at 50% 48%,
-      oklch(0 0 0 / 0.78) 0%,
-      oklch(0 0 0 / 0.45) 45%,
+      ellipse 48% 32% at 50% 56%,
+      oklch(0 0 0 / 0.74) 0%,
+      oklch(0 0 0 / 0.4) 45%,
       transparent 72%
     );
     pointer-events: none;
@@ -79,67 +49,28 @@ import Globe from './Globe.astro';
 
   .opener-inner {
     position: relative;
-    z-index: 3;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: clamp(0.5rem, 0.5rem + 1vw, 1.5rem);
-    padding-inline: var(--gutter);
+    z-index: 2;
     text-align: center;
+    padding-inline: var(--gutter);
+    /* nudge below the globe's equator so the wordmark/network breathe above */
+    margin-top: clamp(2rem, 8vh, 6rem);
   }
 
-  /* ---- the signature ---- */
-  .sig {
-    width: min(82vw, 600px);
-    height: auto;
-    overflow: visible;
-  }
-  .sig path {
-    fill: var(--accent);
-    fill-opacity: 0;
-    stroke: var(--accent-bright);
-    stroke-width: 1.1;
-    vector-effect: non-scaling-stroke;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-dasharray: 1;
-    stroke-dashoffset: 1;
-    filter: drop-shadow(0 0 12px oklch(0.86 0.26 143 / 0.4));
-    animation:
-      draw 1.7s var(--ease) 0.25s forwards,
-      ink 0.8s ease 1.75s forwards;
-  }
-
-  @keyframes draw {
-    to {
-      stroke-dashoffset: 0;
-    }
-  }
-  @keyframes ink {
-    to {
-      fill-opacity: 1;
-    }
-  }
-  @keyframes glow-in {
-    to {
-      opacity: 1;
-    }
-  }
-
-  /* ---- tagline ---- */
+  /* ---- tagline (appears after the brand reveal) ---- */
   .tagline {
-    font-size: clamp(2.2rem, 1.4rem + 4vw, 4.5rem);
-    font-weight: 600;
-    letter-spacing: -0.03em;
-    line-height: 1.05;
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 1.4rem + 4.6vw, 5rem);
+    font-weight: 650;
+    letter-spacing: -0.035em;
+    line-height: 1;
     margin: 0;
   }
   .tagline span {
     display: inline-block;
     opacity: 0;
-    transform: translateY(16px);
-    animation: rise 0.6s var(--ease) forwards;
-    animation-delay: calc(1.95s + var(--i) * 0.09s);
+    transform: translateY(18px);
+    animation: rise 0.7s var(--ease) forwards;
+    animation-delay: calc(3.4s + var(--i) * 0.1s);
   }
   @keyframes rise {
     to {
@@ -151,7 +82,7 @@ import Globe from './Globe.astro';
   /* ---- scroll cue ---- */
   .scroll-cue {
     position: absolute;
-    z-index: 3;
+    z-index: 2;
     bottom: clamp(1.2rem, 3vh, 2.4rem);
     left: 50%;
     translate: -50% 0;
@@ -165,7 +96,7 @@ import Globe from './Globe.astro';
     text-transform: uppercase;
     color: var(--faint);
     opacity: 0;
-    animation: rise 0.7s var(--ease) 2.6s forwards;
+    animation: rise 0.7s var(--ease) 4s forwards;
   }
   .scroll-cue:hover {
     color: var(--muted);
@@ -174,7 +105,7 @@ import Globe from './Globe.astro';
     width: 1px;
     height: 34px;
     background: linear-gradient(var(--accent-bright), transparent);
-    animation: cue 1.8s var(--ease) 3s infinite;
+    animation: cue 1.8s var(--ease) 4.4s infinite;
     transform-origin: top;
   }
   @keyframes cue {
@@ -190,19 +121,11 @@ import Globe from './Globe.astro';
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .sig path {
-      stroke-dashoffset: 0;
-      fill-opacity: 1;
-      animation: none;
-    }
     .tagline span,
     .scroll-cue,
-    .opener-glow {
+    .scroll-cue i {
       opacity: 1;
       transform: none;
-      animation: none;
-    }
-    .scroll-cue i {
       animation: none;
     }
   }

@@ -53,7 +53,7 @@ const steps = [
                   stroke-linecap="round" transform="rotate(-45 16 16)" />
           <circle cx="16" cy="16" r="2.3" fill="var(--accent-bright)" />
         </svg>
-        <span>Arescope</span>
+        <span>arescope</span>
       </a>
       <nav class="nav-links" aria-label="Primary">
         <a href="#how">How it works</a>
@@ -232,13 +232,31 @@ const steps = [
 
 <style>
   /* ───── nav ───── */
+  /* fixed so the hero globe can fill the viewport top-to-bottom; the whole bar
+     fades in once the globe intro settles (~3s) — "arescope" arrives top-left. */
   .nav {
-    position: sticky;
-    top: 0;
+    position: fixed;
+    inset: 0 0 auto 0;
     z-index: 50;
     backdrop-filter: blur(12px);
-    background: color-mix(in oklch, var(--bg) 72%, transparent);
+    background: color-mix(in oklch, var(--bg) 70%, transparent);
     border-bottom: 1px solid var(--hairline);
+    opacity: 0;
+    transform: translateY(-10px);
+    animation: nav-in 0.8s var(--ease) 3s forwards;
+  }
+  @keyframes nav-in {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nav {
+      opacity: 1;
+      transform: none;
+      animation: none;
+    }
   }
   .nav-inner {
     display: flex;
@@ -249,10 +267,11 @@ const steps = [
   .brand {
     display: inline-flex;
     align-items: center;
-    gap: 0.55rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    font-size: 1.05rem;
+    gap: 0.5rem;
+    font-family: var(--font-display);
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    font-size: 1.2rem;
   }
   .nav-links {
     display: flex;
