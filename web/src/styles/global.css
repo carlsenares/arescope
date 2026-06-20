@@ -1,21 +1,22 @@
 /* Arescope brand site — design tokens + primitives. See /DESIGN.md.
-   Dark-first, near-black, single violet accent. OKLCH throughout. */
+   Black + white, single toxic-green accent. OKLCH throughout. */
 
 :root {
   /* color */
-  --bg: oklch(0.145 0.006 295);
-  --surface: oklch(0.185 0.008 295);
-  --surface-2: oklch(0.225 0.010 295);
-  --ink: oklch(0.965 0.004 295);
-  --muted: oklch(0.74 0.012 295);
-  --faint: oklch(0.60 0.012 295);
+  --bg: oklch(0.04 0 0);
+  --surface: oklch(0.10 0 0);
+  --surface-2: oklch(0.15 0 0);
+  --ink: oklch(0.98 0 0);
+  --muted: oklch(0.72 0 0);
+  --faint: oklch(0.55 0 0);
 
-  --accent: oklch(0.62 0.20 293);
-  --accent-bright: oklch(0.72 0.17 293);
-  --accent-dim: oklch(0.40 0.12 293);
+  /* toxic bright green */
+  --accent: oklch(0.86 0.26 143);
+  --accent-bright: oklch(0.91 0.28 142);
+  --accent-dim: oklch(0.52 0.16 144);
 
-  --hairline: oklch(1 0 0 / 0.09);
-  --hairline-strong: oklch(1 0 0 / 0.16);
+  --hairline: oklch(1 0 0 / 0.10);
+  --hairline-strong: oklch(1 0 0 / 0.18);
 
   /* severity (calm, label-paired — never color alone) */
   --sev-critical: oklch(0.64 0.20 18);
@@ -147,7 +148,7 @@ svg {
 
 .btn-primary {
   background: var(--accent);
-  color: oklch(0.16 0.02 293);
+  color: oklch(0.10 0 0);
   font-weight: 600;
 }
 

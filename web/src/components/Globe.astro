@@ -1,0 +1,410 @@
+---
+// Slowly-spinning dotted globe rendered to <canvas>. Continents come from a
+// precomputed land-point cloud (web/src/data/globe-points.json, sampled from an
+// equirectangular land mask at build time). On top of the globe a red "threat
+// network" grows live: nodes spawn on land, thick red arcs connect them into a
+// regenerating graph — the visual thesis of an exposure scanner.
+// Dependency-free, ~2k dots + a handful of arcs, paused when offscreen/hidden,
+// and degrades to a single static frame under prefers-reduced-motion.
+---
+
+<canvas class="globe-canvas" aria-hidden="true"></canvas>
+
+<style>
+  .globe-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* fades up once the first frame is painted (see script) */
+    opacity: 0;
+    transition: opacity 1.4s var(--ease);
+  }
+  .globe-canvas.is-live {
+    opacity: 1;
+  }
+</style>
+
+<script>
+  import rawPoints from '../data/globe-points.json';
+
+  const canvas = document.querySelector<HTMLCanvasElement>('.globe-canvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d')!;
+    const points = rawPoints as [number, number][];
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const DEG = Math.PI / 180;
+    const TILT = 0.42; // tip the north pole toward the viewer a touch
+
+    // ---- palette ----
+    const LAND = '190, 215, 200'; // cool near-white land dots
+    const GRID = '120, 240, 110'; // faint toxic-green graticule
+    const RED = '255, 52, 52'; // threat nodes + network arcs
+
+    // ---- precompute land base vectors (unit sphere) ----
+    const land = points.map(([lat, lng]) => {
+      const la = lat * DEG;
+      const lo = lng * DEG;
+      const cl = Math.cos(la);
+      return { x: cl * Math.cos(lo), y: Math.sin(la), z: cl * Math.sin(lo) };
+    });
+
+    // ---- viewport ----
+    let W = 0;
+    let H = 0;
+    let cx = 0;
+    let cy = 0;
+    let R = 0;
+    const DPR = Math.min(devicePixelRatio || 1, 2);
+
+    function resize() {
+      const r = canvas!.getBoundingClientRect();
+      W = Math.max(1, r.width);
+      H = Math.max(1, r.height);
+      canvas!.width = Math.round(W * DPR);
+      canvas!.height = Math.round(H * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      cx = W / 2;
+      cy = H / 2;
+      R = Math.min(W, H) * 0.38;
+    }
+
+    // ---- rotation: spin around the vertical axis, then a fixed tilt ----
+    let spin = -0.6;
+    function rotate(v: { x: number; y: number; z: number }) {
+      const cs = Math.cos(spin);
+      const sn = Math.sin(spin);
+      const x = v.x * cs + v.z * sn;
+      const z = -v.x * sn + v.z * cs;
+      const ct = Math.cos(TILT);
+      const st = Math.sin(TILT);
+      return { x, y: v.y * ct - z * st, z: v.y * st + z * ct };
+    }
+
+    // ---- threat network ----
+    type Node = { v: { x: number; y: number; z: number }; born: number; dieAt: number };
+    type Edge = { a: Node; b: Node; born: number; phase: number };
+    const nodes: Node[] = [];
+    const edges: Edge[] = [];
+    const MAX_NODES = 13;
+    const SPAWN_MS = 850;
+    const IN_MS = 650; // node grow-in
+    const DIE_MS = 1100; // node fade-out
+    const EDGE_MS = 950; // arc draw-on
+    let lastSpawn = 0;
+
+    function nodeAlpha(n: Node, now: number) {
+      if (n.dieAt) return Math.max(0, 1 - (now - n.dieAt) / DIE_MS);
+      return Math.min(1, (now - n.born) / IN_MS);
+    }
+
+    function addNode(now: number) {
+      const base = land[(Math.random() * land.length) | 0];
+      const n: Node = { v: base, born: now, dieAt: 0 };
+      // connect to the 1–2 nearest living nodes, plus an occasional long hop
+      const living = nodes.filter((m) => !m.dieAt);
+      living
+        .map((m) => ({
+          m,
+          d: (m.v.x - n.v.x) ** 2 + (m.v.y - n.v.y) ** 2 + (m.v.z - n.v.z) ** 2,
+        }))
+        .sort((p, q) => p.d - q.d)
+        .slice(0, Math.random() < 0.4 ? 2 : 1)
+        .forEach(({ m }) => edges.push({ a: n, b: m, born: now, phase: Math.random() }));
+      if (living.length > 2 && Math.random() < 0.35) {
+        const far = living[(Math.random() * living.length) | 0];
+        edges.push({ a: n, b: far, born: now, phase: Math.random() });
+      }
+      nodes.push(n);
+    }
+
+    function updateNetwork(now: number) {
+      if (now - lastSpawn > SPAWN_MS) {
+        lastSpawn = now;
+        const living = nodes.filter((m) => !m.dieAt);
+        if (living.length >= MAX_NODES) {
+          living.reduce((a, b) => (a.born < b.born ? a : b)).dieAt = now;
+        } else {
+          addNode(now);
+        }
+      }
+      // reap fully-faded nodes and any edge that lost an endpoint
+      for (let i = nodes.length - 1; i >= 0; i--) {
+        const n = nodes[i];
+        if (n.dieAt && now - n.dieAt > DIE_MS) nodes.splice(i, 1);
+      }
+      for (let i = edges.length - 1; i >= 0; i--) {
+        const e = edges[i];
+        if (!nodes.includes(e.a) || !nodes.includes(e.b)) edges.splice(i, 1);
+      }
+    }
+
+    // quadratic bezier point
+    function qb(p0: any, p1: any, p2: any, t: number) {
+      const u = 1 - t;
+      return {
+        x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
+        y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y,
+      };
+    }
+
+    function drawEdge(e: Edge, now: number) {
+      const A = rotate(e.a.v);
+      const B = rotate(e.b.v);
+      // depth-based visibility for each endpoint (front hemisphere = z>0)
+      const fa = Math.max(0, Math.min(1, (A.z + 0.15) / 0.4));
+      const fb = Math.max(0, Math.min(1, (B.z + 0.15) / 0.4));
+      const vis = Math.min(fa, fb);
+      if (vis <= 0.02) return;
+      const alpha = vis * Math.min(nodeAlpha(e.a, now), nodeAlpha(e.b, now));
+      if (alpha <= 0.02) return;
+
+      // control point: midpoint of the base vectors, lifted off the surface
+      const mid = rotate({
+        x: (e.a.v.x + e.b.v.x) * 0.65,
+        y: (e.a.v.y + e.b.v.y) * 0.65,
+        z: (e.a.v.z + e.b.v.z) * 0.65,
+      });
+      const p0 = { x: cx + A.x * R, y: cy - A.y * R };
+      const p2 = { x: cx + B.x * R, y: cy - B.y * R };
+      const p1 = { x: cx + mid.x * R, y: cy - mid.y * R };
+
+      const prog = Math.min(1, (now - e.born) / EDGE_MS);
+      const steps = 26;
+      const end = Math.max(1, Math.round(steps * prog));
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = `rgba(${RED}, ${0.9 * alpha})`;
+      ctx.shadowBlur = 14;
+      // soft wide underglow
+      ctx.strokeStyle = `rgba(${RED}, ${0.22 * alpha})`;
+      ctx.lineWidth = Math.max(5, R * 0.03);
+      strokePath(p0, p1, p2, end, steps);
+      // bright visible core — kept deliberately thick
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = `rgba(${RED}, ${0.95 * alpha})`;
+      ctx.lineWidth = Math.max(2.6, R * 0.014);
+      strokePath(p0, p1, p2, end, steps);
+      ctx.restore();
+
+      // growing head, then a traveling data pulse once the arc is complete
+      const headT = prog < 1 ? prog : ((now / 2600 + e.phase) % 1);
+      const hp = qb(p0, p1, p2, headT);
+      ctx.save();
+      ctx.shadowColor = `rgba(${RED}, ${alpha})`;
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = `rgba(255, 150, 150, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(hp.x, hp.y, Math.max(2, R * 0.012), 0, 7);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function strokePath(p0: any, p1: any, p2: any, end: number, steps: number) {
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      for (let i = 1; i <= end; i++) {
+        const pt = qb(p0, p1, p2, i / steps);
+        ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+    }
+
+    function drawNode(n: Node, now: number) {
+      const r = rotate(n.v);
+      if (r.z <= 0) return;
+      const depth = r.z;
+      const a = nodeAlpha(n, now) * Math.min(1, (r.z + 0.1) / 0.3);
+      if (a <= 0.02) return;
+      const x = cx + r.x * R;
+      const y = cy - r.y * R;
+
+      // spawn ring
+      const inT = Math.min(1, (now - n.born) / IN_MS);
+      if (inT < 1 && !n.dieAt) {
+        ctx.save();
+        ctx.strokeStyle = `rgba(${RED}, ${(1 - inT) * 0.8})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x, y, 3 + inT * R * 0.05, 0, 7);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.shadowColor = `rgba(${RED}, ${a})`;
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = `rgba(${RED}, ${a})`;
+      ctx.beginPath();
+      ctx.arc(x, y, (2.4 + 2 * depth) * (0.5 + 0.5 * inT), 0, 7);
+      ctx.fill();
+      // hot white core
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = `rgba(255, 210, 210, ${a * 0.9})`;
+      ctx.beginPath();
+      ctx.arc(x, y, (0.9 + 0.7 * depth) * (0.5 + 0.5 * inT), 0, 7);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // ---- graticule (faint green meridians + parallels, front hemisphere) ----
+    function drawGraticule() {
+      ctx.save();
+      ctx.lineWidth = 1;
+      for (let lng = -150; lng <= 180; lng += 30) drawCircle('meridian', lng);
+      for (let lat = -60; lat <= 60; lat += 30) drawCircle('parallel', lat);
+      ctx.restore();
+    }
+    function drawCircle(kind: 'meridian' | 'parallel', deg: number) {
+      let started = false;
+      ctx.beginPath();
+      for (let t = 0; t <= 360; t += 6) {
+        const a = t * DEG;
+        let v;
+        if (kind === 'meridian') {
+          const lo = deg * DEG;
+          v = { x: Math.cos(a) * Math.cos(lo), y: Math.sin(a), z: Math.cos(a) * Math.sin(lo) };
+        } else {
+          const la = deg * DEG;
+          const cl = Math.cos(la);
+          v = { x: cl * Math.cos(a), y: Math.sin(la), z: cl * Math.sin(a) };
+        }
+        const r = rotate(v);
+        if (r.z <= 0) {
+          started = false;
+          continue;
+        }
+        const x = cx + r.x * R;
+        const y = cy - r.y * R;
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = `rgba(${GRID}, 0.07)`;
+      ctx.stroke();
+    }
+
+    function drawGlobe(now: number) {
+      ctx.clearRect(0, 0, W, H);
+
+      // atmosphere halo
+      const halo = ctx.createRadialGradient(cx, cy, R * 0.85, cx, cy, R * 1.28);
+      halo.addColorStop(0, `rgba(${GRID}, 0.10)`);
+      halo.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.28, 0, 7);
+      ctx.fill();
+
+      // sphere body — subtle volume, lit from upper-left
+      const body = ctx.createRadialGradient(
+        cx - R * 0.35,
+        cy - R * 0.35,
+        R * 0.1,
+        cx,
+        cy,
+        R
+      );
+      body.addColorStop(0, 'rgba(22, 30, 24, 0.95)');
+      body.addColorStop(1, 'rgba(4, 6, 5, 0.98)');
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, 7);
+      ctx.fill();
+
+      drawGraticule();
+
+      // land dots (front hemisphere only)
+      for (let i = 0; i < land.length; i++) {
+        const r = rotate(land[i]);
+        if (r.z <= 0.02) continue;
+        const d = r.z;
+        const size = 0.8 + 1.5 * d;
+        ctx.fillStyle = `rgba(${LAND}, ${0.16 + 0.55 * d})`;
+        const x = cx + r.x * R;
+        const y = cy - r.y * R;
+        ctx.fillRect(x - size / 2, y - size / 2, size, size);
+      }
+
+      // thin green rim
+      ctx.strokeStyle = `rgba(${GRID}, 0.18)`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, 7);
+      ctx.stroke();
+
+      // threat network on top
+      for (const e of edges) drawEdge(e, now);
+      for (const n of nodes) drawNode(n, now);
+    }
+
+    // ---- run loop ----
+    let live = false;
+    let running = false;
+    let raf = 0;
+    let prev = 0;
+
+    function frame(now: number) {
+      if (!running) return;
+      const dt = prev ? now - prev : 16;
+      prev = now;
+      spin += dt * 0.00009; // slow, calm rotation
+      updateNetwork(now);
+      drawGlobe(now);
+      if (!live) {
+        live = true;
+        canvas!.classList.add('is-live');
+      }
+      raf = requestAnimationFrame(frame);
+    }
+
+    function start() {
+      if (running) return;
+      running = true;
+      prev = 0;
+      raf = requestAnimationFrame(frame);
+    }
+    function stop() {
+      running = false;
+      cancelAnimationFrame(raf);
+    }
+
+    resize();
+    let rt: number;
+    addEventListener('resize', () => {
+      clearTimeout(rt);
+      rt = window.setTimeout(resize, 150);
+    });
+
+    if (reduce) {
+      // static frame: seed a small fixed network, paint once, no rotation
+      const now = 1e6;
+      lastSpawn = now;
+      for (let i = 0; i < 6; i++) addNode(now - IN_MS - 1);
+      for (const e of edges) e.born = now - EDGE_MS - 1;
+      drawGlobe(now);
+      canvas.classList.add('is-live');
+    } else {
+      // pause when the hero scrolls off-screen or the tab is hidden
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && !document.hidden) start();
+          else stop();
+        },
+        { threshold: 0 }
+      );
+      io.observe(canvas);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stop();
+        else if (canvas.getBoundingClientRect().bottom > 0) start();
+      });
+      start();
+    }
+  }
+</script>

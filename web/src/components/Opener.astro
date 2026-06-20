@@ -3,10 +3,13 @@
 // rises in. A signature = taking ownership of your own data (self-audit ethos).
 // Path generated once from the Allura script font (see web/src/data/signature.json).
 import sig from '../data/signature.json';
+import Globe from './Globe.astro';
 ---
 
 <section class="opener">
+  <Globe />
   <div class="opener-glow" aria-hidden="true"></div>
+  <div class="opener-vignette" aria-hidden="true"></div>
 
   <div class="opener-inner">
     <svg
@@ -47,19 +50,36 @@ import sig from '../data/signature.json';
     inset: 50% auto auto 50%;
     translate: -50% -50%;
     width: min(90vw, 900px);
-    height: 520px;
-    z-index: -1;
+    height: 560px;
+    z-index: 1;
     background: radial-gradient(
       50% 50% at 50% 50%,
-      oklch(0.55 0.18 293 / 0.22),
+      oklch(0.86 0.26 143 / 0.12),
       transparent 70%
     );
-    filter: blur(30px);
+    filter: blur(40px);
     opacity: 0;
     animation: glow-in 2.4s var(--ease) 0.3s forwards;
+    pointer-events: none;
+  }
+
+  /* darkens the globe directly behind the wordmark so text stays legible */
+  .opener-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: radial-gradient(
+      ellipse 52% 40% at 50% 48%,
+      oklch(0 0 0 / 0.78) 0%,
+      oklch(0 0 0 / 0.45) 45%,
+      transparent 72%
+    );
+    pointer-events: none;
   }
 
   .opener-inner {
+    position: relative;
+    z-index: 3;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -84,7 +104,7 @@ import sig from '../data/signature.json';
     stroke-linejoin: round;
     stroke-dasharray: 1;
     stroke-dashoffset: 1;
-    filter: drop-shadow(0 0 10px oklch(0.62 0.2 293 / 0.35));
+    filter: drop-shadow(0 0 12px oklch(0.86 0.26 143 / 0.4));
     animation:
       draw 1.7s var(--ease) 0.25s forwards,
       ink 0.8s ease 1.75s forwards;
@@ -131,6 +151,7 @@ import sig from '../data/signature.json';
   /* ---- scroll cue ---- */
   .scroll-cue {
     position: absolute;
+    z-index: 3;
     bottom: clamp(1.2rem, 3vh, 2.4rem);
     left: 50%;
     translate: -50% 0;

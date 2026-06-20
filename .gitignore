@@ -16,6 +16,8 @@ venv/
 
 # data / scan output (never commit scan results — they contain PII)
 data/
+# ...but the website's source data dir (static build inputs, no PII) is tracked
+!web/src/data/
 scans/
 *.sqlite
 *.db
