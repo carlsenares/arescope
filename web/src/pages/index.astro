@@ -43,26 +43,6 @@ const steps = [
 ---
 
 <Base>
-  <!-- ───────────────────────── nav ───────────────────────── -->
-  <header class="nav">
-    <div class="container nav-inner">
-      <a class="brand" href="/" aria-label="Arescope home">
-        <svg class="brand-mark" viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
-          <circle cx="16" cy="16" r="8.5" fill="none" stroke="var(--accent-bright)"
-                  stroke-width="2.4" stroke-dasharray="40 14" stroke-dashoffset="6"
-                  stroke-linecap="round" transform="rotate(-45 16 16)" />
-          <circle cx="16" cy="16" r="2.3" fill="var(--accent-bright)" />
-        </svg>
-      </a>
-      <nav class="nav-links" aria-label="Primary">
-        <a href="#how">How it works</a>
-        <a href="#finds">What it finds</a>
-        <a href="#ethos">Self-audit</a>
-      </nav>
-      <a class="btn btn-primary nav-cta" href="#waitlist">Join the waitlist</a>
-    </div>
-  </header>
-
   <main>
     <!-- ───────────────────────── opener ───────────────────────── -->
     <Opener />
@@ -230,80 +210,6 @@ const steps = [
 </Base>
 
 <style>
-  /* ───── nav ───── */
-  /* Fixed so the hero globe owns the viewport. Nothing shows during the globe
-     intro; once it settles (~3.8s) the bar fades in, then "arescope" writes
-     itself in top-left (caret wipe), then the links/CTA arrive. */
-  .nav {
-    position: fixed;
-    inset: 0 0 auto 0;
-    z-index: 50;
-    backdrop-filter: blur(12px);
-    background-color: transparent;
-    border-bottom: 1px solid transparent;
-    animation: bar-in 0.6s var(--ease) 3.9s forwards;
-  }
-  @keyframes bar-in {
-    to {
-      background-color: color-mix(in oklch, var(--bg) 70%, transparent);
-      border-bottom-color: var(--hairline);
-    }
-  }
-  .brand-mark,
-  .nav-links,
-  .nav-cta {
-    opacity: 0;
-    animation: fade-in 0.6s var(--ease) 3.9s forwards;
-  }
-  @keyframes fade-in {
-    to {
-      opacity: 1;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .nav,
-    .brand-mark,
-    .nav-links,
-    .nav-cta {
-      opacity: 1;
-      transform: none;
-      animation: none;
-    }
-    .nav {
-      background-color: color-mix(in oklch, var(--bg) 70%, transparent);
-      border-bottom-color: var(--hairline);
-    }
-  }
-  .nav-inner {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    height: 64px;
-  }
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-family: var(--font-display);
-    font-weight: 650;
-    letter-spacing: -0.02em;
-    font-size: 1.2rem;
-  }
-  .nav-links {
-    display: flex;
-    gap: 1.6rem;
-    margin-left: auto;
-    font-size: var(--step--1);
-    color: var(--muted);
-  }
-  .nav-links a:hover {
-    color: var(--ink);
-  }
-  .nav-cta {
-    padding: 0.55em 1em;
-    font-size: var(--step--1);
-  }
-
   /* ───── hero ───── */
   .hero {
     position: relative;

@@ -14,6 +14,11 @@
   --accent: oklch(0.86 0.26 143);
   --accent-bright: oklch(0.91 0.28 142);
   --accent-dim: oklch(0.52 0.16 144);
+  --accent-deep: oklch(0.46 0.16 146);   /* dark toxic green — wordmark frame */
+
+  /* matrix green — vibrant but not blinding (slogan "you", glows) */
+  --matrix: oklch(0.78 0.24 145);
+  --matrix-glow: oklch(0.78 0.24 145 / 0.55);
 
   --hairline: oklch(1 0 0 / 0.10);
   --hairline-strong: oklch(1 0 0 / 0.18);
@@ -56,7 +61,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
-  scroll-padding-top: 80px; /* keep anchor targets clear of the fixed nav */
+  scroll-padding-top: 2rem; /* small breathing room for anchor targets */
 }
 
 body {

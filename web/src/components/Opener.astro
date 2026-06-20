@@ -1,8 +1,17 @@
 ---
 // The opener: a full-viewport globe forms (its graph grows organically), then
-// the brand "arescope" writes itself in (caret wipe) below the nav bar, then a
-// short slogan rises in. The final word "you" decrypts in place — a hand-rolled
-// scramble effect (no React/Tailwind/shadcn; this site stays dependency-free).
+// the chrome arrives over it.
+//
+// Top-left: the wordmark "ARESCOPE" drawn as true SVG vector outlines — each
+// letter is framed in dark toxic green (no fill), lines built cleanly with no
+// overlap. A single light travels through the whole word: a second, brighter
+// stroke layer revealed under a narrow band that sweeps across.
+//
+// Lower-left, detached and dropped down the viewport: a slogan whose final word
+// "you" decrypts in place in matrix-green, then the two CTAs.
+//
+// Top-right: log in / sign up. No nav bar, no scroll cue.
+// Dependency-free (no React/Tailwind); the static Astro build stays as-is.
 import Globe from './Globe.astro';
 ---
 
@@ -10,17 +19,37 @@ import Globe from './Globe.astro';
   <Globe />
   <div class="opener-vignette" aria-hidden="true"></div>
 
-  <div class="opener-inner">
-    <p class="wordmark">
-      <span class="word"><span class="txt">arescope</span><i class="caret" aria-hidden="true"></i></span>
-    </p>
-    <h1 class="tagline">What the internet knows about <span class="enc">you</span>.</h1>
-  </div>
+  <!-- top-right auth: log in is "on the wall", sign up is the prominent pill -->
+  <nav class="auth" aria-label="Account">
+    <a class="auth-login" href="#login">Log in</a>
+    <a class="auth-signup" href="#signup">Sign up</a>
+  </nav>
 
-  <a class="scroll-cue" href="#how" aria-label="Scroll to learn more">
-    <span>scroll</span>
-    <i></i>
-  </a>
+  <div class="opener-inner">
+    <!-- top-left wordmark -->
+    <h1 class="wordmark" aria-label="Arescope">
+      <span class="brand">
+        <svg class="brand-svg base" viewBox="0 0 1000 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
+          <text x="3" y="124" textLength="994" lengthAdjust="spacing">ARESCOPE</text>
+        </svg>
+        <svg class="brand-svg light" viewBox="0 0 1000 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
+          <text x="3" y="124" textLength="994" lengthAdjust="spacing">ARESCOPE</text>
+        </svg>
+      </span>
+    </h1>
+
+    <!-- lower-left lede: slogan + actions, pushed down and given air -->
+    <div class="lede">
+      <p class="tagline">
+        What the internet knows about <span class="enc">you</span>.
+      </p>
+
+      <div class="actions">
+        <a class="cta cta-primary" href="#start">Start analysis</a>
+        <a class="cta cta-secondary" href="#about">About</a>
+      </div>
+    </div>
+  </div>
 </section>
 
 <style>
@@ -31,104 +60,224 @@ import Globe from './Globe.astro';
     isolation: isolate;
   }
 
-  /* darken the top-left so the brand block stays legible over the globe */
+  /* darken the left edge + bottom so left-aligned chrome stays legible */
   .opener-vignette {
     position: absolute;
     inset: 0;
     z-index: 1;
-    background: radial-gradient(
-      ellipse 72% 56% at 16% 24%,
-      oklch(0 0 0 / 0.72) 0%,
-      oklch(0 0 0 / 0.32) 42%,
-      transparent 64%
-    );
+    background:
+      linear-gradient(
+        90deg,
+        oklch(0 0 0 / 0.72) 0%,
+        oklch(0 0 0 / 0.28) 32%,
+        transparent 58%
+      ),
+      linear-gradient(0deg, oklch(0 0 0 / 0.55) 0%, transparent 36%);
     pointer-events: none;
   }
 
+  /* ───── top-right auth ───── */
+  .auth {
+    position: absolute;
+    z-index: 3;
+    top: clamp(1.2rem, 3.5vh, 2rem);
+    right: var(--gutter);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0;
+    animation: fade 0.6s var(--ease) 4s forwards;
+  }
+  .auth-login {
+    padding: 0.55em 0.9em;
+    font-size: var(--step--1);
+    font-weight: 500;
+    color: var(--muted);
+    border-radius: var(--radius-sm);
+    transition: color 0.16s var(--ease);
+  }
+  .auth-login:hover {
+    color: var(--ink);
+  }
+  .auth-signup {
+    padding: 0.55em 1.05em;
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: oklch(0.08 0 0);
+    background: var(--ink);
+    border-radius: var(--radius-sm);
+    transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease),
+      background 0.16s var(--ease);
+  }
+  .auth-signup:hover {
+    transform: translateY(-1px);
+    background: #fff;
+    box-shadow: 0 8px 24px -10px oklch(1 0 0 / 0.5);
+  }
+
+  /* ───── hero scaffold: wordmark top, lede dropped to the lower third ───── */
   .opener-inner {
     position: absolute;
+    inset: 0;
     z-index: 2;
-    top: clamp(5.5rem, 13vh, 8.5rem);
-    left: 50%;
-    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    padding-top: clamp(1.5rem, 4.5vh, 3rem);
+    padding-bottom: clamp(3.5rem, 10vh, 6.5rem);
+  }
+  .opener-inner > * {
     width: 100%;
     max-width: var(--container);
+    margin-inline: auto;
     padding-inline: var(--gutter);
-    text-align: left;
   }
 
-  /* ---- brand: writes itself in via a caret wipe ---- */
+  /* ---- wordmark: clean SVG outlines + one traveling light ---- */
   .wordmark {
     margin: 0;
-    font-family: var(--font-display);
-    font-weight: 650;
-    font-size: clamp(2.6rem, 1.8rem + 3vw, 4.6rem);
-    letter-spacing: -0.03em;
     line-height: 1;
-    color: var(--ink);
-    text-shadow: 0 2px 30px oklch(0 0 0 / 0.6);
-  }
-  .word {
-    position: relative;
-    display: inline-block;
-    white-space: nowrap;
-  }
-  .word .txt {
-    display: inline-block;
-    clip-path: inset(0 100% 0 0);
-    animation: type 0.9s linear 4s forwards;
-  }
-  @keyframes type {
-    to {
-      clip-path: inset(0 0 0 0);
-    }
-  }
-  .word .caret {
-    position: absolute;
-    top: 8%;
-    bottom: 8%;
-    left: 0;
-    width: 3px;
-    background: var(--accent-bright);
-    box-shadow: 0 0 10px var(--accent-bright);
     opacity: 0;
-    animation: caret 0.9s linear 4s forwards;
+    animation: fade 0.7s var(--ease) 3.9s forwards;
   }
-  @keyframes caret {
+  .brand {
+    position: relative;
+    display: block;
+    width: min(80vw, 880px);
+  }
+  .brand-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .brand-svg text {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 150px; /* user-space units; stroke-width scales with it */
+    fill: none;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .base text {
+    stroke: var(--accent-deep); /* dark toxic green frame */
+    stroke-width: 2.4;
+  }
+  /* the moving light: a brighter stroke shown only under a sweeping band */
+  .light {
+    position: absolute;
+    inset: 0;
+    -webkit-mask-image: linear-gradient(
+      105deg,
+      transparent 43%,
+      #000 48%,
+      #000 52%,
+      transparent 57%
+    );
+    mask-image: linear-gradient(
+      105deg,
+      transparent 43%,
+      #000 48%,
+      #000 52%,
+      transparent 57%
+    );
+    -webkit-mask-size: 240% 100%;
+    mask-size: 240% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    animation: brand-sweep 5.5s linear 4.4s infinite;
+  }
+  .light text {
+    stroke: var(--accent-bright);
+    stroke-width: 2.8;
+    filter: drop-shadow(0 0 3px var(--matrix-glow));
+  }
+  @keyframes brand-sweep {
     0% {
-      left: 0;
-      opacity: 1;
-    }
-    88% {
-      opacity: 1;
+      -webkit-mask-position: 140% 0;
+      mask-position: 140% 0;
     }
     100% {
-      left: 100%;
-      opacity: 0;
+      -webkit-mask-position: -40% 0;
+      mask-position: -40% 0;
     }
   }
 
-  /* ---- slogan: short subhead; "you" decrypts in place ---- */
+  /* ---- lede: dropped to the lower third, left-aligned, spaced out ---- */
+  .lede {
+    margin-top: auto; /* push to the bottom band of the hero */
+  }
   .tagline {
+    margin: 0;
     font-family: var(--font-display);
-    font-size: clamp(1.05rem, 0.9rem + 0.8vw, 1.5rem);
+    font-size: clamp(1.4rem, 1.05rem + 1.5vw, 2.2rem);
     font-weight: 500;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
     line-height: 1.25;
-    margin: 0.85rem 0 0;
-    max-width: 26ch;
+    max-width: 20ch;
     color: var(--muted);
     text-shadow: 0 1px 20px oklch(0 0 0 / 0.6);
     opacity: 0;
     transform: translateY(14px);
-    animation: rise 0.8s var(--ease) 4.95s forwards;
+    animation: rise 0.8s var(--ease) 4.6s forwards;
   }
   .tagline .enc {
     font-family: var(--font-mono);
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--matrix);
+    text-shadow: 0 0 14px var(--matrix-glow);
+    font-variant-numeric: tabular-nums; /* stable width while scrambling */
+  }
+
+  /* ---- hero buttons: filled green vs. green outline (distinct treatments) ---- */
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    margin-top: clamp(1.8rem, 1rem + 2vw, 2.8rem);
+    opacity: 0;
+    transform: translateY(14px);
+    animation: rise 0.8s var(--ease) 5.1s forwards;
+  }
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-sans);
+    font-size: var(--step-0);
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.9em 1.5em;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease),
+      background 0.16s var(--ease), border-color 0.16s var(--ease),
+      color 0.16s var(--ease);
+  }
+  .cta-primary {
+    color: oklch(0.08 0 0);
+    background: linear-gradient(135deg, var(--accent-bright), var(--matrix));
+    box-shadow: 0 10px 36px -14px var(--matrix-glow);
+  }
+  .cta-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 1px var(--accent-bright), 0 14px 40px -12px var(--accent);
+  }
+  .cta-secondary {
+    color: var(--matrix);
+    background: oklch(0.46 0.16 146 / 0.08);
+    border-color: var(--accent-deep);
+  }
+  .cta-secondary:hover {
+    transform: translateY(-1px);
     color: var(--accent-bright);
-    /* keep layout stable while scrambling */
-    font-variant-numeric: tabular-nums;
+    border-color: var(--accent-bright);
+    background: oklch(0.46 0.16 146 / 0.16);
+  }
+
+  @keyframes fade {
+    to {
+      opacity: 1;
+    }
   }
   @keyframes rise {
     to {
@@ -137,59 +286,26 @@ import Globe from './Globe.astro';
     }
   }
 
-  /* ---- scroll cue ---- */
-  .scroll-cue {
-    position: absolute;
-    z-index: 2;
-    bottom: clamp(1.2rem, 3vh, 2.4rem);
-    left: 50%;
-    translate: -50% 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.55rem;
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--faint);
-    opacity: 0;
-    animation: rise 0.7s var(--ease) 5.6s forwards;
-  }
-  .scroll-cue:hover {
-    color: var(--muted);
-  }
-  .scroll-cue i {
-    width: 1px;
-    height: 34px;
-    background: linear-gradient(var(--accent-bright), transparent);
-    animation: cue 1.8s var(--ease) 6s infinite;
-    transform-origin: top;
-  }
-  @keyframes cue {
-    0%,
-    100% {
-      opacity: 0.3;
-      transform: scaleY(0.5);
-    }
-    50% {
-      opacity: 1;
-      transform: scaleY(1);
+  @media (max-width: 600px) {
+    .brand {
+      width: min(92vw, 880px);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .word .txt,
+    .wordmark,
     .tagline,
-    .scroll-cue,
-    .scroll-cue i {
+    .actions,
+    .auth {
       opacity: 1;
       transform: none;
-      clip-path: none;
       animation: none;
     }
-    .word .caret {
-      display: none;
+    .light {
+      animation: none;
+      /* hold the light mid-word so the wordmark still reads as framed + lit */
+      -webkit-mask-position: 50% 0;
+      mask-position: 50% 0;
     }
   }
 </style>
@@ -227,7 +343,7 @@ import Globe from './Globe.astro';
     }
 
     enc.textContent = rand(); // avoid flashing the plain word as the slogan rises
-    setTimeout(decode, 5300); // just after the slogan has risen in
+    setTimeout(decode, 4900); // just after the slogan has risen in
     enc.addEventListener('mouseenter', decode);
   }
 </script>
