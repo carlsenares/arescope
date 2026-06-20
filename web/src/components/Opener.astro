@@ -1,7 +1,8 @@
 ---
-// The opener: a full-viewport globe plays its intro; once it settles the brand
-// (top-left, in the nav) and then this tagline fade in. Text is kept legible
-// over the globe by a soft radial vignette.
+// The opener: a full-viewport globe forms (its graph grows organically), then
+// the brand "arescope" writes itself in (caret wipe) below the nav bar, then a
+// short slogan rises in. The final word "you" decrypts in place — a hand-rolled
+// scramble effect (no React/Tailwind/shadcn; this site stays dependency-free).
 import Globe from './Globe.astro';
 ---
 
@@ -10,7 +11,10 @@ import Globe from './Globe.astro';
   <div class="opener-vignette" aria-hidden="true"></div>
 
   <div class="opener-inner">
-    <h1 class="tagline">See what the internet knows about you.</h1>
+    <p class="wordmark">
+      <span class="word"><span class="txt">arescope</span><i class="caret" aria-hidden="true"></i></span>
+    </p>
+    <h1 class="tagline">What the internet knows about <span class="enc">you</span>.</h1>
   </div>
 
   <a class="scroll-cue" href="#how" aria-label="Scroll to learn more">
@@ -23,47 +27,108 @@ import Globe from './Globe.astro';
   .opener {
     position: relative;
     min-height: 100svh;
-    display: grid;
-    place-items: center;
     overflow: hidden;
     isolation: isolate;
   }
 
-  /* darkens the globe directly behind the tagline so it stays legible */
+  /* darken the top-left so the brand block stays legible over the globe */
   .opener-vignette {
     position: absolute;
     inset: 0;
     z-index: 1;
     background: radial-gradient(
-      ellipse 34% 24% at 50% 50%,
+      ellipse 72% 56% at 16% 24%,
       oklch(0 0 0 / 0.72) 0%,
-      oklch(0 0 0 / 0.35) 50%,
-      transparent 75%
+      oklch(0 0 0 / 0.32) 42%,
+      transparent 64%
     );
     pointer-events: none;
   }
 
   .opener-inner {
-    position: relative;
+    position: absolute;
     z-index: 2;
-    text-align: center;
+    top: clamp(5.5rem, 13vh, 8.5rem);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: var(--container);
     padding-inline: var(--gutter);
+    text-align: left;
   }
 
-  /* ---- slogan: a restrained subhead so the globe stays the hero; rises in
-     after the wordmark finishes writing ---- */
+  /* ---- brand: writes itself in via a caret wipe ---- */
+  .wordmark {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 650;
+    font-size: clamp(2.6rem, 1.8rem + 3vw, 4.6rem);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--ink);
+    text-shadow: 0 2px 30px oklch(0 0 0 / 0.6);
+  }
+  .word {
+    position: relative;
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .word .txt {
+    display: inline-block;
+    clip-path: inset(0 100% 0 0);
+    animation: type 0.9s linear 4s forwards;
+  }
+  @keyframes type {
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+  .word .caret {
+    position: absolute;
+    top: 8%;
+    bottom: 8%;
+    left: 0;
+    width: 3px;
+    background: var(--accent-bright);
+    box-shadow: 0 0 10px var(--accent-bright);
+    opacity: 0;
+    animation: caret 0.9s linear 4s forwards;
+  }
+  @keyframes caret {
+    0% {
+      left: 0;
+      opacity: 1;
+    }
+    88% {
+      opacity: 1;
+    }
+    100% {
+      left: 100%;
+      opacity: 0;
+    }
+  }
+
+  /* ---- slogan: short subhead; "you" decrypts in place ---- */
   .tagline {
     font-family: var(--font-display);
-    font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.3rem);
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 1.12;
-    margin: 0 auto;
-    max-width: 16ch;
-    text-shadow: 0 2px 24px oklch(0 0 0 / 0.7);
+    font-size: clamp(1.05rem, 0.9rem + 0.8vw, 1.5rem);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    margin: 0.85rem 0 0;
+    max-width: 26ch;
+    color: var(--muted);
+    text-shadow: 0 1px 20px oklch(0 0 0 / 0.6);
     opacity: 0;
-    transform: translateY(18px);
-    animation: rise 0.8s var(--ease) 4.9s forwards;
+    transform: translateY(14px);
+    animation: rise 0.8s var(--ease) 4.95s forwards;
+  }
+  .tagline .enc {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--accent-bright);
+    /* keep layout stable while scrambling */
+    font-variant-numeric: tabular-nums;
   }
   @keyframes rise {
     to {
@@ -89,7 +154,7 @@ import Globe from './Globe.astro';
     text-transform: uppercase;
     color: var(--faint);
     opacity: 0;
-    animation: rise 0.7s var(--ease) 5.5s forwards;
+    animation: rise 0.7s var(--ease) 5.6s forwards;
   }
   .scroll-cue:hover {
     color: var(--muted);
@@ -98,7 +163,7 @@ import Globe from './Globe.astro';
     width: 1px;
     height: 34px;
     background: linear-gradient(var(--accent-bright), transparent);
-    animation: cue 1.8s var(--ease) 5.9s infinite;
+    animation: cue 1.8s var(--ease) 6s infinite;
     transform-origin: top;
   }
   @keyframes cue {
@@ -114,12 +179,55 @@ import Globe from './Globe.astro';
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .word .txt,
     .tagline,
     .scroll-cue,
     .scroll-cue i {
       opacity: 1;
       transform: none;
+      clip-path: none;
       animation: none;
+    }
+    .word .caret {
+      display: none;
     }
   }
 </style>
+
+<script>
+  // Decrypt the slogan's final word in place. Hand-rolled (no dependencies) so
+  // the static Astro build stays as-is. Starts scrambled, settles left→right,
+  // and re-runs on hover. Skipped entirely under reduced motion.
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const enc = document.querySelector<HTMLElement>('.tagline .enc');
+  if (enc && !reduce) {
+    const final = enc.textContent ?? '';
+    const glyphs = '!<>-_\\/[]{}=+*^?#01';
+    const rand = () =>
+      Array.from(final, () => glyphs[(Math.random() * glyphs.length) | 0]).join('');
+
+    let timer = 0;
+    function decode() {
+      clearInterval(timer);
+      const total = 22;
+      const settle = Array.from(final, (_, i) =>
+        Math.round(((i + 1) / final.length) * total * 0.7 + Math.random() * total * 0.3)
+      );
+      let frame = 0;
+      timer = window.setInterval(() => {
+        let out = '';
+        for (let i = 0; i < final.length; i++)
+          out += frame >= settle[i] ? final[i] : glyphs[(Math.random() * glyphs.length) | 0];
+        enc!.textContent = out;
+        if (frame++ >= total) {
+          clearInterval(timer);
+          enc!.textContent = final;
+        }
+      }, 45);
+    }
+
+    enc.textContent = rand(); // avoid flashing the plain word as the slogan rises
+    setTimeout(decode, 5300); // just after the slogan has risen in
+    enc.addEventListener('mouseenter', decode);
+  }
+</script>

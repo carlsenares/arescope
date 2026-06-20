@@ -53,7 +53,6 @@ const steps = [
                   stroke-linecap="round" transform="rotate(-45 16 16)" />
           <circle cx="16" cy="16" r="2.3" fill="var(--accent-bright)" />
         </svg>
-        <span class="word"><span class="txt">arescope</span><i class="caret" aria-hidden="true"></i></span>
       </a>
       <nav class="nav-links" aria-label="Primary">
         <a href="#how">How it works</a>
@@ -242,7 +241,7 @@ const steps = [
     backdrop-filter: blur(12px);
     background-color: transparent;
     border-bottom: 1px solid transparent;
-    animation: bar-in 0.6s var(--ease) 3.8s forwards;
+    animation: bar-in 0.6s var(--ease) 3.9s forwards;
   }
   @keyframes bar-in {
     to {
@@ -250,59 +249,11 @@ const steps = [
       border-bottom-color: var(--hairline);
     }
   }
-  .brand-mark {
-    opacity: 0;
-    transform: scale(0.6);
-    animation: mark-in 0.5s var(--ease) 3.8s forwards;
-  }
-  @keyframes mark-in {
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  .word {
-    position: relative;
-    display: inline-block;
-    white-space: nowrap;
-  }
-  .word .txt {
-    display: inline-block;
-    clip-path: inset(0 100% 0 0);
-    animation: type 0.85s linear 3.95s forwards;
-  }
-  @keyframes type {
-    to {
-      clip-path: inset(0 0 0 0);
-    }
-  }
-  .word .caret {
-    position: absolute;
-    top: 14%;
-    bottom: 14%;
-    left: 0;
-    width: 2px;
-    background: var(--accent-bright);
-    opacity: 0;
-    animation: caret 0.85s linear 3.95s forwards;
-  }
-  @keyframes caret {
-    0% {
-      left: 0;
-      opacity: 1;
-    }
-    90% {
-      opacity: 1;
-    }
-    100% {
-      left: 100%;
-      opacity: 0;
-    }
-  }
+  .brand-mark,
   .nav-links,
   .nav-cta {
     opacity: 0;
-    animation: fade-in 0.6s var(--ease) 4.85s forwards;
+    animation: fade-in 0.6s var(--ease) 3.9s forwards;
   }
   @keyframes fade-in {
     to {
@@ -312,20 +263,15 @@ const steps = [
   @media (prefers-reduced-motion: reduce) {
     .nav,
     .brand-mark,
-    .word .txt,
     .nav-links,
     .nav-cta {
       opacity: 1;
       transform: none;
-      clip-path: none;
       animation: none;
     }
     .nav {
       background-color: color-mix(in oklch, var(--bg) 70%, transparent);
       border-bottom-color: var(--hairline);
-    }
-    .word .caret {
-      display: none;
     }
   }
   .nav-inner {

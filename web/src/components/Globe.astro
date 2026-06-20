@@ -51,14 +51,13 @@
     const GRID = '120, 240, 110';
     const RED = '255, 52, 52';
 
-    // ---- intro timeline (ms) — dots first, then a slow line draw ----
-    const NODES = 46;
-    const NODE_SPREAD = 900; // red nodes finish popping ~1.3s
-    const NODE_DUR = 420;
-    const LINE_START = 1500; // pause after dots, then lines begin
-    const LINE_SPREAD = 1300; // edges staggered across this window
-    const EDGE_DUR = 1000; // each line draws slowly
-    const RK = 0.3; // constant radius factor (smaller than before)
+    // ---- intro: an organic graph that grows from a seed ----
+    const NODES = 30; // fewer points → far less packed
+    const NODE_DUR = 320; // node pop-in
+    const STEP = 100; // gap between successive nodes joining the graph
+    const EDGE_MIN = 720; // base line-draw duration (slow), + jitter
+    const LONG_LINKS = 3; // a few long cross-ocean spans
+    const RK = 0.3; // constant radius factor
 
     // ---- land base vectors ----
     const land: V[] = points.map(([lat, lng]) => {
@@ -119,55 +118,54 @@
 
     const nodeIdx = pickNodes(NODES);
     const nodeV = nodeIdx.map((i) => land[i]);
-    const nodeDelay = nodeV.map((_, i) => (i / NODES) * NODE_SPREAD);
 
-    // ---- build a graph (not a mesh) ----
-    // Spanning tree: attach each node (added in farthest-point order, so each is
-    // far from the rest) to a connected node — mostly the nearest, sometimes a
-    // random one, giving long hops. No cycles → reads as a graph, not cells.
-    type RawEdge = { a: number; b: number };
-    const raw: RawEdge[] = [];
-    const seenEdge = new Set<string>();
-    const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
-    const conn = [0];
-    for (let i = 1; i < NODES; i++) {
-      let target = conn[0];
-      if (Math.random() < 0.62) {
-        let bd = Infinity;
-        for (const j of conn) {
-          const d = d2(nodeV[i], nodeV[j]);
-          if (d < bd) {
-            bd = d;
-            target = j;
+    // Grow the graph outward from a seed: repeatedly attach the ungrown node
+    // nearest to the graph so far. Short local hops first (a line across a
+    // continent), then spreading across the globe — a network actually forming,
+    // node and its connecting line appearing together, not dots-then-lines.
+    type Edge = { pts: V[]; delay: number; dur: number };
+    const nodeDelay = new Array<number>(NODES).fill(0);
+    const isGrown = new Array<boolean>(NODES).fill(false);
+    const grown = [0];
+    isGrown[0] = true;
+    const edges: Edge[] = [];
+    let order = 1;
+    while (grown.length < NODES) {
+      let best = -1;
+      let parent = -1;
+      let bestD = Infinity;
+      for (let j = 0; j < NODES; j++) {
+        if (isGrown[j]) continue;
+        for (const g of grown) {
+          const d = d2(nodeV[j], nodeV[g]);
+          if (d < bestD) {
+            bestD = d;
+            best = j;
+            parent = g;
           }
         }
-      } else {
-        target = conn[(Math.random() * conn.length) | 0]; // long hop
       }
-      raw.push({ a: i, b: target });
-      seenEdge.add(key(i, target));
-      conn.push(i);
+      isGrown[best] = true;
+      grown.push(best);
+      const delay = order * STEP;
+      nodeDelay[best] = delay;
+      edges.push({ pts: slerp(nodeV[parent], nodeV[best]), delay, dur: EDGE_MIN + Math.random() * 220 });
+      order++;
     }
-    // a handful of long cross-ocean links to emphasise global connectivity
+    // a few long cross-ocean links between distant nodes, late in the build
+    const lastDelay = (NODES - 1) * STEP;
     let added = 0;
-    for (let t = 0; t < 300 && added < 7; t++) {
+    for (let t = 0; t < 400 && added < LONG_LINKS; t++) {
       const a = (Math.random() * NODES) | 0;
       const b = (Math.random() * NODES) | 0;
-      if (a === b || seenEdge.has(key(a, b))) continue;
-      if (angle(nodeV[a], nodeV[b]) < 1.45) continue; // require a genuinely long span
-      raw.push({ a, b });
-      seenEdge.add(key(a, b));
+      if (a === b || angle(nodeV[a], nodeV[b]) < 1.6) continue; // genuinely long span
+      edges.push({
+        pts: slerp(nodeV[a], nodeV[b]),
+        delay: lastDelay * (0.55 + 0.4 * Math.random()),
+        dur: EDGE_MIN + 220,
+      });
       added++;
     }
-
-    type Edge = { a: number; b: number; pts: V[]; delay: number };
-    const NE = raw.length;
-    const edges: Edge[] = raw.map((e, idx) => ({
-      a: e.a,
-      b: e.b,
-      pts: slerp(nodeV[e.a], nodeV[e.b]),
-      delay: LINE_START + (idx / NE) * LINE_SPREAD,
-    }));
 
     // ---- viewport (constant size) ----
     let W = 0;
@@ -220,7 +218,7 @@
     }
 
     function drawEdge(e: Edge, now: number) {
-      const p = smooth(clamp01((now - e.delay) / EDGE_DUR));
+      const p = smooth(clamp01((now - e.delay) / e.dur));
       if (p <= 0) return;
       const seg = e.pts.length - 1;
       const upto = Math.max(1, Math.round(seg * p));
