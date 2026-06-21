@@ -41,8 +41,8 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # Which identifier types the form collects (photo upload comes with a later pass).
 _INPUT_FIELDS: list[tuple[InputType, str, str, str]] = [
-    (InputType.EMAIL, "email", "Email address(es)", "you@example.com"),
-    (InputType.USERNAME, "username", "Username / handle(s)", "yourhandle"),
+    (InputType.EMAIL, "email", "Email address", "you@example.com"),
+    (InputType.USERNAME, "username", "Username / handle", "yourhandle"),
     (InputType.NAME, "name", "Full name", "Jane Doe"),
     (InputType.IP, "ip", "IP address you own", "203.0.113.4"),
 ]
@@ -278,28 +278,27 @@ async def new_scan_submit(request: Request):
     form = await request.form()
     _check_csrf(request, form.get("csrf"))
 
-    # Each field may hold several comma/newline-separated values you own.
+    # One value per identifier type (audit a single email / username / name / IP
+    # per run — not bulk lists).
     identifiers: list[Identifier] = []
     values: dict[str, str] = {}
     for itype, key, _label, _ph in _INPUT_FIELDS:
         raw = str(form.get(key, "")).strip()
         values[key] = raw
-        for part in raw.replace("\n", ",").split(","):
-            v = part.strip()
-            if v:
-                identifiers.append(
-                    Identifier(type=itype, value=v, ownership_verified=True)
-                )
+        if raw:
+            identifiers.append(Identifier(type=itype, value=raw, ownership_verified=True))
 
     if not identifiers:
         return _render(
             request,
             "new_scan.html",
             fields=_INPUT_FIELDS,
-            error="Add at least one identifier you own.",
+            error="Add at least one identifier.",
             values=values,
         )
-    if not form.get("own"):
+    # Self-audit confirmation. Admins bypass it (and, when the P2 per-input
+    # ownership gate lands, that gate must skip admins too — they can audit anything).
+    if not user.is_admin and not form.get("own"):
         return _render(
             request,
             "new_scan.html",

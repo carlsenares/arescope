@@ -39,5 +39,8 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if users|length <= 1 %}
+  <p class="hint">No other users yet. When people sign up, they'll appear here with a Grant button so you can switch on their access in real time.</p>
+  {% endif %}
 </section>
 {% endblock %}

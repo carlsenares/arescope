@@ -652,3 +652,13 @@ td.right,
   .scan-row { grid-template-columns: 4.5rem auto; }
   .scan-date { display: none; }
 }
+
+/* admin note on the new-analysis form */
+.admin-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
