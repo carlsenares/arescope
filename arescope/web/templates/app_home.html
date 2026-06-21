@@ -1,37 +1,70 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · Arescope{% endblock %}
 {% block content %}
-<section class="stack">
-  <div class="rowbetween">
+<section class="dash">
+
+  <header class="dash-head">
     <div>
-      <span class="eyebrow">Your account</span>
-      <h1>Analyses</h1>
-      <p class="muted">Run a self-audit and track each scan's status.</p>
+      <span class="eyebrow">Dashboard</span>
+      <h1>Welcome back, {{ user.username }}</h1>
+      <p class="muted">Your exposure, judged and ranked — run an audit and track every scan.</p>
     </div>
-    <a class="btn btn-primary" href="/app/new">Start analysis</a>
+    <a class="btn btn-primary" href="/app/new">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      New analysis
+    </a>
+  </header>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <span class="stat-label">Analyses run</span>
+      <span class="stat-value">{{ scans|length }}</span>
+      <span class="stat-foot">{% if scans %}most recent {{ scans[0].started_at.strftime('%b %d') if scans[0].started_at else '—' }}{% else %}none yet{% endif %}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Latest status</span>
+      <span class="stat-value cap">{% if scans %}{{ scans[0].status }}{% else %}—{% endif %}</span>
+      <span class="stat-foot">{% if scans %}scan {{ scans[0].id[:8] }}{% else %}run your first scan{% endif %}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Scan access</span>
+      <span class="stat-value">
+        {% if user.is_admin %}<span class="dot ok"></span>Full
+        {% elif user.can_scan %}<span class="dot ok"></span>Enabled
+        {% else %}<span class="dot wait"></span>Invite-only{% endif %}
+      </span>
+      <span class="stat-foot">{% if user.is_admin %}admin account{% elif user.can_scan %}granted by admin{% else %}ask for access{% endif %}</span>
+    </div>
   </div>
 
-  {% if scans %}
-  <table class="scans">
-    <thead>
-      <tr><th>Scan</th><th>Status</th><th>Started</th></tr>
-    </thead>
-    <tbody>
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Recent analyses</h2>
+      {% if scans %}<a class="navlink" href="/app/new">Run another →</a>{% endif %}
+    </div>
+
+    {% if scans %}
+    <ul class="scan-list">
       {% for sc in scans %}
-      <tr>
-        <td class="mono">{{ sc.id[:8] }}</td>
-        <td><span class="chip chip-{{ sc.status }}">{{ sc.status }}</span></td>
-        <td class="muted">{{ sc.started_at.strftime('%Y-%m-%d %H:%M') if sc.started_at else '—' }}</td>
-      </tr>
+      <li class="scan-row">
+        <span class="scan-id mono">{{ sc.id[:8] }}</span>
+        <span class="chip chip-{{ sc.status }}">{{ sc.status }}</span>
+        <span class="scan-date muted">{{ sc.started_at.strftime('%b %d, %Y · %H:%M') if sc.started_at else '—' }}</span>
+      </li>
       {% endfor %}
-    </tbody>
-  </table>
-  <p class="hint">Results view is coming next — for now this confirms scans are created and queued.</p>
-  {% else %}
-  <div class="empty">
-    <p class="muted">No analyses yet.</p>
-    <a class="btn btn-primary" href="/app/new">Start your first analysis</a>
+    </ul>
+    <p class="hint">A full results view is coming next — this confirms your scans are created and queued.</p>
+    {% else %}
+    <div class="empty">
+      <div class="empty-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      </div>
+      <h3>No analyses yet</h3>
+      <p class="muted">Add an email, username, or IP you own and Arescope will map what's exposed.</p>
+      <a class="btn btn-primary" href="/app/new">Start your first analysis</a>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
+
 </section>
 {% endblock %}

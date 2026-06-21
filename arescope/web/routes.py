@@ -114,9 +114,10 @@ def signup_submit(
     login_session(request, uid)
     try:
         send_verification(uid, email.strip().lower())
-    except Exception:  # noqa: BLE001 — email is best-effort; the banner offers a resend
+    except Exception:  # noqa: BLE001 — email is best-effort; the screen offers a resend
         pass
-    return RedirectResponse(_safe_next(next), status_code=303)
+    # Funnel straight to the verify gate — confirming the address comes before anything else.
+    return RedirectResponse("/verify-email", status_code=303)
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -169,9 +170,9 @@ def magic_request(request: Request, email: str = Form(""), csrf: str = Form(""))
     return _render(request, "magic_sent.html", email=email.strip())
 
 
-@router.post("/verify/resend", response_class=HTMLResponse)
-def resend_verification(request: Request, csrf: str = Form("")) -> HTMLResponse:
-    """Re-send the confirm-email link to the logged-in user."""
+@router.post("/verify/resend")
+def resend_verification(request: Request, csrf: str = Form("")) -> RedirectResponse:
+    """Re-send the confirm-email link to the logged-in user, stay on the gate."""
     _check_csrf(request, csrf)
     user = current_user(request)
     if user and not user.email_verified:
@@ -179,7 +180,26 @@ def resend_verification(request: Request, csrf: str = Form("")) -> HTMLResponse:
             send_verification(user.id, user.email)
         except Exception:  # noqa: BLE001
             pass
-    return _render(request, "magic_sent.html", email=user.email if user else "")
+    return RedirectResponse("/verify-email?sent=1", status_code=303)
+
+
+@router.get("/verify-email", response_class=HTMLResponse)
+def verify_email_screen(request: Request, sent: int = 0):
+    """Blocking gate after signup: confirm your address before using the app."""
+    user = current_user(request)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if user.email_verified:
+        return RedirectResponse("/app", status_code=303)
+    return _render(request, "verify_email.html", email=user.email, sent=bool(sent))
+
+
+@router.get("/verify-status")
+def verify_status(request: Request) -> dict:
+    """Polled by the verify screen so it auto-advances when the link is clicked
+    on another device (e.g. the user's phone)."""
+    user = current_user(request)
+    return {"verified": bool(user and user.email_verified)}
 
 
 @router.get("/auth/verify", response_class=HTMLResponse)
@@ -205,9 +225,20 @@ def _require(request: Request) -> models.User | RedirectResponse:
     return user
 
 
+def _require_verified(request: Request) -> models.User | RedirectResponse:
+    """Logged in AND email-confirmed (admins are exempt — seeded pre-verified).
+    Unverified accounts are bounced to the verify gate before any app surface."""
+    user = _require(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not user.email_verified and not user.is_admin:
+        return RedirectResponse("/verify-email", status_code=303)
+    return user
+
+
 @router.get("/app", response_class=HTMLResponse)
 def app_home(request: Request):
-    user = _require(request)
+    user = _require_verified(request)
     if isinstance(user, RedirectResponse):
         return user
     with session_scope() as s:
@@ -227,7 +258,7 @@ def app_home(request: Request):
 
 @router.get("/app/new", response_class=HTMLResponse)
 def new_scan_form(request: Request):
-    user = _require(request)
+    user = _require_verified(request)
     if isinstance(user, RedirectResponse):
         return user
     if not can_run_scan(user):
@@ -237,7 +268,7 @@ def new_scan_form(request: Request):
 
 @router.post("/app/new", response_class=HTMLResponse)
 async def new_scan_submit(request: Request):
-    user = _require(request)
+    user = _require_verified(request)
     if isinstance(user, RedirectResponse):
         return user
     if not can_run_scan(user):

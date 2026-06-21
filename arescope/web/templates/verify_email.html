@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Confirm your email · Arescope{% endblock %}
+{% block content %}
+<div class="authscreen">
+<section class="auth-card verify">
+  <div class="verify-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  </div>
+  <span class="eyebrow">One step left</span>
+  <h1>Confirm your email</h1>
+  <p class="muted">
+    We sent a secure link to <strong class="addr">{{ email }}</strong>.
+    Open it on any device to activate your account — this page updates the moment you do.
+  </p>
+
+  <div class="verify-wait" id="waitRow">
+    <span class="spinner" aria-hidden="true"></span>
+    <span>Waiting for confirmation…</span>
+  </div>
+
+  {% if sent %}<p class="sent-note" role="status">New link sent. Check your inbox.</p>{% endif %}
+
+  <form method="post" action="/verify/resend" class="form tight">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <button class="btn btn-ghost" type="submit">Resend link</button>
+  </form>
+
+  <div class="hint signout-row">
+    <span>Wrong address?</span>
+    <form method="post" action="/logout" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}" />
+      <button type="submit" class="linkbtn">Sign out</button>
+    </form>
+    <span>and start over.</span>
+  </div>
+</section>
+</div>
+
+<script>
+  // Cross-device auto-advance: poll until the link is clicked (possibly on the
+  // user's phone), then move into the app. Stops when the tab is hidden.
+  (function () {
+    let timer;
+    async function check() {
+      try {
+        const r = await fetch('/verify-status', { headers: { 'Accept': 'application/json' } });
+        if (r.ok && (await r.json()).verified) {
+          clearInterval(timer);
+          window.location.href = '/app';
+        }
+      } catch (_) { /* offline blip — keep polling */ }
+    }
+    timer = setInterval(check, 3000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) check(); // re-check immediately when they switch back
+    });
+  })();
+</script>
+{% endblock %}

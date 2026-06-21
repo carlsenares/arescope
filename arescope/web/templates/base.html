@@ -26,17 +26,6 @@
         {% endif %}
       </nav>
     </header>
-    <main class="appmain">
-      {% if user and not user.email_verified %}
-      <div class="banner">
-        <span>Confirm your email to secure your account.</span>
-        <form method="post" action="/verify/resend" class="inline">
-          <input type="hidden" name="csrf" value="{{ csrf }}" />
-          <button class="btn btn-ghost btn-sm" type="submit">Resend link</button>
-        </form>
-      </div>
-      {% endif %}
-      {% block content %}{% endblock %}
-    </main>
+    <main class="appmain">{% block content %}{% endblock %}</main>
   </body>
 </html>
