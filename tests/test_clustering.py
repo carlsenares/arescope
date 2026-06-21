@@ -36,8 +36,8 @@ def test_recency_and_salience_split_clusters():
         _breach("EmailOnly", ["Email addresses"], "2013-01-01"),
     ]
     clusters = cluster_evidence(evs)
-    sigs = {c.signature for c in clusters}
-    assert len(clusters) == 4  # all distinct risk profiles
+    assert len({c.signature for c in clusters}) == 4  # all distinct risk profiles
+    assert len(clusters) == 4
     # email-only is the only one that does not force-escalate
     email_only = next(c for c in clusters if c.member_locators == ["EmailOnly"])
     assert email_only.force_escalate is False

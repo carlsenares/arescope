@@ -9,11 +9,13 @@ to the worker. Results UI is a separate pass.
 from __future__ import annotations
 
 import os
+import re
 import secrets
 from urllib.parse import quote
 
+import httpx
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from arescope.auth import (
@@ -27,6 +29,7 @@ from arescope.auth import (
 )
 from arescope.db import models
 from arescope.db.session import session_scope
+from arescope.graph import build_account_graph, build_scan_graph
 from arescope.magic import consume_token, send_magic_login, send_verification
 from arescope.schemas import SEVERITY_ORDER, Category, Identifier, InputType, Severity
 from arescope.service import (
@@ -553,3 +556,52 @@ async def finding_resolve(request: Request, finding_id: str):
         except ValueError:
             raise HTTPException(404, "finding not found")
     return RedirectResponse(f"/app/scans/{scan_id}#f-{finding_id}", status_code=303)
+
+
+# --- exposure map (graph) ----------------------------------------------------
+
+_LOGO_CACHE = os.path.join(APP_STATIC_DIR, "logocache")
+
+
+@router.get("/app/map", response_class=HTMLResponse)
+def account_map(request: Request):
+    """The whole-account exposure map — every scan the user owns, merged."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    elements = build_account_graph(user.id, label=user.username)
+    return _render(request, "map.html", elements=elements, scope="account", scan=None)
+
+
+@router.get("/app/scans/{scan_id}/map", response_class=HTMLResponse)
+def scan_map(request: Request, scan_id: str):
+    """The exposure map for a single analysis."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    if _load_owned_scan(user, scan_id) is None:
+        raise HTTPException(404, "scan not found")
+    elements = build_scan_graph(scan_id)
+    return _render(request, "map.html", elements=elements, scope="scan", scan=scan_id)
+
+
+@router.get("/app/logo/{slug}")
+def logo_proxy(slug: str):
+    """Serve a brand logo, cached on our own origin (no per-render third-party
+    call from the user's browser). Fetched once from Simple Icons; 404 => the map
+    falls back to a monogram. Slug is sanitised, source is fixed (no SSRF)."""
+    safe = re.sub(r"[^a-z0-9-]", "", slug.lower())[:40]
+    if not safe:
+        raise HTTPException(404)
+    os.makedirs(_LOGO_CACHE, exist_ok=True)
+    path = os.path.join(_LOGO_CACHE, f"{safe}.svg")
+    if not os.path.exists(path):
+        try:
+            r = httpx.get(f"https://cdn.simpleicons.org/{safe}", timeout=10)
+        except httpx.HTTPError:
+            raise HTTPException(404)
+        if r.status_code != 200 or "svg" not in r.headers.get("content-type", ""):
+            raise HTTPException(404)
+        with open(path, "wb") as fh:
+            fh.write(r.content)
+    return FileResponse(path, media_type="image/svg+xml")

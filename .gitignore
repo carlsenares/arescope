@@ -40,3 +40,4 @@ dist/
 # astro generated cache
 .astro/
 docker-compose.override.yml
+arescope/web/static/logocache/

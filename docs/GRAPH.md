@@ -146,7 +146,26 @@ or auto-suggesting **groupings/clusters**. Rendering + layout = Cytoscape.js.
    sub-nodes for Shodan, cross-edges ("reused password across these breaches"),
    the NL summary.
 
-## 9. Open questions
+## 9. Dynamic by design (not hardcoded)
+The node/edge *taxonomy* is a fixed, legible schema; the *graph* is fully
+data-driven and rebuilt on every view, so it adapts as analyses accumulate:
+- **Content-addressed ids** (`site:<domain>`, `breach:<name>`) mean the same
+  platform reached by many inputs — even across separate scans — collapses to ONE
+  node with many edges. Add 10 more email scans and they merge in with zero
+  overlap; shared platforms are shared nodes automatically (proven: 2 inputs →
+  24 deduped site nodes in the first live account map).
+- **Severity flows from the finding**, so a node inherits the worst severity
+  touching it as new evidence lands.
+- **Force layout** (`cose`) computes positions each render — no fixed
+  coordinates. Next step for stability: persist positions and only ease *new*
+  nodes in, so an expanding map never re-jumbles.
+- **Upgrade path:** for hundreds of nodes/account, projecting from Postgres is
+  correct. If the identity graph becomes the core product (it's the moat —
+  see POSITIONING.md), back the projection with a **graph database**
+  (Neo4j/Memgraph) — the Cytoscape frontend doesn't change. This is also where an
+  "AI" layer could add a natural-language read of the map, never the rendering.
+
+## 10. Open questions
 - Masking depth in labels (how much of an email to show before hover).
 - Whether per-account aggregation needs its own cache (rebuild on each scan complete).
 - Post-level scraping is a **new collection capability** and re-opens the ownership

@@ -12,7 +12,10 @@
       <h1>{{ scan.name or 'Your exposure report' }}</h1>
       <p class="muted mono">scan {{ scan.id[:8] }} · {{ scan.started_at.strftime('%b %d, %Y · %H:%M') if scan.started_at else '' }}</p>
     </div>
-    <a class="btn btn-ghost btn-sm" href="/app">← Dashboard</a>
+    <div class="map-actions">
+      <a class="btn btn-ghost btn-sm" href="/app/scans/{{ scan.id }}/map">View map</a>
+      <a class="btn btn-ghost btn-sm" href="/app">Dashboard</a>
+    </div>
   </header>
 
   {% if running %}

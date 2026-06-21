@@ -967,3 +967,83 @@ td.right,
 .chip-medium { color: oklch(0.82 0.15 95); border-color: oklch(0.82 0.15 95 / 0.5); }
 .chip-low { color: var(--matrix); border-color: var(--accent-dim); }
 .chip-info { color: var(--faint); border-color: var(--hairline-strong); }
+
+/* ============================================================
+   Exposure map (graph)
+   ============================================================ */
+.mapscreen {
+  display: grid;
+  gap: 1rem;
+}
+.map-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.sw {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.sw-critical { background: var(--sev-critical); }
+.sw-high { background: var(--sev-high); }
+.sw-medium { background: oklch(0.82 0.15 95); }
+.sw-low { background: var(--matrix); }
+.sw-info { background: var(--faint); }
+
+.mapwrap {
+  position: relative;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 50% 40%, oklch(0.12 0 0), var(--bg));
+  overflow: hidden;
+}
+#cy {
+  width: 100%;
+  height: 72vh;
+  min-height: 460px;
+}
+.cy-tip {
+  position: absolute;
+  z-index: 5;
+  max-width: 260px;
+  padding: 0.6rem 0.75rem;
+  background: oklch(0.16 0 0 / 0.97);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  color: var(--ink);
+  pointer-events: none;
+  box-shadow: 0 12px 30px -12px #000;
+}
+.cy-tip .t-sub {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+.cy-tip .t-sev {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.t-critical { color: var(--sev-critical); }
+.t-high { color: var(--sev-high); }
+.t-medium { color: oklch(0.82 0.15 95); }
+.t-low { color: var(--matrix); }
+.t-info { color: var(--faint); }
