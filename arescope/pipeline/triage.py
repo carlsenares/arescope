@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from arescope.config import get_settings
 from arescope.pipeline.llm import client, triage_system_blocks
