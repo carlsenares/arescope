@@ -49,17 +49,18 @@ def create_subject(identifiers: list[IdentifierSchema], user_id: str | None = No
         return subject.id
 
 
-def create_scan(subject_id: str) -> str:
+def create_scan(subject_id: str, options: dict | None = None) -> str:
     """Create a queued scan row so it's visible the instant the user submits.
 
     The worker picks it up and runs it; splitting create from run means the
-    dashboard shows a real record even before a worker is free.
+    dashboard shows a real record even before a worker is free. `options` carries
+    per-run choices (e.g. {"maigret_top_sites": 50}).
     """
     with session_scope() as s:
         subject = s.get(models.Subject, subject_id)
         if subject is None:
             raise ValueError(f"subject {subject_id} not found")
-        scan = models.Scan(subject_id=subject_id, status="queued")
+        scan = models.Scan(subject_id=subject_id, status="queued", options=options or {})
         s.add(scan)
         s.flush()
         return scan.id
@@ -84,7 +85,13 @@ def run_and_store_scan(scan_id: str) -> str:
             )
             for i in subject.identifiers
         ]
+        # Apply per-scan run options (e.g. the "top sites only" Maigret choice).
+        options = dict(scan.options or {})
         scan.status = "running"
+
+    top = options.get("maigret_top_sites")
+    if top:
+        cfg = cfg.model_copy(update={"maigret_top_sites": int(top)})
 
     report = run_scan(identifiers, cfg)
     _persist_report(scan_id, report)

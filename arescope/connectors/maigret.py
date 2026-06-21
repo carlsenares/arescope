@@ -26,7 +26,7 @@ class MaigretConnector(Connector):
 
     def run(self, value: str, input_type: InputType, cfg: Settings) -> list[Signal]:
         try:
-            claimed = _run_maigret(value)
+            claimed = _run_maigret(value, top_sites=cfg.maigret_top_sites)
         except FileNotFoundError as e:
             raise ConnectorGap("maigret CLI not found on PATH") from e
         except subprocess.TimeoutExpired as e:
@@ -53,17 +53,25 @@ class MaigretConnector(Connector):
         return signals
 
 
-def _run_maigret(username: str) -> dict[str, dict]:
-    """Run `maigret <user> --json simple` and return {site: info} for claimed sites."""
+def _run_maigret(username: str, top_sites: int | None = None) -> dict[str, dict]:
+    """Run `maigret <user> --json simple` and return {site: info} for claimed sites.
+
+    top_sites caps the search to the N most popular sites (much faster); None uses
+    Maigret's default set.
+    """
+    cmd = [
+        "maigret", username,
+        "--json", "simple",
+        "--no-progressbar",
+        "--timeout", "20",
+        "--folder", "{tmp}",
+    ]
+    if top_sites:
+        cmd += ["--top-sites", str(top_sites)]
     with tempfile.TemporaryDirectory() as tmp:
+        cmd[cmd.index("{tmp}")] = tmp
         subprocess.run(
-            [
-                "maigret", username,
-                "--json", "simple",
-                "--no-progressbar",
-                "--timeout", "20",
-                "--folder", tmp,
-            ],
+            cmd,
             capture_output=True,
             timeout=300,
             check=False,

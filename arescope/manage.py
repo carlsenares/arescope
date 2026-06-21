@@ -34,12 +34,19 @@ def _migrate() -> int:
             conn.execute(
                 text("ALTER TABLE users ADD COLUMN IF NOT EXISTS can_scan BOOLEAN NOT NULL DEFAULT false")
             )
+            conn.execute(
+                text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS options JSON NOT NULL DEFAULT '{}'")
+            )
         else:
-            try:
-                conn.execute(text("ALTER TABLE users ADD COLUMN can_scan BOOLEAN NOT NULL DEFAULT 0"))
-            except Exception as e:  # noqa: BLE001 — column likely already present
-                if "duplicate" not in str(e).lower() and "exist" not in str(e).lower():
-                    raise
+            for ddl in (
+                "ALTER TABLE users ADD COLUMN can_scan BOOLEAN NOT NULL DEFAULT 0",
+                "ALTER TABLE scans ADD COLUMN options JSON NOT NULL DEFAULT '{}'",
+            ):
+                try:
+                    conn.execute(text(ddl))
+                except Exception as e:  # noqa: BLE001 — column likely already present
+                    if "duplicate" not in str(e).lower() and "exist" not in str(e).lower():
+                        raise
     print("Migration complete.")
     return 0
 

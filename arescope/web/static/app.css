@@ -501,14 +501,18 @@ td.right,
   margin: 0;
   padding: 0;
 }
+.scan-list li {
+  list-style: none;
+}
 .scan-row {
   display: grid;
-  grid-template-columns: 5rem auto 1fr;
+  grid-template-columns: 5rem auto 1fr auto;
   align-items: center;
   gap: 1rem;
-  padding: 0.85rem 0.4rem;
+  padding: 0.85rem 0.6rem;
   border-bottom: 1px solid var(--hairline);
-  border-radius: 6px;
+  border-radius: 8px;
+  color: var(--ink);
   transition: background 0.14s var(--ease);
 }
 .scan-row:last-child {
@@ -516,10 +520,18 @@ td.right,
 }
 .scan-row:hover {
   background: var(--surface-2);
+  color: var(--ink);
 }
 .scan-date {
   text-align: right;
   font-size: 0.85rem;
+}
+.scan-go {
+  color: var(--faint);
+  font-size: 1.05rem;
+}
+.scan-row:hover .scan-go {
+  color: var(--accent-bright);
 }
 
 /* richer empty state */
@@ -662,3 +674,290 @@ td.right,
   font-size: 0.86rem;
   color: var(--muted);
 }
+
+/* ============================================================
+   Maigret deep-scan choice (new-analysis form)
+   ============================================================ */
+.maigret-note {
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+  background: var(--surface-2);
+  display: grid;
+  gap: 0.8rem;
+}
+.mn-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.mn-i {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-style: italic;
+  color: oklch(0.08 0 0);
+  background: var(--accent);
+}
+.maigret-note.pulse-once .mn-i {
+  animation: pulse 0.5s var(--ease-out) 2;
+}
+@keyframes pulse {
+  50% { box-shadow: 0 0 0 6px oklch(0.86 0.26 143 / 0.25); }
+}
+.mn-opts {
+  display: grid;
+  gap: 0.5rem;
+}
+.radio {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+.radio input {
+  accent-color: var(--accent);
+}
+.radio small {
+  margin-left: 0.4rem;
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+}
+
+/* ============================================================
+   Results page
+   ============================================================ */
+.results {
+  display: grid;
+  gap: 1.5rem;
+}
+.results-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.results-head .mono {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+}
+.results-summary {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.rs-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* scanning / loading */
+.scanning {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.6rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.scanning p {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+}
+
+/* findings feed */
+.findings-feed {
+  display: grid;
+  gap: 1rem;
+}
+.finding-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--faint);
+  border-radius: var(--radius);
+  padding: 1.3rem 1.4rem;
+  scroll-margin-top: 80px;
+}
+.finding-card.sev-critical { border-left-color: var(--sev-critical); }
+.finding-card.sev-high { border-left-color: var(--sev-high); }
+.finding-card.sev-medium { border-left-color: oklch(0.82 0.15 95); }
+.finding-card.sev-low { border-left-color: var(--accent-dim); }
+.finding-card.sev-info { border-left-color: var(--faint); }
+
+.fc-top {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+.fc-cat {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fc-action {
+  margin-left: auto;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.2em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
+  color: var(--muted);
+}
+.act-fix_now { color: var(--sev-critical); border-color: oklch(0.64 0.2 18 / 0.5); }
+.act-worth_fixing { color: var(--sev-high); border-color: oklch(0.78 0.15 70 / 0.5); }
+.act-depends { color: oklch(0.82 0.15 95); border-color: oklch(0.82 0.15 95 / 0.5); }
+
+.fc-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+}
+.fc-rationale {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+.fc-members {
+  margin: 0.7rem 0 0;
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+.fc-label {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+  margin-right: 0.5rem;
+}
+
+/* inline easy fix */
+.fc-fix {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--hairline);
+  font-size: 0.92rem;
+}
+
+/* contingency questions */
+.fc-questions {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--hairline);
+  display: grid;
+  gap: 0.7rem;
+}
+.q {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+}
+.q-opts {
+  display: flex;
+  gap: 1rem;
+  flex: none;
+}
+.q-opts label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.q-opts input { accent-color: var(--accent); }
+
+/* generated solution */
+.fc-solution {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--hairline);
+}
+.sol-summary {
+  margin: 0.4rem 0 0.8rem;
+  font-size: 0.94rem;
+}
+.sol-steps {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.6rem;
+}
+.sol-steps li {
+  font-size: 0.92rem;
+}
+.sol-steps li strong { display: block; }
+.sol-steps li span { color: var(--muted); }
+.sol-steps li a {
+  display: inline-block;
+  margin-top: 0.2rem;
+  color: var(--accent-bright);
+  word-break: break-all;
+  font-size: 0.85rem;
+}
+.sol-artifact {
+  margin-top: 0.9rem;
+  font-size: 0.88rem;
+}
+.sol-artifact summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.sol-artifact pre {
+  margin: 0.6rem 0 0;
+  padding: 0.9rem;
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+/* coverage gaps footnote */
+.coverage {
+  font-size: 0.85rem;
+  color: var(--faint);
+  border-top: 1px solid var(--hairline);
+  padding-top: 1rem;
+}
+.coverage ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}
+.empty-mark.ok {
+  color: var(--matrix);
+  background: oklch(0.78 0.24 145 / 0.12);
+  border-color: var(--accent-dim);
+}
+
+/* severity chips (results) */
+.chip-critical { color: var(--sev-critical); border-color: oklch(0.64 0.2 18 / 0.5); }
+.chip-high { color: var(--sev-high); border-color: oklch(0.78 0.15 70 / 0.5); }
+.chip-medium { color: oklch(0.82 0.15 95); border-color: oklch(0.82 0.15 95 / 0.5); }
+.chip-low { color: var(--matrix); border-color: var(--accent-dim); }
+.chip-info { color: var(--faint); border-color: var(--hairline-strong); }

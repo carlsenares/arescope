@@ -13,9 +13,28 @@
     <input type="hidden" name="csrf" value="{{ csrf }}" />
     {% for itype, key, label, ph in fields %}
     <label>{{ label }}
-      <input type="text" name="{{ key }}" placeholder="{{ ph }}" value="{{ values[key] or '' }}" />
+      <input type="text" name="{{ key }}"{% if key == 'username' %} id="usernameField"{% endif %} placeholder="{{ ph }}" value="{{ values[key] or '' }}" />
     </label>
     {% endfor %}
+
+    <!-- Username deep-scan (Maigret) is slow; reveal a choice only when one is entered. -->
+    <div class="maigret-note" id="maigretNote" hidden>
+      <div class="mn-head">
+        <span class="mn-i" aria-hidden="true">i</span>
+        <span>Username searches check hundreds of sites — a full pass takes a few minutes.</span>
+      </div>
+      <div class="mn-opts">
+        <label class="radio">
+          <input type="radio" name="maigret_scope" value="full" checked />
+          <span>Full scan <small>~4 min · every site</small></span>
+        </label>
+        <label class="radio">
+          <input type="radio" name="maigret_scope" value="top" />
+          <span>Top sites only <small>~30 sec · ~6× faster</small></span>
+        </label>
+      </div>
+    </div>
+
     {% if user.is_admin %}
     <p class="admin-note"><span class="chip chip-admin">admin</span> Ownership checks are off — you can audit any identifier.</p>
     {% else %}
@@ -27,4 +46,20 @@
     <button class="btn btn-primary" type="submit">Start analysis</button>
   </form>
 </section>
+
+<script>
+  // Reveal the username deep-scan choice only when a username is actually entered.
+  (function () {
+    var u = document.getElementById('usernameField');
+    var note = document.getElementById('maigretNote');
+    if (!u || !note) return;
+    function sync() {
+      var has = u.value.trim().length > 0;
+      note.hidden = !has;
+      if (has) note.classList.add('pulse-once');
+    }
+    u.addEventListener('input', sync);
+    sync();
+  })();
+</script>
 {% endblock %}

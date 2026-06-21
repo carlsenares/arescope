@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     hudsonrock_enabled: bool = True
     holehe_enabled: bool = True
     maigret_enabled: bool = True
+    # Cap Maigret to the N most popular sites (None => its default ~500). A scan can
+    # override this per-run (the "top sites only, faster" choice on the form).
+    maigret_top_sites: int | None = None
     shodan_api_key: str = ""
 
 

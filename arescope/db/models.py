@@ -113,6 +113,8 @@ class Scan(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_expiry)
     # which connectors/keys ran + coverage gaps — reproducibility + honest reporting
     config_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    # per-scan run options chosen at submit time (e.g. {"maigret_top_sites": 50}).
+    options: Mapped[dict] = mapped_column(JSON, default=dict)
 
     subject: Mapped["Subject"] = relationship(back_populates="scans")
     signals: Mapped[list["Signal"]] = relationship(

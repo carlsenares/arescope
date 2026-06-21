@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Analysis · Arescope{% endblock %}
+{% block content %}
+{% set running = scan.status not in ('complete', 'failed') %}
+{% set action_label = {'fix_now': 'Fix now', 'worth_fixing': 'Worth fixing', 'depends': 'Depends', 'no_action': 'For your awareness'} %}
+<section class="results" {% if running %}data-poll="/app/scans/{{ scan.id }}/status"{% endif %}>
+
+  <header class="results-head">
+    <div>
+      <span class="eyebrow">Analysis</span>
+      <h1>Your exposure report</h1>
+      <p class="muted mono">scan {{ scan.id[:8] }} · {{ scan.started_at.strftime('%b %d, %Y · %H:%M') if scan.started_at else '' }}</p>
+    </div>
+    <a class="btn btn-ghost btn-sm" href="/app">← Dashboard</a>
+  </header>
+
+  {% if running %}
+  <div class="scanning">
+    <span class="spinner"></span>
+    <div>
+      <strong>{{ 'Queued…' if scan.status == 'queued' else 'Scanning your footprint…' }}</strong>
+      <p class="muted">This updates automatically. Username scans can take a few minutes.</p>
+    </div>
+  </div>
+  {% elif scan.findings %}
+
+  <div class="results-summary">
+    <span class="rs-num">{{ scan.findings|length }}</span> findings ·
+    <span class="rs-num">{{ scan.actionable }}</span> worth acting on
+  </div>
+
+  <div class="findings-feed">
+    {% for f in scan.findings %}
+    <article class="finding-card sev-{{ f.severity }}" id="f-{{ f.id }}">
+      <div class="fc-top">
+        <span class="chip chip-{{ f.severity }}">{{ f.severity_label }}</span>
+        <span class="fc-cat">{{ f.category_label }}</span>
+        <span class="fc-action act-{{ f.action }}">{{ action_label.get(f.action, f.action) }}</span>
+      </div>
+      <h2 class="fc-title">{{ f.title }}</h2>
+      <p class="fc-rationale">{{ f.rationale }}</p>
+      {% if f.members %}
+      <p class="fc-members"><span class="fc-label">Where</span> {{ f.members|join(' · ') }}</p>
+      {% endif %}
+
+      {% if f.easy_fix %}
+      <div class="fc-fix"><span class="fc-label">Quick fix</span><span>{{ f.easy_fix }}</span></div>
+      {% endif %}
+
+      {% if f.show_questions %}
+      <form class="fc-questions" method="post" action="/app/findings/{{ f.id }}/resolve">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <p class="fc-label">A few questions sharpen this rating:</p>
+        {% for q in f.questions %}
+        <div class="q">
+          <span class="q-prompt">{{ q.prompt }}</span>
+          <span class="q-opts">
+            <label><input type="radio" name="q-{{ q.idx }}" value="yes" /> Yes</label>
+            <label><input type="radio" name="q-{{ q.idx }}" value="no" /> No</label>
+          </span>
+        </div>
+        {% endfor %}
+        <button class="btn btn-ghost btn-sm" type="submit">Apply answers</button>
+      </form>
+      {% endif %}
+
+      {% if f.remediation %}
+      <div class="fc-solution">
+        <span class="fc-label">Solution</span>
+        <p class="sol-summary">{{ f.remediation.summary }}</p>
+        {% if f.remediation.steps %}
+        <ol class="sol-steps">
+          {% for st in f.remediation.steps %}
+          <li>
+            <strong>{{ st.action }}</strong>
+            {% if st.detail %}<span>{{ st.detail }}</span>{% endif %}
+            {% if st.link %}<a href="{{ st.link }}" target="_blank" rel="noopener">{{ st.link }}</a>{% endif %}
+          </li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+        {% if f.remediation.artifact %}
+        <details class="sol-artifact">
+          <summary>Generated request / message</summary>
+          <pre>{{ f.remediation.artifact }}</pre>
+        </details>
+        {% endif %}
+      </div>
+      {% elif f.can_generate_solution %}
+      <form method="post" action="/app/findings/{{ f.id }}/solution">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <button class="btn btn-primary btn-sm" type="submit">Generate solution</button>
+      </form>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="empty">
+    <div class="empty-mark ok" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
+    <h3>Nothing exposed</h3>
+    <p class="muted">We checked the sources below and found no actionable exposure for these inputs.</p>
+  </div>
+  {% endif %}
+
+  {% if not running and scan.coverage_gaps %}
+  <div class="coverage">
+    <span class="fc-label">Not fully covered</span>
+    <ul>
+      {% for g in scan.coverage_gaps %}<li>{{ g.source }} — {{ g.reason }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+</section>
+
+<script>
+  // Poll while the scan is still running; reload to render findings when done.
+  (function () {
+    var el = document.querySelector('.results[data-poll]');
+    if (!el) return;
+    var url = el.getAttribute('data-poll');
+    var t = setInterval(async function () {
+      try {
+        var r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!r.ok) return;
+        var d = await r.json();
+        if (d.status === 'complete' || d.status === 'failed') {
+          clearInterval(t);
+          location.reload();
+        }
+      } catch (_) {}
+    }, 3000);
+  })();
+</script>
+{% endblock %}

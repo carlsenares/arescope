@@ -28,8 +28,14 @@ from arescope.auth import (
 from arescope.db import models
 from arescope.db.session import session_scope
 from arescope.magic import consume_token, send_magic_login, send_verification
-from arescope.schemas import Identifier, InputType
-from arescope.service import create_scan, create_subject
+from arescope.schemas import SEVERITY_ORDER, Category, Identifier, InputType, Severity
+from arescope.service import (
+    create_scan,
+    create_subject,
+    generate_finding_remediation,
+    resolve_finding,
+)
+from arescope.taxonomy import TAXONOMY
 from arescope.worker.tasks import run_scan_task
 
 _HERE = os.path.dirname(__file__)
@@ -46,6 +52,9 @@ _INPUT_FIELDS: list[tuple[InputType, str, str, str]] = [
     (InputType.NAME, "name", "Full name", "Jane Doe"),
     (InputType.IP, "ip", "IP address you own", "203.0.113.4"),
 ]
+
+# "Top sites only" Maigret choice → cap to the N most popular sites (much faster).
+_MAIGRET_TOP_N = 50
 
 
 # --- CSRF --------------------------------------------------------------------
@@ -307,15 +316,21 @@ async def new_scan_submit(request: Request):
             values=values,
         )
 
+    # Per-run options: the "top sites only" Maigret choice (only bites when a
+    # username was entered; harmless otherwise).
+    options: dict = {}
+    if str(form.get("maigret_scope", "")) == "top":
+        options["maigret_top_sites"] = _MAIGRET_TOP_N
+
     subject_id = create_subject(identifiers, user_id=user.id)
-    scan_id = create_scan(subject_id)
+    scan_id = create_scan(subject_id, options=options)
     try:
         run_scan_task.delay(scan_id)  # hand off to the worker
     except Exception:
         # Broker offline: the scan stays queued and can be picked up later. Never
         # fail the submission over infra — the record is already persisted.
         pass
-    return RedirectResponse("/app", status_code=303)
+    return RedirectResponse(f"/app/scans/{scan_id}", status_code=303)
 
 
 # --- admin: real-time run-access control ------------------------------------
@@ -369,3 +384,164 @@ def admin_set_access(
         if target is not None and not target.is_admin:  # admins are always allowed
             target.can_scan = grant == "1"
     return RedirectResponse("/app/admin", status_code=303)
+
+
+# --- results: per-finding ratings, questions, on-demand solutions ------------
+
+_SEV_LABEL = {
+    "critical": "Critical",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+    "info": "Info",
+}
+
+
+def _finding_view(f: models.Finding) -> dict:
+    """Flatten a Finding row into everything the results template needs."""
+    rem = f.remediation
+    try:
+        cat_label = TAXONOMY[Category(f.category)].label
+    except (KeyError, ValueError):
+        cat_label = f.category
+    try:
+        rank = SEVERITY_ORDER[Severity(f.severity)]
+    except (KeyError, ValueError):
+        rank = 0
+    questions = f.questions or []
+    return {
+        "id": f.id,
+        "severity": f.severity,
+        "severity_label": _SEV_LABEL.get(f.severity, f.severity.title()),
+        "rank": rank,
+        "action": f.action,
+        "category_label": cat_label,
+        "title": f.title,
+        "rationale": f.rationale,
+        "confidence": round((f.confidence or 0) * 100),
+        "fix_difficulty": f.fix_difficulty,
+        "easy_fix": f.easy_fix,
+        "members": f.member_locators or [],
+        "show_questions": f.action == "depends" and bool(questions),
+        "questions": [{"idx": i, "prompt": q.get("prompt", "")} for i, q in enumerate(questions)],
+        "can_generate_solution": (
+            f.fix_difficulty == "involved"
+            and rem is None
+            and f.action in ("fix_now", "worth_fixing")
+        ),
+        "remediation": None
+        if rem is None
+        else {
+            "summary": rem.summary,
+            "steps": rem.steps or [],
+            "artifact": rem.artifact,
+        },
+    }
+
+
+def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
+    """Load a scan + its findings IF it belongs to the user (or user is admin)."""
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is None:
+            return None
+        subject = s.get(models.Subject, scan.subject_id)
+        if subject is None or (subject.user_id != user.id and not user.is_admin):
+            return None
+        findings = s.query(models.Finding).filter(models.Finding.scan_id == scan_id).all()
+        views = sorted(
+            (_finding_view(f) for f in findings),
+            key=lambda v: (-v["rank"], -v["confidence"]),
+        )
+        return {
+            "id": scan.id,
+            "status": scan.status,
+            "started_at": scan.started_at,
+            "options": scan.options or {},
+            "coverage_gaps": (scan.config_snapshot or {}).get("coverage_gaps", []),
+            "findings": views,
+            "actionable": sum(1 for v in views if v["action"] in ("fix_now", "worth_fixing")),
+        }
+
+
+def _finding_scan_id(user: models.User, finding_id: str) -> str | None:
+    """Return the scan_id for a finding IF the user owns it (or is admin), else None."""
+    with session_scope() as s:
+        f = s.get(models.Finding, finding_id)
+        if f is None:
+            return None
+        scan = s.get(models.Scan, f.scan_id)
+        subject = s.get(models.Subject, scan.subject_id) if scan else None
+        if subject is None or (subject.user_id != user.id and not user.is_admin):
+            return None
+        return f.scan_id
+
+
+@router.get("/app/scans/{scan_id}", response_class=HTMLResponse)
+def scan_results(request: Request, scan_id: str):
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    scan = _load_owned_scan(user, scan_id)
+    if scan is None:
+        raise HTTPException(404, "scan not found")
+    return _render(request, "results.html", scan=scan)
+
+
+@router.get("/app/scans/{scan_id}/status")
+def scan_status(request: Request, scan_id: str) -> dict:
+    """Polled by the results page while a scan is still running."""
+    user = current_user(request)
+    if user is None:
+        return {"status": "unknown"}
+    scan = _load_owned_scan(user, scan_id)
+    if scan is None:
+        return {"status": "unknown"}
+    return {"status": scan["status"], "findings": len(scan["findings"])}
+
+
+@router.post("/app/findings/{finding_id}/solution")
+async def finding_solution(request: Request, finding_id: str):
+    """Generate the involved, tailored fix for one finding (on demand, Opus)."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+    scan_id = _finding_scan_id(user, finding_id)
+    if scan_id is None:
+        raise HTTPException(404, "finding not found")
+    if not can_run_scan(user):  # generating a solution is an LLM cost — gate it
+        return _render(request, "locked.html")
+    try:
+        generate_finding_remediation(finding_id)
+    except ValueError:
+        raise HTTPException(404, "finding not found")
+    return RedirectResponse(f"/app/scans/{scan_id}#f-{finding_id}", status_code=303)
+
+
+@router.post("/app/findings/{finding_id}/resolve")
+async def finding_resolve(request: Request, finding_id: str):
+    """Apply yes/no answers to a DEPENDS finding's contingency questions (free)."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+    scan_id = _finding_scan_id(user, finding_id)
+    if scan_id is None:
+        raise HTTPException(404, "finding not found")
+    # Collect answered questions: each radio is named q-<idx> with value yes/no.
+    answers: dict[int, bool] = {}
+    for key, val in form.items():
+        if key.startswith("q-") and val in ("yes", "no"):
+            try:
+                answers[int(key[2:])] = val == "yes"
+            except ValueError:
+                continue
+    if answers:
+        try:
+            resolve_finding(finding_id, answers)
+        except ValueError:
+            raise HTTPException(404, "finding not found")
+    return RedirectResponse(f"/app/scans/{scan_id}#f-{finding_id}", status_code=303)
