@@ -122,6 +122,16 @@ def logout_session(request: Request) -> None:
     request.session.pop(SESSION_KEY, None)
 
 
+def can_run_scan(user: models.User | None) -> bool:
+    """Run-lock predicate: only admins or explicitly granted accounts may scan.
+
+    Scans cost money (LLM + paid connectors), so this gate is closed by default.
+    Admins always pass; everyone else needs `can_scan` flipped on from the admin
+    dashboard. This is the seam the paywall slots into later (plan/quota check here).
+    """
+    return bool(user and (user.is_admin or user.can_scan))
+
+
 def current_user(request: Request) -> models.User | None:
     """Load the logged-in user (detached copy), or None. Cheap per-request lookup."""
     uid = request.session.get(SESSION_KEY)

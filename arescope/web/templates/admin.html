@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Admin · Arescope{% endblock %}
+{% block content %}
+<section class="stack">
+  <div>
+    <span class="eyebrow">Admin</span>
+    <h1>Run access</h1>
+    <p class="muted">Grant or revoke scanning per account, in real time. Admins always have access.</p>
+  </div>
+
+  <table class="scans">
+    <thead>
+      <tr><th>User</th><th>Email</th><th>Verified</th><th>Scan access</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.username }}{% if u.is_admin %} <span class="chip chip-admin">admin</span>{% endif %}</td>
+        <td class="muted">{{ u.email }}</td>
+        <td>{% if u.email_verified %}<span class="chip chip-ok">yes</span>{% else %}<span class="chip">no</span>{% endif %}</td>
+        <td>
+          {% if u.is_admin %}<span class="chip chip-ok">always</span>
+          {% elif u.can_scan %}<span class="chip chip-ok">granted</span>
+          {% else %}<span class="chip">locked</span>{% endif %}
+        </td>
+        <td class="right">
+          {% if not u.is_admin %}
+          <form method="post" action="/app/admin/access" class="inline">
+            <input type="hidden" name="csrf" value="{{ csrf }}" />
+            <input type="hidden" name="user_id" value="{{ u.id }}" />
+            <input type="hidden" name="grant" value="{{ '0' if u.can_scan else '1' }}" />
+            <button class="btn btn-sm {{ 'btn-ghost' if u.can_scan else 'btn-primary' }}" type="submit">
+              {{ 'Revoke' if u.can_scan else 'Grant' }}
+            </button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

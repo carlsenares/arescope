@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Log in · Arescope{% endblock %}
 {% block content %}
+<div class="authscreen">
 <section class="auth-card">
   <span class="eyebrow">Welcome back</span>
   <h1>Log in</h1>
@@ -16,6 +17,18 @@
     </label>
     <button class="btn btn-primary" type="submit">Log in</button>
   </form>
+
+  <div class="or"><span>or</span></div>
+
+  <form method="post" action="/magic" class="form">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <label>Email me a sign-in link
+      <input type="email" name="email" autocomplete="email" placeholder="you@example.com" required />
+    </label>
+    <button class="btn btn-ghost" type="submit">Send link</button>
+  </form>
+
   <p class="muted swap">New here? <a href="/signup">Create an account</a>.</p>
 </section>
+</div>
 {% endblock %}

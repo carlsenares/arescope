@@ -47,9 +47,31 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     # email_verified flips when magic-link / verification lands (additive, P1).
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Run-lock: may this account start a (cost-incurring) scan? Default off — admins
+    # always may; admins grant it per-user from the dashboard. Becomes the paywall
+    # hook later (plan/quota slot in here without a restructure).
+    can_scan: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     subjects: Mapped[list["Subject"]] = relationship(back_populates="user")
+
+
+class LoginToken(Base):
+    """Single-use, hashed magic-link token — passwordless login + email verification.
+
+    We persist only a SHA-256 of the raw token (the raw value lives only in the
+    emailed URL), so a DB read can't mint a working link. Each token is single-use
+    (used_at) and time-boxed (expires_at); purpose separates 'login' from 'verify'.
+    """
+
+    __tablename__ = "login_tokens"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String)  # "login" | "verify"
+    token_hash: Mapped[str] = mapped_column(String, unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class Subject(Base):

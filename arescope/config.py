@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     cookie_secure: bool = False  # set True behind HTTPS in production
     base_url: str = "http://localhost:8000"
 
+    # Outbound email (magic-link login + signup email verification). Provider-agnostic:
+    # if resend_api_key is set we send via Resend; otherwise the mailer falls back to
+    # logging the link to the console (so local dev needs no key and never fails a flow).
+    resend_api_key: str = ""
+    email_from: str = "Arescope <noreply@arescope.com>"
+    magic_link_ttl_minutes: int = 30  # how long a login/verify link stays valid
+
     # Admin seed — consumed by `python -m arescope.cli create-admin`.
     admin_email: str = ""
     admin_username: str = ""

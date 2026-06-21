@@ -19,6 +19,7 @@ from fastapi.templating import Jinja2Templates
 from arescope.auth import (
     AuthError,
     authenticate,
+    can_run_scan,
     create_user,
     current_user,
     login_session,
@@ -26,6 +27,7 @@ from arescope.auth import (
 )
 from arescope.db import models
 from arescope.db.session import session_scope
+from arescope.magic import consume_token, send_magic_login, send_verification
 from arescope.schemas import Identifier, InputType
 from arescope.service import create_scan, create_subject
 from arescope.worker.tasks import run_scan_task
@@ -107,7 +109,13 @@ def signup_submit(
             error=str(e),
             values={"email": email, "username": username},
         )
+    # Log them in immediately (password works), and send a confirm-email link in the
+    # background — fire-and-forget so an email hiccup never blocks signup.
     login_session(request, uid)
+    try:
+        send_verification(uid, email.strip().lower())
+    except Exception:  # noqa: BLE001 — email is best-effort; the banner offers a resend
+        pass
     return RedirectResponse(_safe_next(next), status_code=303)
 
 
@@ -147,6 +155,46 @@ def logout(request: Request, csrf: str = Form("")) -> RedirectResponse:
     return RedirectResponse("/", status_code=303)
 
 
+# --- magic link: passwordless login + email verification ---------------------
+
+
+@router.post("/magic", response_class=HTMLResponse)
+def magic_request(request: Request, email: str = Form(""), csrf: str = Form("")) -> HTMLResponse:
+    """Request a sign-in link. Always shows the same confirmation (no enumeration)."""
+    _check_csrf(request, csrf)
+    try:
+        send_magic_login(email)
+    except Exception:  # noqa: BLE001 — never reveal whether the address exists / send failed
+        pass
+    return _render(request, "magic_sent.html", email=email.strip())
+
+
+@router.post("/verify/resend", response_class=HTMLResponse)
+def resend_verification(request: Request, csrf: str = Form("")) -> HTMLResponse:
+    """Re-send the confirm-email link to the logged-in user."""
+    _check_csrf(request, csrf)
+    user = current_user(request)
+    if user and not user.email_verified:
+        try:
+            send_verification(user.id, user.email)
+        except Exception:  # noqa: BLE001
+            pass
+    return _render(request, "magic_sent.html", email=user.email if user else "")
+
+
+@router.get("/auth/verify", response_class=HTMLResponse)
+def magic_verify(request: Request, token: str = ""):
+    """Consume a magic link: log in (login) or confirm the address (verify)."""
+    result = consume_token(token)
+    if result is None:
+        return _render(request, "magic_invalid.html")
+    user_id, _purpose = result  # email_verified flip (verify) happens inside consume_token
+    login_session(request, user_id)
+    # A login link signs them in; a verify link confirms the address (they may already
+    # be logged in). Either way, land them in the app.
+    return RedirectResponse("/app", status_code=303)
+
+
 # --- app: dashboard + new scan ----------------------------------------------
 
 
@@ -182,6 +230,8 @@ def new_scan_form(request: Request):
     user = _require(request)
     if isinstance(user, RedirectResponse):
         return user
+    if not can_run_scan(user):
+        return _render(request, "locked.html")
     return _render(request, "new_scan.html", fields=_INPUT_FIELDS, error=None, values={})
 
 
@@ -190,6 +240,9 @@ async def new_scan_submit(request: Request):
     user = _require(request)
     if isinstance(user, RedirectResponse):
         return user
+    if not can_run_scan(user):
+        # Defence in depth: the form is hidden behind the gate, but never trust that.
+        return _render(request, "locked.html")
 
     form = await request.form()
     _check_csrf(request, form.get("csrf"))
@@ -233,3 +286,56 @@ async def new_scan_submit(request: Request):
         # fail the submission over infra — the record is already persisted.
         pass
     return RedirectResponse("/app", status_code=303)
+
+
+# --- admin: real-time run-access control ------------------------------------
+
+
+def _require_admin(request: Request) -> models.User | RedirectResponse:
+    user = current_user(request)
+    if user is None:
+        return RedirectResponse(f"/login?next={quote(request.url.path)}", status_code=303)
+    if not user.is_admin:
+        raise HTTPException(404)  # don't advertise the admin surface to non-admins
+    return user
+
+
+@router.get("/app/admin", response_class=HTMLResponse)
+def admin_dashboard(request: Request):
+    admin = _require_admin(request)
+    if isinstance(admin, RedirectResponse):
+        return admin
+    with session_scope() as s:
+        users = s.query(models.User).order_by(models.User.created_at.desc()).all()
+        rows = [
+            {
+                "id": u.id,
+                "username": u.username,
+                "email": u.email,
+                "is_admin": u.is_admin,
+                "email_verified": u.email_verified,
+                "can_scan": u.can_scan,
+                "created_at": u.created_at,
+            }
+            for u in users
+        ]
+    return _render(request, "admin.html", users=rows)
+
+
+@router.post("/app/admin/access")
+def admin_set_access(
+    request: Request,
+    user_id: str = Form(...),
+    grant: str = Form(""),
+    csrf: str = Form(""),
+):
+    """Flip a user's run-access in real time. grant=='1' grants, else revokes."""
+    admin = _require_admin(request)
+    if isinstance(admin, RedirectResponse):
+        return admin
+    _check_csrf(request, csrf)
+    with session_scope() as s:
+        target = s.get(models.User, user_id)
+        if target is not None and not target.is_admin:  # admins are always allowed
+            target.can_scan = grant == "1"
+    return RedirectResponse("/app/admin", status_code=303)

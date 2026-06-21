@@ -48,8 +48,9 @@
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  --radius: 14px;
-  --radius-sm: 10px;
+  /* Square by design — the app reads as a precise instrument, not a soft card UI. */
+  --radius: 0px;
+  --radius-sm: 0px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -176,14 +177,24 @@ small.hint {
   flex-wrap: wrap;
 }
 
+/* ── auth screen ── */
+/* Vertically centres the login/signup panel in the viewport below the app bar. */
+.authscreen {
+  min-height: 68vh;
+  display: grid;
+  place-items: center;
+}
+
 /* ── cards / forms ── */
 .auth-card {
-  max-width: 420px;
+  width: 100%;
+  max-width: 400px;
   margin-inline: auto;
   background: var(--surface);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--hairline-strong);
+  border-top: 2px solid var(--accent);
   border-radius: var(--radius);
-  padding: clamp(1.4rem, 1rem + 1.5vw, 2.2rem);
+  padding: clamp(1.6rem, 1rem + 2vw, 2.6rem);
 }
 .auth-card.wide {
   max-width: 560px;
@@ -219,8 +230,8 @@ small.hint {
 }
 .form input:focus-visible {
   outline: none;
-  border-color: var(--accent-bright);
-  box-shadow: 0 0 0 3px oklch(0.86 0.26 143 / 0.25);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .check {
   grid-auto-flow: column;
@@ -270,14 +281,12 @@ small.hint {
   font-size: 0.86rem;
 }
 .btn-primary {
-  background: var(--matrix);
+  background: var(--accent);
   color: oklch(0.08 0 0);
 }
 .btn-primary:hover {
   background: var(--accent-bright);
   color: oklch(0.08 0 0);
-  transform: translateY(-1px);
-  box-shadow: 0 10px 30px -14px var(--matrix-glow);
 }
 .btn-ghost {
   background: transparent;
@@ -286,8 +295,7 @@ small.hint {
 }
 .btn-ghost:hover {
   color: var(--ink);
-  border-color: var(--accent-dim);
-  transform: translateY(-1px);
+  border-color: var(--ink);
 }
 
 /* ── scans table ── */
@@ -340,4 +348,48 @@ small.hint {
   padding: 2rem;
   border: 1px dashed var(--hairline-strong);
   border-radius: var(--radius);
+}
+
+/* --- magic-link + admin additions --- */
+.or {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 1.4rem 0;
+  color: var(--faint);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.or::before,
+.or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius);
+  background: oklch(0.18 0.04 145 / 0.4);
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+.chip-ok {
+  border-color: var(--accent-dim);
+  color: var(--matrix);
+}
+.chip-admin {
+  border-color: var(--hairline-strong);
+  color: var(--accent);
+}
+td.right,
+.right {
+  text-align: right;
 }

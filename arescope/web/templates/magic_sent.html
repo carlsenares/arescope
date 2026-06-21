@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Check your inbox · Arescope{% endblock %}
+{% block content %}
+<div class="authscreen">
+<section class="auth-card">
+  <span class="eyebrow">Almost there</span>
+  <h1>Check your inbox</h1>
+  <p class="muted">
+    If {% if email %}<strong>{{ email }}</strong>{% else %}that address{% endif %}
+    has an Arescope account, a secure link is on its way. It works once and expires soon.
+  </p>
+  <p class="hint">Didn't get it? Check spam, or head back to <a href="/login">log in</a>.</p>
+</section>
+</div>
+{% endblock %}
