@@ -5,7 +5,9 @@ WORKDIR /app
 # Build deps for psycopg / cryptography wheels are usually prebuilt; keep slim.
 COPY pyproject.toml ./
 COPY arescope ./arescope
-RUN pip install --no-cache-dir .
+# Include the [connectors] extra so Holehe + Maigret (and their dep trees, incl.
+# trio) ship in the deployed worker — without it they degrade to coverage gaps
+# and those tools never actually run.
+RUN pip install --no-cache-dir ".[connectors]"
 
-# Connectors that shell out (maigret) need the CLI on PATH — installed via deps.
 ENV PYTHONUNBUFFERED=1
