@@ -12,7 +12,12 @@ from datetime import datetime, timezone
 from arescope.config import get_settings
 from arescope.db import models
 from arescope.db.session import session_scope
-from arescope.pipeline.orchestrator import run_scan
+from arescope.connectors.registry import available_connectors
+from arescope.pipeline.orchestrator import (
+    judge_signals,
+    run_connectors,
+    unavailable_gaps,
+)
 from arescope.pipeline.remediation import generate_remediation
 from arescope.pipeline.report import ScanReport, render_markdown
 from arescope.pipeline.resolution import resolve
@@ -49,25 +54,33 @@ def create_subject(identifiers: list[IdentifierSchema], user_id: str | None = No
         return subject.id
 
 
-def create_scan(subject_id: str, options: dict | None = None) -> str:
+def create_scan(subject_id: str, options: dict | None = None, name: str | None = None) -> str:
     """Create a queued scan row so it's visible the instant the user submits.
 
     The worker picks it up and runs it; splitting create from run means the
     dashboard shows a real record even before a worker is free. `options` carries
-    per-run choices (e.g. {"maigret_top_sites": 50}).
+    per-run choices (e.g. {"maigret_top_sites": 50}); `name` is the user's label.
     """
     with session_scope() as s:
         subject = s.get(models.Subject, subject_id)
         if subject is None:
             raise ValueError(f"subject {subject_id} not found")
-        scan = models.Scan(subject_id=subject_id, status="queued", options=options or {})
+        scan = models.Scan(
+            subject_id=subject_id, status="queued", options=options or {}, name=name or None
+        )
         s.add(scan)
         s.flush()
         return scan.id
 
 
 def run_and_store_scan(scan_id: str) -> str:
-    """Run the engine for a queued scan and persist results. Returns scan_id."""
+    """Run a queued scan in waves and persist each finding the moment it's judged.
+
+    Wave 1 = the fast sources (HIBP / Hudson Rock / Holehe / Shodan); wave 2 =
+    Maigret's slow username search. Each cluster's Opus verdict is written as its
+    own row immediately, so the results page streams findings in as they land and
+    a user can act on one while the rest are still running.
+    """
     cfg = get_settings()
 
     with session_scope() as s:
@@ -85,7 +98,6 @@ def run_and_store_scan(scan_id: str) -> str:
             )
             for i in subject.identifiers
         ]
-        # Apply per-scan run options (e.g. the "top sites only" Maigret choice).
         options = dict(scan.options or {})
         scan.status = "running"
 
@@ -93,64 +105,96 @@ def run_and_store_scan(scan_id: str) -> str:
     if top:
         cfg = cfg.model_copy(update={"maigret_top_sites": int(top)})
 
-    report = run_scan(identifiers, cfg)
-    _persist_report(scan_id, report)
+    available = available_connectors(cfg)
+    gaps = unavailable_gaps(cfg)
+    fast = [c for c in available if c.name != "maigret"]
+    slow = [c for c in available if c.name == "maigret"]
+    has_username = any(i.type is InputType.USERNAME for i in identifiers)
+
+    # Wave 1 — fast sources, streamed.
+    signals, run_gaps = run_connectors(identifiers, cfg, fast)
+    gaps += run_gaps
+    for jf in judge_signals(signals):
+        _persist_one_finding(scan_id, jf)
+
+    # Wave 2 — the slow username search (only does work when a username is present).
+    if slow and has_username:
+        _set_phase(scan_id, "Searching your username across sites…")
+        sig2, gap2 = run_connectors(identifiers, cfg, slow)
+        gaps += gap2
+        for jf in judge_signals(sig2):
+            _persist_one_finding(scan_id, jf)
+
+    _finalize_scan(scan_id, gaps)
     return scan_id
 
 
-def _persist_report(scan_id: str, report: ScanReport) -> None:
+def _persist_one_finding(scan_id: str, jf: JudgedFinding) -> None:
+    """Write a single judged finding (+ its signals) in its own transaction."""
+    with session_scope() as s:
+        v = jf.verdict
+        signal_ids: list[str] = []
+        for ev in jf.cluster.members:
+            for sig in ev.signals:
+                row = models.Signal(
+                    scan_id=scan_id,
+                    source=sig.source,
+                    kind=sig.kind,
+                    locator=sig.locator,
+                    raw=sig.raw,
+                )
+                s.add(row)
+                s.flush()
+                signal_ids.append(row.id)
+
+        finding_row = models.Finding(
+            scan_id=scan_id,
+            signal_ids=signal_ids,
+            category=v.category.value,
+            severity=v.severity.value,
+            title=v.title,
+            rationale=v.rationale,
+            confidence=v.confidence,
+            action=v.action.value,
+            fix_difficulty=v.fix_difficulty.value if v.fix_difficulty else None,
+            easy_fix=v.easy_fix,
+            questions=[q.model_dump() for q in v.questions],
+            member_locators=jf.cluster.member_locators,
+            subject_type=jf.cluster.subject_type.value,
+            subject_value=jf.cluster.subject_value,
+        )
+        s.add(finding_row)
+        s.flush()
+
+        if jf.remediation:
+            r = jf.remediation
+            s.add(
+                models.Remediation(
+                    finding_id=finding_row.id,
+                    tier=r.tier.value,
+                    summary=r.summary,
+                    steps=[step.model_dump() for step in r.steps],
+                    artifact=r.artifact,
+                )
+            )
+
+
+def _set_phase(scan_id: str, phase: str) -> None:
+    """Record a human-readable progress phase the results page can show."""
     with session_scope() as s:
         scan = s.get(models.Scan, scan_id)
-        scan.config_snapshot = {
-            "coverage_gaps": [g.model_dump() for g in report.coverage_gaps],
-        }
-        for jf in report.findings:
-            v = jf.verdict
-            signal_ids: list[str] = []
-            for ev in jf.cluster.members:
-                for sig in ev.signals:
-                    row = models.Signal(
-                        scan_id=scan_id,
-                        source=sig.source,
-                        kind=sig.kind,
-                        locator=sig.locator,
-                        raw=sig.raw,
-                    )
-                    s.add(row)
-                    s.flush()
-                    signal_ids.append(row.id)
+        if scan is not None:
+            snap = dict(scan.config_snapshot or {})
+            snap["phase"] = phase
+            scan.config_snapshot = snap
 
-            finding_row = models.Finding(
-                scan_id=scan_id,
-                signal_ids=signal_ids,
-                category=v.category.value,
-                severity=v.severity.value,
-                title=v.title,
-                rationale=v.rationale,
-                confidence=v.confidence,
-                action=v.action.value,
-                fix_difficulty=v.fix_difficulty.value if v.fix_difficulty else None,
-                easy_fix=v.easy_fix,
-                questions=[q.model_dump() for q in v.questions],
-                member_locators=jf.cluster.member_locators,
-                subject_type=jf.cluster.subject_type.value,
-                subject_value=jf.cluster.subject_value,
-            )
-            s.add(finding_row)
-            s.flush()
 
-            if jf.remediation:
-                r = jf.remediation
-                s.add(
-                    models.Remediation(
-                        finding_id=finding_row.id,
-                        tier=r.tier.value,
-                        summary=r.summary,
-                        steps=[step.model_dump() for step in r.steps],
-                        artifact=r.artifact,
-                    )
-                )
-
+def _finalize_scan(scan_id: str, gaps: list) -> None:
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is None:
+            return
+        scan.config_snapshot = {"coverage_gaps": [g.model_dump() for g in gaps]}
         scan.status = "complete"
         scan.finished_at = datetime.now(timezone.utc)
 

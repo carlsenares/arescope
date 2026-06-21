@@ -9,6 +9,7 @@ in P0; the hook is here so P2 can make it mandatory.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 
 from arescope.config import Settings, get_settings
 from arescope.connectors.base import ConnectorGap, ConnectorUnavailable
@@ -44,26 +45,30 @@ def assert_ownership(identifiers: list[Identifier]) -> None:
     return None
 
 
-def collect_signals(
-    identifiers: list[Identifier], cfg: Settings
-) -> tuple[list[Signal], list[CoverageGap], dict]:
-    """Route each identifier to the connectors that consume it; tolerate failures."""
+def unavailable_gaps(cfg: Settings) -> list[CoverageGap]:
+    """Connectors present in the registry but not configured/enabled — honest gaps."""
+    enabled = available_connectors(cfg)
+    return [
+        CoverageGap(source=c.name, reason="not configured / disabled")
+        for c in REGISTRY
+        if c not in enabled
+    ]
+
+
+def run_connectors(
+    identifiers: list[Identifier], cfg: Settings, connectors: list
+) -> tuple[list[Signal], list[CoverageGap]]:
+    """Run a specific set of connectors over the identifiers; tolerate failures.
+
+    Splitting this out lets the service run connectors in waves (fast sources
+    first, slow username search after) and stream findings as each wave lands.
+    """
     signals: list[Signal] = []
     gaps: list[CoverageGap] = []
-    ran: list[str] = []
-    enabled = available_connectors(cfg)
-
-    # Connectors present but not configured/enabled => honest coverage gap.
-    for connector in REGISTRY:
-        if connector not in enabled:
-            gaps.append(CoverageGap(source=connector.name, reason="not configured / disabled"))
-
-    for connector in enabled:
-        used = False
+    for connector in connectors:
         for ident in identifiers:
             if ident.type not in connector.consumes:
                 continue
-            used = True
             try:
                 signals.extend(connector.run(ident.value, ident.type, cfg))
             except (ConnectorGap, ConnectorUnavailable) as e:
@@ -71,14 +76,25 @@ def collect_signals(
             except Exception as e:  # never let one connector sink the scan
                 log.exception("connector %s crashed", connector.name)
                 gaps.append(CoverageGap(source=connector.name, reason=f"unexpected error: {e}"))
-        if used:
-            ran.append(connector.name)
+    return signals, gaps
 
-    config_snapshot = {
-        "connectors_ran": ran,
-        "connectors_skipped": [g.source for g in gaps],
-    }
-    return signals, gaps, config_snapshot
+
+def judge_signals(signals: list[Signal]) -> Iterator[JudgedFinding]:
+    """Cluster a batch of signals and yield one JudgedFinding per cluster.
+
+    Opus judges each cluster independently, so we yield them one at a time —
+    the service persists each the moment it's ready, and the UI streams it in.
+    """
+    evidence = normalize(signals)
+    clusters = cluster_evidence(evidence)
+    triage = triage_clusters(clusters)
+    for i, cluster in enumerate(clusters):
+        item = triage[i]
+        if _should_escalate(cluster, item):
+            verdict = judge_cluster(cluster)
+        else:
+            verdict = _label_verdict(cluster, item)
+        yield JudgedFinding(verdict=verdict, cluster=cluster)
 
 
 def _should_escalate(cluster: EvidenceCluster, item: TriageItem) -> bool:
@@ -114,23 +130,13 @@ def _label_verdict(cluster: EvidenceCluster, item: TriageItem) -> Verdict:
 
 
 def run_scan(identifiers: list[Identifier], cfg: Settings | None = None) -> ScanReport:
+    """All-at-once scan (CLI + tests). The streaming web path lives in the service."""
     cfg = cfg or get_settings()
     assert_ownership(identifiers)
 
-    signals, gaps, _snapshot = collect_signals(identifiers, cfg)
-    evidence = normalize(signals)
-    clusters = cluster_evidence(evidence)          # Tier 0 — bounds Opus cost
-    triage = triage_clusters(clusters)             # Tier 1 — Haiku recall net
-
-    judged: list[JudgedFinding] = []
-    for i, cluster in enumerate(clusters):
-        item = triage[i]
-        if _should_escalate(cluster, item):
-            verdict = judge_cluster(cluster)       # Tier 2 — Opus deep judge
-        else:
-            verdict = _label_verdict(cluster, item)
-        # No remediation here: easy fixes are inline in the verdict; involved fixes
-        # are generated on demand (the paywall point).
-        judged.append(JudgedFinding(verdict=verdict, cluster=cluster))
-
+    available = available_connectors(cfg)
+    gaps = unavailable_gaps(cfg)
+    signals, run_gaps = run_connectors(identifiers, cfg, available)
+    gaps += run_gaps
+    judged = list(judge_signals(signals))
     return ScanReport(findings=judged, coverage_gaps=gaps)

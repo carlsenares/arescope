@@ -108,6 +108,7 @@ class Scan(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.id"))
     status: Mapped[str] = mapped_column(String, default="pending")
+    name: Mapped[str | None] = mapped_column(String, nullable=True)  # user-given label
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_expiry)

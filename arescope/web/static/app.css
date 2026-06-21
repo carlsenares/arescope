@@ -506,7 +506,7 @@ td.right,
 }
 .scan-row {
   display: grid;
-  grid-template-columns: 5rem auto 1fr auto;
+  grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 1rem;
   padding: 0.85rem 0.6rem;
@@ -514,6 +514,12 @@ td.right,
   border-radius: 8px;
   color: var(--ink);
   transition: background 0.14s var(--ease);
+}
+.scan-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .scan-row:last-child {
   border-bottom: 0;

@@ -3,12 +3,13 @@
 {% block content %}
 {% set running = scan.status not in ('complete', 'failed') %}
 {% set action_label = {'fix_now': 'Fix now', 'worth_fixing': 'Worth fixing', 'depends': 'Depends', 'no_action': 'For your awareness'} %}
-<section class="results" {% if running %}data-poll="/app/scans/{{ scan.id }}/status"{% endif %}>
+<section class="results" data-count="{{ scan.findings|length }}"
+         {% if running %}data-poll="/app/scans/{{ scan.id }}/status"{% endif %}>
 
   <header class="results-head">
     <div>
       <span class="eyebrow">Analysis</span>
-      <h1>Your exposure report</h1>
+      <h1>{{ scan.name or 'Your exposure report' }}</h1>
       <p class="muted mono">scan {{ scan.id[:8] }} · {{ scan.started_at.strftime('%b %d, %Y · %H:%M') if scan.started_at else '' }}</p>
     </div>
     <a class="btn btn-ghost btn-sm" href="/app">← Dashboard</a>
@@ -18,11 +19,16 @@
   <div class="scanning">
     <span class="spinner"></span>
     <div>
-      <strong>{{ 'Queued…' if scan.status == 'queued' else 'Scanning your footprint…' }}</strong>
-      <p class="muted">This updates automatically. Username scans can take a few minutes.</p>
+      <strong>{{ 'Queued…' if scan.status == 'queued' else (scan.phase or 'Scanning your footprint…') }}</strong>
+      <p class="muted">
+        {% if scan.findings %}Findings appear here as they're judged.{% else %}This updates automatically.{% endif %}
+        Username scans can take a few minutes.
+      </p>
     </div>
   </div>
-  {% elif scan.findings %}
+  {% endif %}
+
+  {% if scan.findings %}
 
   <div class="results-summary">
     <span class="rs-num">{{ scan.findings|length }}</span> findings ·
@@ -96,7 +102,7 @@
     {% endfor %}
   </div>
 
-  {% else %}
+  {% elif not running %}
   <div class="empty">
     <div class="empty-mark ok" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -118,17 +124,20 @@
 </section>
 
 <script>
-  // Poll while the scan is still running; reload to render findings when done.
+  // While the scan runs, poll status. Reload to render new findings as they
+  // stream in (count grew) or once it finishes.
   (function () {
     var el = document.querySelector('.results[data-poll]');
     if (!el) return;
     var url = el.getAttribute('data-poll');
+    var shown = parseInt(el.getAttribute('data-count') || '0', 10);
     var t = setInterval(async function () {
       try {
         var r = await fetch(url, { headers: { 'Accept': 'application/json' } });
         if (!r.ok) return;
         var d = await r.json();
-        if (d.status === 'complete' || d.status === 'failed') {
+        var done = d.status === 'complete' || d.status === 'failed';
+        if (done || (typeof d.findings === 'number' && d.findings > shown)) {
           clearInterval(t);
           location.reload();
         }

@@ -259,7 +259,7 @@ def app_home(request: Request):
             .all()
         )
         rows = [
-            {"id": sc.id, "status": sc.status, "started_at": sc.started_at}
+            {"id": sc.id, "name": sc.name, "status": sc.status, "started_at": sc.started_at}
             for sc in scans
         ]
     return _render(request, "app_home.html", scans=rows)
@@ -321,9 +321,10 @@ async def new_scan_submit(request: Request):
     options: dict = {}
     if str(form.get("maigret_scope", "")) == "top":
         options["maigret_top_sites"] = _MAIGRET_TOP_N
+    name = str(form.get("name", "")).strip()[:80] or None
 
     subject_id = create_subject(identifiers, user_id=user.id)
-    scan_id = create_scan(subject_id, options=options)
+    scan_id = create_scan(subject_id, options=options, name=name)
     try:
         run_scan_task.delay(scan_id)  # hand off to the worker
     except Exception:
@@ -453,12 +454,15 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
             (_finding_view(f) for f in findings),
             key=lambda v: (-v["rank"], -v["confidence"]),
         )
+        snap = scan.config_snapshot or {}
         return {
             "id": scan.id,
+            "name": scan.name,
             "status": scan.status,
             "started_at": scan.started_at,
             "options": scan.options or {},
-            "coverage_gaps": (scan.config_snapshot or {}).get("coverage_gaps", []),
+            "phase": snap.get("phase"),
+            "coverage_gaps": snap.get("coverage_gaps", []),
             "findings": views,
             "actionable": sum(1 for v in views if v["action"] in ("fix_now", "worth_fixing")),
         }
@@ -497,7 +501,11 @@ def scan_status(request: Request, scan_id: str) -> dict:
     scan = _load_owned_scan(user, scan_id)
     if scan is None:
         return {"status": "unknown"}
-    return {"status": scan["status"], "findings": len(scan["findings"])}
+    return {
+        "status": scan["status"],
+        "findings": len(scan["findings"]),
+        "phase": scan["phase"],
+    }
 
 
 @router.post("/app/findings/{finding_id}/solution")

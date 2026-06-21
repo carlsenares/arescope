@@ -48,7 +48,7 @@
       {% for sc in scans %}
       <li>
         <a class="scan-row" href="/app/scans/{{ sc.id }}">
-          <span class="scan-id mono">{{ sc.id[:8] }}</span>
+          <span class="scan-name">{{ sc.name or 'Analysis ' ~ sc.id[:8] }}</span>
           <span class="chip chip-{{ sc.status }}">{{ sc.status }}</span>
           <span class="scan-date muted">{{ sc.started_at.strftime('%b %d, %Y · %H:%M') if sc.started_at else '—' }}</span>
           <span class="scan-go" aria-hidden="true">→</span>

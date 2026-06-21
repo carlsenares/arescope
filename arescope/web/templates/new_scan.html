@@ -11,6 +11,9 @@
   {% if error %}<p class="formerror">{{ error }}</p>{% endif %}
   <form method="post" action="/app/new" class="form">
     <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <label>Name this analysis <small class="hint">optional</small>
+      <input type="text" name="name" placeholder="e.g. My main email" maxlength="80" value="{{ values.name or '' }}" />
+    </label>
     {% for itype, key, label, ph in fields %}
     <label>{{ label }}
       <input type="text" name="{{ key }}"{% if key == 'username' %} id="usernameField"{% endif %} placeholder="{{ ph }}" value="{{ values[key] or '' }}" />
