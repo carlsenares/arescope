@@ -21,3 +21,26 @@ def test_shodan_registered():
     from arescope.connectors.registry import REGISTRY
 
     assert any(c.name == "shodan" for c in REGISTRY)
+
+
+def test_shodan_emits_host_profile_and_services(monkeypatch):
+    class FakeResp:
+        status_code = 200
+
+        def json(self):
+            return {
+                "city": "Berlin", "region_code": "BE", "country_name": "Germany",
+                "country_code": "DE", "latitude": 52.5, "longitude": 13.4,
+                "isp": "Deutsche Telekom", "org": "DT", "asn": "AS3320",
+                "hostnames": ["host.example.de"], "domains": ["example.de"],
+                "ports": [80, 443], "tags": ["cloud"], "vulns": [],
+                "data": [{"port": 443, "transport": "tcp", "product": "nginx", "vulns": {}}],
+            }
+
+    monkeypatch.setattr("arescope.connectors.shodan.httpx.get", lambda *a, **k: FakeResp())
+    sigs = ShodanConnector().run("203.0.113.4", InputType.IP, Settings(shodan_api_key="x"))
+    kinds = [s.kind for s in sigs]
+    assert "host_profile" in kinds and "exposed_service" in kinds
+    hp = next(s for s in sigs if s.kind == "host_profile")
+    assert "Berlin" in hp.raw["location"] and hp.raw["isp"] == "Deutsche Telekom"
+    assert hp.raw["open_ports"] == [80, 443]

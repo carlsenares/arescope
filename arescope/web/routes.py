@@ -432,7 +432,13 @@ _EVIDENCE_HINTS: dict[str, list[tuple[str, str]]] = {
         ("url", "Login URL"),
     ],
     "hibp": [("title", "Breach"), ("breach_date", "Date"), ("data_classes", "Leaked data")],
-    "shodan": [("port", "Port"), ("product", "Service"), ("org", "Network"), ("vulns", "Known CVEs")],
+    "shodan": [
+        # service signals
+        ("port", "Port"), ("product", "Service"), ("vulns", "Known CVEs"),
+        # host_profile signal
+        ("location", "Location"), ("isp", "ISP"), ("org", "Network"), ("asn", "ASN"),
+        ("hostnames", "Hostnames"), ("open_ports", "Open ports"),
+    ],
     "holehe": [("url", "Site")],
     "maigret": [("url", "Profile")],
 }

@@ -92,6 +92,17 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
             "label": "Infostealer log",
             "meta": {"date": raw.get("date_compromised"), "machine": raw.get("computer_name")},
         }
+    if sig.source == "shodan" and sig.kind == "host_profile":
+        return f"iploc:{sig.locator}", {
+            "type": "iploc",
+            "label": raw.get("location") or "IP location",
+            "meta": {
+                "location": raw.get("location"),
+                "isp": raw.get("isp"),
+                "org": raw.get("org"),
+                "open_ports": raw.get("open_ports", []),
+            },
+        }
     if sig.source == "shodan":
         return f"svc:{sig.locator}", {
             "type": "service",

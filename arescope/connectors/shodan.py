@@ -1,12 +1,15 @@
-"""Shodan — exposed services/ports + CVEs on an IP you own (#6).
+"""Shodan — exposed services/ports + CVEs on an IP you own (#6), plus what the IP
+itself reveals (geolocation, ISP/ASN, hostnames).
 
 Consumes: ip. Requires: ARESCOPE_SHODAN_API_KEY. The free API key (any Shodan
 account) works for host lookups; absent/over-quota => coverage gap, not failure.
 
-Emits one Signal per exposed service (port/transport), carrying product/version,
-CPE, and any CVEs Shodan attached — the judge turns default-cred/known-CVE admin
-services into Critical, sensitive services into High, banners into Medium.
-"""
+Emits one Signal per exposed service (port/transport) carrying product/version,
+CPE, and any CVEs — the judge turns default-cred/known-CVE admin services into
+Critical, sensitive services into High, banners into Medium. Also emits one
+`host_profile` Signal: the approximate location, network/ISP, and reachable
+hostnames the IP exposes — so the user sees what their address gives away (an
+honest picture; behind NAT this is the gateway, not every device on the LAN)."""
 
 from __future__ import annotations
 
@@ -52,6 +55,39 @@ class ShodanConnector(Connector):
         org = host.get("org")
 
         signals: list[Signal] = []
+
+        # Host-profile signal: what the IP itself gives away (location + network).
+        loc_parts = [host.get("city"), host.get("region_code"), host.get("country_name")]
+        location = ", ".join(p for p in loc_parts if p) or host.get("country_name") or "unknown"
+        signals.append(
+            Signal(
+                source=self.name,
+                kind="host_profile",
+                locator=value,
+                subject_value=value,
+                subject_type=InputType.IP,
+                raw={
+                    "location": location,
+                    "city": host.get("city"),
+                    "region": host.get("region_code"),
+                    "country": host.get("country_name"),
+                    "country_code": host.get("country_code"),
+                    "latitude": host.get("latitude"),
+                    "longitude": host.get("longitude"),
+                    "isp": host.get("isp"),
+                    "org": org,
+                    "asn": host.get("asn"),
+                    "os": host.get("os"),
+                    "hostnames": hostnames,
+                    "domains": host.get("domains"),
+                    "open_ports": host.get("ports"),
+                    "tags": host.get("tags"),
+                    "vulns": list((host.get("vulns") or [])),
+                    "last_update": host.get("last_update"),
+                },
+            )
+        )
+
         for service in host.get("data", []):
             port = service.get("port")
             transport = service.get("transport", "tcp")

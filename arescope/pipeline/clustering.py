@@ -104,6 +104,11 @@ def _classify(ev: Evidence) -> tuple[str, Category, bool, str | None]:
             reason = "known CVE on the service" if vulns else f"sensitive service exposed (port {port})"
         return f"infra|{ev.subject_value}", Category.EXPOSED_INFRASTRUCTURE, force, reason
 
+    if ev.kind == "host_profile":
+        # What the IP reveals (location, ISP, hostnames). Informational footprint,
+        # not a vulnerability — its own cluster; the judge rates it (usually low).
+        return f"hostprofile|{ev.subject_value}", Category.EXPOSED_INFRASTRUCTURE, False, None
+
     # Unknown kind: own cluster, let the triage net decide.
     return f"{ev.kind}|{ev.subject_value}|{ev.locator}", Category.BREACH_MEMBERSHIP, False, None
 
