@@ -23,14 +23,14 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-# GHunt only reads creds from this fixed location (no flag, no env override — verified
-# against ghunt 2.3.4). We stage the operator's creds file here before running.
-_GHUNT_DEFAULT_CREDS = Path.home() / ".malfrats" / "ghunt" / "creds.m"
-
 from arescope.config import Settings
 from arescope.connectors._identity import LOCATION, NAME, PHOTO, identity_signal
 from arescope.connectors.base import Connector, ConnectorGap
 from arescope.schemas import InputType, Signal
+
+# GHunt only reads creds from this fixed location (no flag, no env override — verified
+# against ghunt 2.3.4). We stage the operator's creds file here before running.
+_GHUNT_DEFAULT_CREDS = Path.home() / ".malfrats" / "ghunt" / "creds.m"
 
 
 class GHuntConnector(Connector):

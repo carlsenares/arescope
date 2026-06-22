@@ -21,7 +21,8 @@ def test_name_input_reported_as_uncovered_gap():
     # With BOTH the paid provider unconfigured AND the free registry disabled, a
     # name-only scan has no source and must surface an honest coverage gap rather
     # than reading as "nothing exposed".
-    cfg = Settings(name_search_api_url="", name_search_api_key="", broker_registry_enabled=False)
+    cfg = Settings(name_search_api_url="", name_search_api_key="", broker_registry_enabled=False,
+                   brave_api_key="")  # Brave also consumes NAME — pin it off for hermeticity
     gaps = uncovered_input_gaps([Identifier(type=InputType.NAME, value="Jane Doe")], cfg)
     assert any(g.source == "name lookup" for g in gaps)
 
@@ -99,6 +100,8 @@ def test_available_connectors_respects_toggles():
         github_enabled=False,
         reddit_enabled=False,
         gravatar_enabled=False,
+        brave_api_key="",  # extended-search keys may be present in the ambient .env
+        ghunt_creds_path="",
     )
     names = {c.name for c in available_connectors(cfg)}
     assert names == {"holehe"}
