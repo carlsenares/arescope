@@ -145,6 +145,20 @@
         <button class="btn btn-primary btn-sm" type="submit">Generate solution</button>
       </form>
       {% endif %}
+
+      <div class="ask-opus" data-history-url="/app/findings/{{ f.id }}/chat" data-send-url="/app/findings/{{ f.id }}/chat">
+        <button type="button" class="ask-btn">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Ask Opus about this
+        </button>
+        <div class="ask-panel" hidden>
+          <div class="ask-log"></div>
+          <form class="ask-form">
+            <input type="text" class="ask-input" placeholder="e.g. Why is this High if it isn't my device?" autocomplete="off" />
+            <button type="submit" class="btn btn-ghost btn-sm">Send</button>
+          </form>
+        </div>
+      </div>
     </article>
     {% endfor %}
   </div>
@@ -224,4 +238,5 @@
     }, 3000);
   })();
 </script>
+<script src="/app/static/chat.js"></script>
 {% endblock %}

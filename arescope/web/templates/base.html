@@ -29,5 +29,6 @@
       </nav>
     </header>
     <main class="appmain">{% block content %}{% endblock %}</main>
+    <script>window.ARESCOPE_CSRF = {{ csrf|tojson }};</script>
   </body>
 </html>

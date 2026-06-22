@@ -1299,3 +1299,80 @@ td.right,
 .pw-ok { border-color: oklch(0.86 0.26 143 / 0.35); }
 .pw-checking { color: var(--muted); display: flex; align-items: center; gap: 0.6rem; }
 .pw-error, .pw-info { color: var(--muted); }
+
+/* ── Ask-Opus chat widget (findings + map) ──────────────────────── */
+.ask-opus { margin-top: 0.9rem; }
+.ask-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0.4em 0.85em;
+  cursor: pointer;
+  transition: color 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+.ask-btn:hover { color: var(--ink); border-color: var(--ink); }
+.ask-panel {
+  margin-top: 0.7rem;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--bg);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.6rem;
+}
+.ask-log {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.ask-msg {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ask-user { background: var(--surface-2); color: var(--ink); justify-self: end; max-width: 85%; }
+.ask-assistant { background: transparent; border: 1px solid var(--hairline); color: var(--muted); max-width: 95%; }
+.ask-pending { color: var(--faint); }
+.ask-form { display: flex; gap: 0.4rem; }
+.ask-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
+  padding: 0.5em 0.7em;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.ask-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.ask-focus { font-size: 0.78rem; color: var(--faint); }
+
+/* map: float the widget over the canvas, bottom-right */
+.ask-map {
+  position: absolute;
+  z-index: 7;
+  right: 0.85rem;
+  bottom: 0.85rem;
+  margin: 0;
+  width: min(360px, calc(100% - 1.7rem));
+}
+.ask-map .ask-btn {
+  background: oklch(0.16 0 0 / 0.9);
+  backdrop-filter: blur(8px);
+}
+.ask-map .ask-panel { background: oklch(0.12 0 0 / 0.97); backdrop-filter: blur(10px); }

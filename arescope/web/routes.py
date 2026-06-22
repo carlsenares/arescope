@@ -16,7 +16,7 @@ from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from arescope.auth import (
@@ -38,7 +38,10 @@ from arescope.service import (
     create_subject,
     generate_finding_artifact,
     generate_finding_remediation,
+    load_chat,
     resolve_finding,
+    send_finding_chat,
+    send_map_chat,
 )
 from arescope.taxonomy import TAXONOMY
 from arescope.worker.tasks import run_scan_task
@@ -675,6 +678,66 @@ async def finding_artifact(request: Request, finding_id: str):
     except ValueError:
         raise HTTPException(404, "finding not found")
     return RedirectResponse(f"/app/scans/{scan_id}#f-{finding_id}", status_code=303)
+
+
+@router.get("/app/findings/{finding_id}/chat")
+def finding_chat_history(request: Request, finding_id: str):
+    """Load the Ask-Opus thread for a finding (JSON; free)."""
+    user = current_user(request)
+    if user is None or _finding_scan_id(user, finding_id) is None:
+        raise HTTPException(404, "finding not found")
+    return JSONResponse({"messages": load_chat(user.id, f"finding:{finding_id}")})
+
+
+@router.post("/app/findings/{finding_id}/chat")
+async def finding_chat_send(request: Request, finding_id: str):
+    """Ask Opus about a finding (JSON {reply}). Gated — it's an Opus call."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        raise HTTPException(401, "login required")
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+    if _finding_scan_id(user, finding_id) is None:
+        raise HTTPException(404, "finding not found")
+    if not can_run_scan(user):
+        raise HTTPException(403, "scan access required")
+    question = str(form.get("message", "")).strip()[:2000]
+    if not question:
+        raise HTTPException(400, "empty message")
+    return JSONResponse({"reply": send_finding_chat(user.id, finding_id, question)})
+
+
+@router.get("/app/map/chat")
+def map_chat_history(request: Request, scan_id: str = ""):
+    """Load the Ask-Opus thread for the map (a scan's, or the account's)."""
+    user = current_user(request)
+    if user is None:
+        raise HTTPException(401, "login required")
+    if scan_id and _load_owned_scan(user, scan_id) is None:
+        raise HTTPException(404, "scan not found")
+    scope = f"map:scan:{scan_id}" if scan_id else "map:account"
+    return JSONResponse({"messages": load_chat(user.id, scope)})
+
+
+@router.post("/app/map/chat")
+async def map_chat_send(request: Request):
+    """Ask Opus about the exposure map (JSON {reply}). Gated."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        raise HTTPException(401, "login required")
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+    scan_id = str(form.get("scan_id", "")).strip()
+    if scan_id and _load_owned_scan(user, scan_id) is None:
+        raise HTTPException(404, "scan not found")
+    if not can_run_scan(user):
+        raise HTTPException(403, "scan access required")
+    question = str(form.get("message", "")).strip()[:2000]
+    if not question:
+        raise HTTPException(400, "empty message")
+    selection = [s for s in str(form.get("selection", "")).split("|") if s][:25]
+    reply = send_map_chat(user.id, scan_id or None, question, selection)
+    return JSONResponse({"reply": reply})
 
 
 @router.post("/app/findings/{finding_id}/resolve")

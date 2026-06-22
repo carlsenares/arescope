@@ -168,6 +168,22 @@ class Finding(Base):
     )
 
 
+class ChatMessage(Base):
+    """One turn in an Ask-Opus mini-thread about a finding or the map.
+
+    A "thread" is all rows sharing (user_id, scope); scope is "finding:<id>",
+    "scan:<id>" (a scan's map) or "account" (the whole-footprint map). Content is
+    encrypted at rest — these turns discuss the user's exposures (PII rule)."""
+
+    __tablename__ = "chat_messages"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    scope: Mapped[str] = mapped_column(String, index=True)
+    role: Mapped[str] = mapped_column(String)  # "user" | "assistant"
+    content: Mapped[str] = mapped_column(EncryptedString)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Remediation(Base):
     __tablename__ = "remediations"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)

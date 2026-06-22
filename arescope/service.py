@@ -9,10 +9,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import json
+
 from arescope.config import get_settings
 from arescope.db import models
 from arescope.db.session import session_scope
 from arescope.connectors.registry import available_connectors
+from arescope.graph import build_account_graph, build_scan_graph
+from arescope.pipeline.chat import answer as chat_answer
 from arescope.pipeline.orchestrator import (
     judge_signals,
     run_connectors,
@@ -335,3 +339,105 @@ def resolve_finding(finding_id: str, answers: dict[int, bool]) -> Verdict:
         f.questions = [q.model_dump() for q in rv.questions]
         f.fix_difficulty = rv.fix_difficulty.value if rv.fix_difficulty else None
         return rv
+
+
+# --- Ask-Opus chat (persisted mini-threads about a finding or the map) --------
+
+
+def load_chat(user_id: str, scope: str) -> list[dict]:
+    """The thread for (user, scope), oldest first: [{role, content}, ...]."""
+    with session_scope() as s:
+        rows = (
+            s.query(models.ChatMessage)
+            .filter(models.ChatMessage.user_id == user_id, models.ChatMessage.scope == scope)
+            .order_by(models.ChatMessage.created_at.asc())
+            .all()
+        )
+        return [{"role": r.role, "content": r.content} for r in rows]
+
+
+def _finding_chat_context(finding_id: str) -> str:
+    """The full picture Opus needs to answer about one finding."""
+    with session_scope() as s:
+        f = s.get(models.Finding, finding_id)
+        if f is None:
+            raise ValueError(f"finding {finding_id} not found")
+        sigs = (
+            s.query(models.Signal).filter(models.Signal.id.in_(f.signal_ids or [])).all()
+            if f.signal_ids
+            else []
+        )
+        lines = [
+            f"Finding: {f.title}",
+            f"Category: {f.category} | Severity: {f.severity} | Action: {f.action}",
+            f"Problem: {f.problem or '—'}",
+            f"What it means: {f.rationale}",
+        ]
+        if f.easy_fix:
+            lines.append(f"Inline quick fix: {f.easy_fix}")
+        if f.member_locators:
+            lines.append(f"Exposed on: {', '.join(f.member_locators[:40])}")
+        if f.questions:
+            lines.append(f"Open contingency questions: {json.dumps(f.questions)}")
+        lines.append("\nRaw source records Opus was given (the exact data found):")
+        for sig in sigs[:20]:
+            lines.append(
+                f"- [{sig.source}/{sig.kind}] {sig.locator}: "
+                f"{json.dumps(sig.raw or {}, default=str)}"
+            )
+        return "\n".join(lines)
+
+
+def _summarize_graph(elements: dict, selection: list[str] | None) -> str:
+    """Compact text rendering of the exposure map so Opus can reason over it."""
+    nodes = {n["data"]["id"]: n["data"] for n in elements.get("nodes", [])}
+    lines = [
+        f"The user's exposure map: {len(nodes)} nodes, "
+        f"{len(elements.get('edges', []))} connections, centred on their identity.",
+        "Nodes (label · type · worst severity touching it):",
+    ]
+    for d in list(nodes.values())[:80]:
+        lines.append(f"- {d.get('label', d['id'])} · {d.get('type')} · {d.get('severity')}")
+    lines.append("Connections (what links to what, and the risk colour):")
+    for e in elements.get("edges", [])[:120]:
+        d = e["data"]
+        src = nodes.get(d["source"], {}).get("label", d["source"])
+        dst = nodes.get(d["target"], {}).get("label", d["target"])
+        lines.append(f"- {src} → {dst} ({d.get('info', 'link')}, {d.get('severity')})")
+    if selection:
+        lines.append(f"\nThe user has highlighted these nodes to ask about: {', '.join(selection)}")
+    return "\n".join(lines)
+
+
+def _map_chat_context(user_id: str, scan_id: str | None, selection: list[str] | None) -> str:
+    elements = build_scan_graph(scan_id) if scan_id else build_account_graph(user_id)
+    return _summarize_graph(elements, selection)
+
+
+def _persist_turn(user_id: str, scope: str, role: str, content: str) -> None:
+    with session_scope() as s:
+        s.add(models.ChatMessage(user_id=user_id, scope=scope, role=role, content=content))
+
+
+def send_finding_chat(user_id: str, finding_id: str, question: str) -> str:
+    """Persist the question, answer it with the finding's context, persist the reply."""
+    scope = f"finding:{finding_id}"
+    context = _finding_chat_context(finding_id)
+    history = load_chat(user_id, scope)
+    reply = chat_answer(context, history, question)
+    _persist_turn(user_id, scope, "user", question)
+    _persist_turn(user_id, scope, "assistant", reply)
+    return reply
+
+
+def send_map_chat(
+    user_id: str, scan_id: str | None, question: str, selection: list[str] | None = None
+) -> str:
+    """Answer a question about the exposure map (a scan's, or the whole account's)."""
+    scope = f"map:scan:{scan_id}" if scan_id else "map:account"
+    context = _map_chat_context(user_id, scan_id, selection)
+    history = load_chat(user_id, scope)
+    reply = chat_answer(context, history, question)
+    _persist_turn(user_id, scope, "user", question)
+    _persist_turn(user_id, scope, "assistant", reply)
+    return reply

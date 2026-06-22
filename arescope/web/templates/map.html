@@ -30,7 +30,24 @@
     </div>
     <div id="cy"></div>
     <div id="cyTip" class="cy-tip" hidden></div>
-    <div class="map-hint">Hover a node to trace its connections.</div>
+    <div class="map-hint">Hover to trace a connection · click nodes to focus them for Opus</div>
+
+    <div class="ask-opus ask-map" data-extra-id="map"
+         data-history-url="/app/map/chat{% if scope == 'scan' %}?scan_id={{ scan }}{% endif %}"
+         data-send-url="/app/map/chat">
+      <button type="button" class="ask-btn">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Ask Opus
+      </button>
+      <div class="ask-panel" hidden>
+        <div class="ask-focus" id="askFocus"></div>
+        <div class="ask-log"></div>
+        <form class="ask-form">
+          <input type="text" class="ask-input" placeholder="e.g. What does my IP reveal, and is that bad?" autocomplete="off" />
+          <button type="submit" class="btn btn-ghost btn-sm">Send</button>
+        </form>
+      </div>
+    </div>
   </div>
   {% else %}
   <div class="empty">
@@ -47,6 +64,7 @@
 <script src="/app/static/vendor/cytoscape-fcose.min.js"></script>
 <script>
   const ELEMENTS = {{ elements | tojson }};
+  const SCAN_ID = {{ (scan or '') | tojson }};
   const SEV = {
     critical: 'oklch(0.64 0.2 18)', high: 'oklch(0.78 0.15 70)',
     medium: 'oklch(0.82 0.15 95)', low: 'oklch(0.78 0.24 145)', info: 'oklch(0.62 0 0)'
@@ -111,6 +129,8 @@
         { selector: 'node.trace', style: {
             'opacity': 1, 'text-opacity': 1, 'border-width': 4,
             'shadow-blur': 24, 'shadow-color': sev, 'shadow-opacity': 0.9, 'z-index': 40 } },
+        { selector: 'node.sel', style: {
+            'border-color': '#fff', 'border-width': 4, 'text-opacity': 1, 'z-index': 50 } },
       ],
       layout: {
         name: 'fcose', quality: 'proof', randomize: false, animate: false,
@@ -152,7 +172,29 @@
       trace(e.target);
     });
     cy.on('mouseout', clear);
+
+    // Click nodes to FOCUS them — Opus gets the selected labels as context.
+    const selected = new Map();  // id -> label
+    const focusEl = document.getElementById('askFocus');
+    function renderFocus() {
+      if (!focusEl) return;
+      const labels = [...selected.values()];
+      focusEl.textContent = labels.length ? 'Focused on: ' + labels.join(', ') : '';
+      focusEl.hidden = labels.length === 0;
+    }
+    cy.on('tap', 'node', e => {
+      const n = e.target, id = n.id();
+      if (selected.has(id)) { selected.delete(id); n.removeClass('sel'); }
+      else { selected.set(id, n.data('label') || id); n.addClass('sel'); }
+      renderFocus();
+    });
     cy.on('tap', e => { if (e.target === cy) clear(); });
+
+    // Expose the current scan + node selection to the Ask-Opus widget.
+    (window.__chatExtras || (window.__chatExtras = {})).map = () => ({
+      scan_id: SCAN_ID || '',
+      selection: [...selected.values()].join('|'),
+    });
 
     // --- controls ------------------------------------------------------------
     document.getElementById('cyFit').addEventListener('click', () => cy.animate({ fit: { padding: 60 }, duration: 250 }));
@@ -163,4 +205,5 @@
     });
   }
 </script>
+<script src="/app/static/chat.js"></script>
 {% endblock %}
