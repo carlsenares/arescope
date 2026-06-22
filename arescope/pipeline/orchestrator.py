@@ -55,6 +55,26 @@ def unavailable_gaps(cfg: Settings) -> list[CoverageGap]:
     ]
 
 
+def uncovered_input_gaps(identifiers: list[Identifier], cfg: Settings) -> list[CoverageGap]:
+    """Input types the user gave that NO available connector consumes.
+
+    Without this, e.g. a name-only scan returns zero signals and the report reads
+    "Nothing exposed" — implying we checked a name and found nothing. We didn't
+    check it at all. Surface that honestly (ARCHITECTURE.md §4: never imply
+    coverage we didn't have)."""
+    enabled = available_connectors(cfg)
+    covered: set = set().union(*(c.consumes for c in enabled)) if enabled else set()
+    seen = {i.type for i in identifiers}
+    return [
+        CoverageGap(
+            source=f"{t.value} lookup",
+            reason="no source connected for this input type yet — it was not searched",
+        )
+        for t in seen
+        if t not in covered
+    ]
+
+
 def run_connectors(
     identifiers: list[Identifier], cfg: Settings, connectors: list
 ) -> tuple[list[Signal], list[CoverageGap]]:
@@ -135,7 +155,7 @@ def run_scan(identifiers: list[Identifier], cfg: Settings | None = None) -> Scan
     assert_ownership(identifiers)
 
     available = available_connectors(cfg)
-    gaps = unavailable_gaps(cfg)
+    gaps = unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
     signals, run_gaps = run_connectors(identifiers, cfg, available)
     gaps += run_gaps
     judged = list(judge_signals(signals))

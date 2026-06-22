@@ -169,7 +169,8 @@
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
     </div>
     <h3>Nothing exposed</h3>
-    <p class="muted">We checked the sources below and found no actionable exposure for these inputs.</p>
+    <p class="muted">No actionable exposure turned up for the inputs we could search.
+      {% if scan.coverage_gaps %}Some inputs weren't covered — see below.{% endif %}</p>
   </div>
   {% endif %}
 

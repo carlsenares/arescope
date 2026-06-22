@@ -20,6 +20,7 @@ from arescope.pipeline.chat import answer as chat_answer
 from arescope.pipeline.orchestrator import (
     judge_signals,
     run_connectors,
+    uncovered_input_gaps,
     unavailable_gaps,
 )
 from arescope.pipeline.remediation import generate_remediation
@@ -110,7 +111,7 @@ def run_and_store_scan(scan_id: str) -> str:
         cfg = cfg.model_copy(update={"maigret_top_sites": int(top)})
 
     available = available_connectors(cfg)
-    gaps = unavailable_gaps(cfg)
+    gaps = unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
     fast = [c for c in available if c.name != "maigret"]
     slow = [c for c in available if c.name == "maigret"]
     has_username = any(i.type is InputType.USERNAME for i in identifiers)
