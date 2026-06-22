@@ -6,7 +6,7 @@
     <div>
       <span class="eyebrow">Exposure map</span>
       <h1>{{ 'Your footprint' if scope == 'account' else 'Analysis map' }}</h1>
-      <p class="muted">{{ elements.counts.nodes }} nodes · {{ elements.counts.edges }} connections · drag to pan, scroll to zoom</p>
+      <p class="muted">{{ elements.counts.nodes }} nodes · {{ elements.counts.edges }} connections · drag to pan, scroll to zoom, hover to trace a connection</p>
     </div>
     <div class="map-actions">
       {% if scope == 'scan' %}<a class="btn btn-ghost btn-sm" href="/app/scans/{{ scan }}">← Findings</a>{% endif %}
@@ -24,8 +24,13 @@
 
   {% if elements.counts.nodes > 1 %}
   <div class="mapwrap">
+    <div class="map-controls">
+      <button id="cyFit" class="btn btn-ghost btn-sm" type="button">Fit</button>
+      <button id="cyRelayout" class="btn btn-ghost btn-sm" type="button">Re-layout</button>
+    </div>
     <div id="cy"></div>
     <div id="cyTip" class="cy-tip" hidden></div>
+    <div class="map-hint">Hover a node to trace its connections.</div>
   </div>
   {% else %}
   <div class="empty">
@@ -37,74 +42,125 @@
 </section>
 
 <script src="/app/static/vendor/cytoscape.min.js"></script>
+<script src="/app/static/vendor/layout-base.js"></script>
+<script src="/app/static/vendor/cose-base.js"></script>
+<script src="/app/static/vendor/cytoscape-fcose.min.js"></script>
 <script>
   const ELEMENTS = {{ elements | tojson }};
   const SEV = {
     critical: 'oklch(0.64 0.2 18)', high: 'oklch(0.78 0.15 70)',
-    medium: 'oklch(0.82 0.15 95)', low: 'oklch(0.78 0.24 145)', info: 'oklch(0.6 0 0)'
+    medium: 'oklch(0.82 0.15 95)', low: 'oklch(0.78 0.24 145)', info: 'oklch(0.62 0 0)'
   };
   const sev = e => SEV[e.data('severity')] || SEV.info;
 
-  if (document.getElementById('cy') && window.cytoscape) {
-    // Attach a self-hosted logo URL to each site node (monogram shows if it 404s).
+  if (document.getElementById('cy') && window.cytoscape && window.cytoscapeFcose) {
+    cytoscape.use(window.cytoscapeFcose);
+
+    // Self-hosted logo for site nodes (monogram shows if it 404s).
     ELEMENTS.nodes.forEach(n => {
       if (n.data.type === 'site' && n.data.slug) n.data.logoUrl = '/app/logo/' + n.data.slug;
+    });
+
+    // Deterministic seed positions, so the map doesn't tumble to a new rotation on
+    // every reload (feedback #8). Self at the centre; everything else fanned out on
+    // a golden-angle spiral by its stable server order. fcose then refines from
+    // these fixed seeds with randomize:false → same layout every time.
+    const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+    let i = 0;
+    ELEMENTS.nodes.forEach(n => {
+      if (n.data.type === 'identity') { n.position = { x: 0, y: 0 }; return; }
+      i += 1;
+      const r = 90 + i * 26, a = i * GOLDEN;
+      n.position = { x: Math.cos(a) * r, y: Math.sin(a) * r };
     });
 
     const cy = cytoscape({
       container: document.getElementById('cy'),
       elements: ELEMENTS,
       wheelSensitivity: 0.2,
+      minZoom: 0.15,
+      maxZoom: 3.5,
       style: [
         { selector: 'node', style: {
-            'label': 'data(label)', 'color': '#cfcfcf', 'font-size': 10,
-            'text-valign': 'bottom', 'text-margin-y': 5, 'text-max-width': 90,
-            'width': 26, 'height': 26, 'background-color': '#1b1b1b',
-            'border-width': 2, 'border-color': sev } },
+            'label': 'data(label)', 'color': '#e9e9e9', 'font-size': 13,
+            'font-family': 'Geist Variable, system-ui, sans-serif',
+            'text-valign': 'bottom', 'text-margin-y': 7, 'text-wrap': 'wrap',
+            'text-max-width': 120, 'text-outline-width': 3,
+            'text-outline-color': '#070707', 'min-zoomed-font-size': 7,
+            'width': 36, 'height': 36, 'background-color': '#1c1c1c',
+            'border-width': 2.5, 'border-color': sev } },
         { selector: 'node[type="identity"]', style: {
-            'width': 66, 'height': 66, 'background-color': 'oklch(0.86 0.26 143)',
-            'color': '#06210f', 'font-weight': 700, 'font-size': 15,
-            'text-valign': 'center', 'text-margin-y': 0, 'border-width': 0 } },
+            'width': 84, 'height': 84, 'background-color': 'oklch(0.86 0.26 143)',
+            'color': '#06210f', 'font-weight': 700, 'font-size': 17,
+            'text-valign': 'center', 'text-margin-y': 0, 'text-outline-width': 0,
+            'border-width': 0, 'z-index': 30 } },
         { selector: 'node[type="input"]', style: {
-            'width': 42, 'height': 42, 'background-color': '#262626', 'font-size': 11 } },
+            'width': 54, 'height': 54, 'background-color': '#2a2a2a',
+            'font-size': 14, 'font-weight': 600, 'z-index': 20 } },
         { selector: 'node[type="site"]', style: {
-            'width': 38, 'height': 38, 'background-color': '#fff',
+            'width': 46, 'height': 46, 'background-color': '#fff',
             'background-image': 'data(logoUrl)', 'background-fit': 'contain',
-            'background-clip': 'node', 'background-image-opacity': 1 } },
+            'background-width': '62%', 'background-height': '62%',
+            'background-position-x': '50%', 'background-position-y': '50%',
+            'background-clip': 'node' } },
         { selector: 'edge', style: {
-            'width': 2, 'line-color': sev, 'opacity': 0.55,
+            'width': 1.6, 'line-color': sev, 'opacity': 0.4,
             'curve-style': 'bezier', 'target-arrow-shape': 'none' } },
-        { selector: '.faded', style: { 'opacity': 0.12 } },
-        { selector: '.hl', style: { 'opacity': 1, 'width': 3 } },
+        { selector: '.dim', style: { 'opacity': 0.18, 'text-opacity': 0.12 } },
+        { selector: 'edge.trace', style: { 'opacity': 1, 'width': 3.4 } },
+        { selector: 'node.trace', style: {
+            'opacity': 1, 'text-opacity': 1, 'border-width': 4,
+            'shadow-blur': 24, 'shadow-color': sev, 'shadow-opacity': 0.9, 'z-index': 40 } },
       ],
-      layout: { name: 'cose', animate: false, padding: 36, idealEdgeLength: 95,
-                nodeRepulsion: 9000, gravity: 0.3, nestingFactor: 0.9 },
+      layout: {
+        name: 'fcose', quality: 'proof', randomize: false, animate: false,
+        fit: true, padding: 60, nodeSeparation: 130,
+        idealEdgeLength: 120, nodeRepulsion: 9000, gravity: 0.12,
+      },
     });
 
-    // Hover detail card.
+    // --- hover: highlight the path, gently de-emphasise the rest -------------
     const tip = document.getElementById('cyTip');
     function showTip(html, rpos) {
       tip.innerHTML = html;
-      tip.style.left = (rpos.x + 14) + 'px';
-      tip.style.top = (rpos.y + 14) + 'px';
+      tip.style.left = (rpos.x + 16) + 'px';
+      tip.style.top = (rpos.y + 16) + 'px';
       tip.hidden = false;
+    }
+    function trace(ele) {
+      const nh = ele.closedNeighborhood();
+      cy.elements().addClass('dim');
+      nh.removeClass('dim').addClass('trace');
+    }
+    function clear() {
+      tip.hidden = true;
+      cy.elements().removeClass('dim trace');
     }
     cy.on('mouseover', 'node', e => {
       const d = e.target.data(); const m = d.meta || {};
       let extra = '';
       if (d.type === 'breach' && m.data) extra = '<div class="t-sub">Leaked: ' + (m.data.join(', ') || '—') + '</div>';
+      if (d.type === 'stealer' && m.machine) extra = '<div class="t-sub">Machine: ' + m.machine + '</div>';
       if (d.type === 'site' && d.url) extra = '<div class="t-sub">' + d.url + '</div>';
       if (d.type === 'service' && m.vulns && m.vulns.length) extra = '<div class="t-sub">' + m.vulns.join(', ') + '</div>';
       showTip('<strong>' + (d.label || d.id) + '</strong><div class="t-sev t-' + d.severity + '">' + d.severity + '</div>' + extra, e.renderedPosition);
-      const nh = e.target.closedNeighborhood();
-      cy.elements().addClass('faded'); nh.removeClass('faded').addClass('hl');
+      trace(e.target);
     });
     cy.on('mouseover', 'edge', e => {
       const d = e.target.data();
       showTip('<strong>' + (d.info || 'connection') + '</strong><div class="t-sev t-' + d.severity + '">' + d.severity + '</div>', e.renderedPosition);
+      trace(e.target);
     });
-    cy.on('mouseout', () => { tip.hidden = true; cy.elements().removeClass('faded hl'); });
-    cy.on('tap', e => { if (e.target === cy) { tip.hidden = true; cy.elements().removeClass('faded hl'); } });
+    cy.on('mouseout', clear);
+    cy.on('tap', e => { if (e.target === cy) clear(); });
+
+    // --- controls ------------------------------------------------------------
+    document.getElementById('cyFit').addEventListener('click', () => cy.animate({ fit: { padding: 60 }, duration: 250 }));
+    document.getElementById('cyRelayout').addEventListener('click', () => {
+      cy.layout({ name: 'fcose', quality: 'proof', randomize: false, animate: true,
+                  animationDuration: 500, fit: true, padding: 60, nodeSeparation: 130,
+                  idealEdgeLength: 120, nodeRepulsion: 9000, gravity: 0.12 }).run();
+    });
   }
 </script>
 {% endblock %}
