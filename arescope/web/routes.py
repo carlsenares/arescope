@@ -35,6 +35,7 @@ from arescope.schemas import SEVERITY_ORDER, Category, Identifier, InputType, Se
 from arescope.service import (
     create_scan,
     create_subject,
+    generate_finding_artifact,
     generate_finding_remediation,
     resolve_finding,
 )
@@ -427,6 +428,7 @@ def _finding_view(f: models.Finding) -> dict:
         "action": f.action,
         "category_label": cat_label,
         "title": f.title,
+        "problem": f.problem,
         "rationale": f.rationale,
         "confidence": round((f.confidence or 0) * 100),
         "fix_difficulty": f.fix_difficulty,
@@ -445,6 +447,9 @@ def _finding_view(f: models.Finding) -> dict:
             "summary": rem.summary,
             "steps": rem.steps or [],
             "artifact": rem.artifact,
+            # advice exists but no request drafted yet, and this category's track
+            # uses one (T1) → offer the explicit "draft the request" second step.
+            "can_draft_artifact": rem.tier == "t1_artifact" and not rem.artifact,
         },
     }
 
@@ -464,6 +469,15 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
             key=lambda v: (-v["rank"], -v["confidence"]),
         )
         snap = scan.config_snapshot or {}
+        # Severity tabs (only those present), so a long report isn't one flat wall.
+        counts: dict[str, int] = {}
+        for v in views:
+            counts[v["severity"]] = counts.get(v["severity"], 0) + 1
+        tabs = [
+            {"sev": s, "label": _SEV_LABEL[s], "count": counts[s]}
+            for s in ("critical", "high", "medium", "low", "info")
+            if counts.get(s)
+        ]
         return {
             "id": scan.id,
             "name": scan.name,
@@ -473,6 +487,7 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
             "phase": snap.get("phase"),
             "coverage_gaps": snap.get("coverage_gaps", []),
             "findings": views,
+            "sev_tabs": tabs,
             "actionable": sum(1 for v in views if v["action"] in ("fix_now", "worth_fixing")),
         }
 
@@ -580,6 +595,28 @@ async def finding_solution(request: Request, finding_id: str):
         return _render(request, "locked.html")
     try:
         generate_finding_remediation(finding_id)
+    except ValueError:
+        raise HTTPException(404, "finding not found")
+    return RedirectResponse(f"/app/scans/{scan_id}#f-{finding_id}", status_code=303)
+
+
+@router.post("/app/findings/{finding_id}/artifact")
+async def finding_artifact(request: Request, finding_id: str):
+    """Draft the ready-to-send request (GDPR/opt-out/takedown) on demand — the
+    explicit second step after advice, so Arescope never auto-sends on the user's
+    behalf."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+    scan_id = _finding_scan_id(user, finding_id)
+    if scan_id is None:
+        raise HTTPException(404, "finding not found")
+    if not can_run_scan(user):  # drafting is an LLM cost — gate it
+        return _render(request, "locked.html")
+    try:
+        generate_finding_artifact(finding_id)
     except ValueError:
         raise HTTPException(404, "finding not found")
     return RedirectResponse(f"/app/scans/{scan_id}#f-{finding_id}", status_code=303)

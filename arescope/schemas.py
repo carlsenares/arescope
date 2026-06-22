@@ -140,7 +140,8 @@ class Verdict(BaseModel):
     severity: Severity
     action: ActionBucket
     title: str
-    rationale: str
+    problem: str = ""    # one-line statement of the issue (what's exposed / the risk)
+    rationale: str       # what it means + why it matters (the explanation)
     confidence: float
     fix_difficulty: FixDifficulty | None = None  # set for fix_now / worth_fixing
     easy_fix: str | None = None                   # inline one-liner when difficulty == easy

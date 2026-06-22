@@ -38,11 +38,13 @@ def _migrate() -> int:
                 text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS options JSON NOT NULL DEFAULT '{}'")
             )
             conn.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS name VARCHAR"))
+            conn.execute(text("ALTER TABLE findings ADD COLUMN IF NOT EXISTS problem TEXT"))
         else:
             for ddl in (
                 "ALTER TABLE users ADD COLUMN can_scan BOOLEAN NOT NULL DEFAULT 0",
                 "ALTER TABLE scans ADD COLUMN options JSON NOT NULL DEFAULT '{}'",
                 "ALTER TABLE scans ADD COLUMN name VARCHAR",
+                "ALTER TABLE findings ADD COLUMN problem TEXT",
             ):
                 try:
                     conn.execute(text(ddl))

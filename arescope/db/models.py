@@ -147,6 +147,7 @@ class Finding(Base):
     category: Mapped[str] = mapped_column(String)
     severity: Mapped[str] = mapped_column(String)
     title: Mapped[str] = mapped_column(String)
+    problem: Mapped[str | None] = mapped_column(Text, nullable=True)  # one-line issue statement
     rationale: Mapped[str] = mapped_column(Text)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     # Verdict fields (AI_PIPELINE.md): action bucket, inline easy fix, contingency

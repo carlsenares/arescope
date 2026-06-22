@@ -36,6 +36,13 @@ dimensions: takeover potential, data sensitivity, recency, exploitability.
 {_SEVERITY}
 
 Output via the structured schema:
+- title: a short, specific headline (e.g. "Password exposed in the Adobe breach").
+- problem: ONE line stating the concrete issue — what is exposed and the risk it
+  creates. No preamble, no fix. (e.g. "Your email and a reused password were leaked
+  and are circulating in credential-stuffing lists.")
+- rationale: 2-4 sentences explaining what it means for the owner and why the
+  severity is what it is — the context behind the score. Keep problem and rationale
+  distinct: problem = WHAT, rationale = WHY IT MATTERS. Plain language, no jargon walls.
 - category + severity (rubric below).
 - action: fix_now (dangerous regardless of context) | worth_fixing (should
   probably act; minor context dependence) | depends (severity genuinely hinges

@@ -838,6 +838,41 @@ td.right,
   color: var(--ink);
 }
 
+/* severity filter tabs */
+.sev-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1.1rem 0 0.2rem;
+}
+.sev-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0.4em 0.9em;
+  cursor: pointer;
+  transition: color 0.14s var(--ease), border-color 0.14s var(--ease), background 0.14s var(--ease);
+}
+.sev-tab:hover { color: var(--ink); border-color: var(--ink); }
+.sev-tab.is-active { color: var(--bg); background: var(--ink); border-color: var(--ink); }
+.sev-tab .st-count {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  opacity: 0.7;
+}
+/* the active tab tints to its severity */
+.sev-tab.tab-critical.is-active { background: var(--sev-critical); border-color: var(--sev-critical); }
+.sev-tab.tab-high.is-active { background: var(--sev-high); border-color: var(--sev-high); }
+.sev-tab.tab-medium.is-active { background: oklch(0.82 0.15 95); border-color: oklch(0.82 0.15 95); }
+.sev-tab.tab-low.is-active { background: var(--accent); border-color: var(--accent); }
+
 /* scanning / loading */
 .scanning {
   display: flex;
@@ -923,6 +958,20 @@ td.right,
   text-transform: uppercase;
   color: var(--accent-bright);
   margin-right: 0.5rem;
+}
+
+/* structured body: Problem / What it means */
+.fc-block {
+  margin: 0 0 0.85rem;
+}
+.fc-block .fc-label {
+  display: block;
+  margin: 0 0 0.2rem;
+}
+.fc-block p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.94rem;
 }
 
 /* inline easy fix */
@@ -1012,6 +1061,13 @@ td.right,
   font-family: var(--font-mono);
   font-size: 0.82rem;
   color: var(--ink);
+}
+.sol-draft {
+  margin-top: 0.9rem;
+}
+.sol-draft-note {
+  margin: 0 0 0.6rem;
+  font-size: 0.86rem;
 }
 
 /* coverage gaps footnote */

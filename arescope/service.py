@@ -153,6 +153,7 @@ def _persist_one_finding(scan_id: str, jf: JudgedFinding) -> None:
             category=v.category.value,
             severity=v.severity.value,
             title=v.title,
+            problem=v.problem or None,
             rationale=v.rationale,
             confidence=v.confidence,
             action=v.action.value,
@@ -218,6 +219,7 @@ def _verdict_from_row(f: models.Finding) -> Verdict:
         severity=Severity(f.severity),
         action=ActionBucket(f.action),
         title=f.title,
+        problem=f.problem or "",
         rationale=f.rationale,
         confidence=f.confidence,
         fix_difficulty=FixDifficulty(f.fix_difficulty) if f.fix_difficulty else None,
@@ -271,6 +273,44 @@ def generate_finding_remediation(finding_id: str) -> Remediation:
                     tier=rem.tier.value,
                     summary=rem.summary,
                     steps=steps,
+                    artifact=rem.artifact,
+                )
+            )
+    return rem
+
+
+def generate_finding_artifact(finding_id: str) -> Remediation:
+    """Draft the ready-to-send request (GDPR/opt-out/takedown) for a finding.
+
+    The second, explicit step after advice: only fired when the user chooses to
+    send a request, so Arescope never auto-drafts on the user's behalf. Keeps the
+    existing advice (summary/steps) and fills in just the artifact.
+    """
+    with session_scope() as s:
+        f = s.get(models.Finding, finding_id)
+        if f is None:
+            raise ValueError(f"finding {finding_id} not found")
+        verdict = _verdict_from_row(f)
+        cluster = _cluster_from_row(f)
+
+    rem = generate_remediation(verdict, cluster, with_artifact=True)
+
+    with session_scope() as s:
+        f = s.get(models.Finding, finding_id)
+        if f is None:
+            raise ValueError(f"finding {finding_id} not found")
+        existing = f.remediation
+        if existing is not None:
+            # Keep the advice the user already saw; add the drafted request to it.
+            existing.artifact = rem.artifact
+            existing.tier = rem.tier.value
+        else:
+            s.add(
+                models.Remediation(
+                    finding_id=finding_id,
+                    tier=rem.tier.value,
+                    summary=rem.summary,
+                    steps=[step.model_dump() for step in rem.steps],
                     artifact=rem.artifact,
                 )
             )

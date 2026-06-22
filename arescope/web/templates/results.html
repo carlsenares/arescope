@@ -38,6 +38,15 @@
     <span class="rs-num">{{ scan.actionable }}</span> worth acting on
   </div>
 
+  {% if scan.sev_tabs|length > 1 %}
+  <div class="sev-tabs" role="tablist" aria-label="Filter findings by severity">
+    <button class="sev-tab is-active" data-sev="all" type="button">All <span class="st-count">{{ scan.findings|length }}</span></button>
+    {% for t in scan.sev_tabs %}
+    <button class="sev-tab tab-{{ t.sev }}" data-sev="{{ t.sev }}" type="button">{{ t.label }} <span class="st-count">{{ t.count }}</span></button>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <div class="findings-feed">
     {% for f in scan.findings %}
     <article class="finding-card sev-{{ f.severity }}" id="f-{{ f.id }}">
@@ -47,7 +56,10 @@
         <span class="fc-action act-{{ f.action }}">{{ action_label.get(f.action, f.action) }}</span>
       </div>
       <h2 class="fc-title">{{ f.title }}</h2>
-      <p class="fc-rationale">{{ f.rationale }}</p>
+      {% if f.problem %}
+      <div class="fc-block"><span class="fc-label">Problem</span><p>{{ f.problem }}</p></div>
+      {% endif %}
+      <div class="fc-block"><span class="fc-label">What it means</span><p class="fc-rationale">{{ f.rationale }}</p></div>
       {% if f.members %}
       <p class="fc-members"><span class="fc-label">Where</span> {{ f.members|join(' · ') }}</p>
       {% endif %}
@@ -91,9 +103,16 @@
         {% endif %}
         {% if f.remediation.artifact %}
         <details class="sol-artifact">
-          <summary>Generated request / message</summary>
+          <summary>Drafted request — review before sending</summary>
           <pre>{{ f.remediation.artifact }}</pre>
         </details>
+        {% elif f.remediation.can_draft_artifact %}
+        <form class="js-busy sol-draft" method="post" action="/app/findings/{{ f.id }}/artifact"
+              data-busy="Drafting the request…">
+          <input type="hidden" name="csrf" value="{{ csrf }}" />
+          <p class="sol-draft-note muted">If you decide to send a deletion / opt-out request, Arescope can draft it for you to review and send.</p>
+          <button class="btn btn-ghost btn-sm" type="submit">Draft the request</button>
+        </form>
         {% endif %}
       </div>
       {% elif f.can_generate_solution %}
@@ -140,6 +159,23 @@
           btn.dataset.label = btn.textContent;
           btn.innerHTML = '<span class="spinner"></span>' + (form.dataset.busy || 'Working…');
         }
+      });
+    });
+  })();
+
+  // Severity tabs — filter the feed client-side (keeps streaming/poll intact).
+  (function () {
+    var tabs = document.querySelectorAll('.sev-tab');
+    if (!tabs.length) return;
+    var cards = document.querySelectorAll('.findings-feed .finding-card');
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        tabs.forEach(function (t) { t.classList.remove('is-active'); });
+        tab.classList.add('is-active');
+        var sev = tab.dataset.sev;
+        cards.forEach(function (c) {
+          c.hidden = sev !== 'all' && !c.classList.contains('sev-' + sev);
+        });
       });
     });
   })();

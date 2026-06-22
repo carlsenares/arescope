@@ -27,6 +27,7 @@ def _depends_row():
         severity="high",
         action="depends",
         title="Old password breach",
+        problem="Your reused password is in a breach corpus.",
         rationale="Depends on rotation.",
         confidence=0.8,
         fix_difficulty=None,
@@ -52,6 +53,7 @@ def test_verdict_round_trips_enums_and_questions():
     assert v.action is ActionBucket.DEPENDS
     assert len(v.questions) == 1
     assert v.questions[0].if_no.action is ActionBucket.FIX_NOW
+    assert v.problem == "Your reused password is in a breach corpus."
 
 
 def test_cluster_carries_subject_and_locators():
