@@ -427,6 +427,9 @@ _SOURCE_LABEL = {
     "holehe": "Holehe",
     "maigret": "Maigret",
     "brokers": "People-search / data-broker",
+    "github": "GitHub",
+    "reddit": "Reddit",
+    "gravatar": "Gravatar",
 }
 _EVIDENCE_HINTS: dict[str, list[tuple[str, str]]] = {
     "hudsonrock": [
@@ -447,6 +450,10 @@ _EVIDENCE_HINTS: dict[str, list[tuple[str, str]]] = {
     ],
     "holehe": [("url", "Site")],
     "maigret": [("url", "Profile")],
+    "github": [("url", "Profile"), ("public_repos", "Public repos"),
+               ("followers", "Followers"), ("created_at", "Joined")],
+    "reddit": [("url", "Profile"), ("total_karma", "Karma")],
+    "gravatar": [("url", "Profile"), ("handle", "Handle")],
     "brokers": [
         ("broker", "Broker"),
         ("listing_url", "Listing"),
@@ -461,6 +468,20 @@ def _humanize_signal(sig: models.Signal) -> dict:
     """One raw signal as a readable evidence row: key highlights + the full payload."""
     raw = sig.raw or {}
     highlights: list[tuple[str, str]] = []
+    # Identity attributes share one shape across connectors (attribute/value/platform),
+    # so render them uniformly instead of per-source hints.
+    if sig.kind == "identity_attribute":
+        attr = str(raw.get("attribute", "detail")).capitalize()
+        val = str(raw.get("value", ""))
+        highlights.append((attr, val))
+        if raw.get("platform"):
+            highlights.append(("Found on", str(raw["platform"])))
+        return {
+            "source_label": _SOURCE_LABEL.get(sig.source, sig.source),
+            "locator": sig.locator,
+            "highlights": highlights,
+            "raw_json": json.dumps(raw, indent=2, default=str, ensure_ascii=False),
+        }
     for key, label in _EVIDENCE_HINTS.get(sig.source, []):
         val = raw.get(key)
         if val in (None, "", [], {}):

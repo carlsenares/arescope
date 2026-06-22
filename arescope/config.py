@@ -69,6 +69,31 @@ class Settings(BaseSettings):
     maigret_top_sites: int | None = None
     shodan_api_key: str = ""
 
+    # Extended search — free identity-enrichment connectors (EXTENDED_SEARCH_SCOPE.md).
+    # All on by default: they read only the public profile of an identifier the user
+    # submitted as their own, so they're self-audit-safe on every tier.
+    github_enabled: bool = True
+    github_token: str = ""  # optional: lifts the API rate limit 60→5000/hr
+    reddit_enabled: bool = True
+    # Reddit now 403-blocks unauthenticated .json from datacenter IPs. A free Reddit
+    # "script" app (client id+secret) enables the OAuth app-only API; absent => the
+    # connector tries the public endpoint and reports a coverage gap if blocked.
+    reddit_client_id: str = ""
+    reddit_client_secret: str = ""
+    gravatar_enabled: bool = True
+
+    # Extended search — key/credential-gated drop-ins. Absent => connector unavailable
+    # => honest coverage gap (never a failure). Acquire + drop the value in to light up.
+    # GHunt needs a Google session cookie file; the rest are paid API keys. The admin-
+    # only sources (brave/apify/intelx/facecheck) also need the per-connector admin gate
+    # before they run for non-admins — see EXTENDED_SEARCH_SCOPE.md build order.
+    ghunt_creds_path: str = ""
+    brave_api_key: str = ""
+    apify_token: str = ""
+    dehashed_api_key: str = ""
+    intelx_api_key: str = ""
+    facecheck_api_key: str = ""
+
     # Name → data-broker / people-search listings (root input: name). Provider-agnostic
     # and config-gated: point NAME_SEARCH_API_URL at your chosen people-search/broker API
     # (or a thin shim you host) and set the key. Absent => connector unavailable =>

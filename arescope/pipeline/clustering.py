@@ -120,6 +120,16 @@ def _classify(ev: Evidence) -> tuple[str, Category, bool, str | None]:
         )
         return (f"broker|{ev.subject_value}", Category.DATA_BROKER_LISTING, True, reason)
 
+    if ev.kind == "identity_attribute":
+        # What a handle/email reveals about the real person (name/location/photo/bio).
+        # Photos are their own story (face/photo exposure); everything else is the
+        # identity-metadata finding. One cluster each per subject so the judge writes
+        # "your handle exposes your real name + city + employer", not N tiny findings.
+        attribute = raw.get("attribute")
+        if attribute == "photo":
+            return f"photo|{ev.subject_value}", Category.FACE_PHOTO_EXPOSURE, False, None
+        return f"identity|{ev.subject_value}", Category.ACCOUNT_METADATA, False, None
+
     if ev.kind == "host_profile":
         # What the IP reveals (location, ISP, hostnames). Informational footprint,
         # not a vulnerability — its own cluster; the judge rates it (usually low).

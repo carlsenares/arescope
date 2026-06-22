@@ -79,14 +79,27 @@ Out of scope: **PimEyes** (no real API), **X/Twitter API** (locked/expensive), *
 
 | Env var | Tool | Status | Needed for |
 |---|---|---|---|
-| *(none)* | Maigret-meta, GitHub, Reddit, Gravatar, Wayback, EXIF | **live, no key** | the free core |
+| *(none)* | Maigret-meta, GitHub, Gravatar | **live, no key** | the free identity core |
 | `ARESCOPE_GITHUB_TOKEN` | GitHub | optional | raises rate limit 60→5000/hr (unauth works) |
-| `ARESCOPE_GHUNT_CREDS_PATH` | GHunt | needed | Google identity (name/photo/locations) |
-| `ARESCOPE_BRAVE_API_KEY` | Brave Search | needed (free credits) | name → web mentions (admin) |
-| `ARESCOPE_APIFY_TOKEN` | Apify | needed (free credits) | locked-platform posts/pics (admin) |
-| `ARESCOPE_DEHASHED_API_KEY` | Dehashed | optional paid | credential depth |
-| `ARESCOPE_INTELX_API_KEY` | IntelX | optional paid | leaks/pastes (admin) |
-| `ARESCOPE_FACECHECK_API_KEY` | FaceCheck.id | optional paid | reverse face (admin) |
+| `ARESCOPE_REDDIT_CLIENT_ID` / `_SECRET` | Reddit | **needed to return data** | Reddit now 403-blocks unauth from servers; free "script" app fixes it |
+| `ARESCOPE_GHUNT_CREDS_PATH` | GHunt | not built yet | Google identity (name/photo/locations) |
+| `ARESCOPE_BRAVE_API_KEY` | Brave Search | not built yet (free credits) | name → web mentions (admin) |
+| `ARESCOPE_APIFY_TOKEN` | Apify | not built yet (free credits) | locked-platform posts/pics (admin) |
+| `ARESCOPE_DEHASHED_API_KEY` | Dehashed | not built yet (paid) | credential depth |
+| `ARESCOPE_INTELX_API_KEY` | IntelX | not built yet (paid) | leaks/pastes (admin) |
+| `ARESCOPE_FACECHECK_API_KEY` | FaceCheck.id | not built yet (paid) | reverse face (admin) |
+
+### Build status (2026-06-23)
+
+**Shipped + validated live:** GitHub (username → name/location/company/photo/linked
+handles), Gravatar (email → name/location/photo + discovered linked accounts — the
+co-occurrence seed in action), Maigret-metadata (profile `ids` → identity attributes).
+New `identity_attribute` signal wired through clustering (→ ACCOUNT_METADATA / FACE_PHOTO_
+EXPOSURE), the exposure graph (photo + location nodes), and the report. Config flags added
+for every drop-in. **Reddit** built but needs a free OAuth app (see above) — without it the
+connector reports an honest coverage gap (it no longer pretends "no account"). **Not built
+yet:** photo-input+EXIF, GHunt, Brave, Apify, FaceCheck/TinEye, Dehashed, IntelX, and the
+per-connector admin gate the admin-only sources need before they can run for non-admins.
 
 ## Per-input summary (admin, no gate)
 

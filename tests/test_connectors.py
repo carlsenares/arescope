@@ -96,6 +96,9 @@ def test_available_connectors_respects_toggles():
         maigret_enabled=False,
         shodan_api_key="",
         broker_registry_enabled=False,  # the free name catalog is otherwise on by default
+        github_enabled=False,
+        reddit_enabled=False,
+        gravatar_enabled=False,
     )
     names = {c.name for c in available_connectors(cfg)}
     assert names == {"holehe"}

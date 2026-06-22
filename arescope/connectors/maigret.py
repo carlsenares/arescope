@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 
 from arescope.config import Settings
+from arescope.connectors._identity import from_profile_fields
 from arescope.connectors.base import Connector, ConnectorGap
 from arescope.schemas import InputType, Signal
 
@@ -50,6 +51,22 @@ class MaigretConnector(Connector):
                     },
                 )
             )
+            # Metadata mining (EXTENDED_SEARCH_SCOPE.md): Maigret already extracts
+            # per-profile fields into `ids` (name, location, image, bio…) — we used
+            # only existence before. Turn the recognised ones into identity signals,
+            # for free, from the user's own public profiles.
+            ids = info.get("ids")
+            if isinstance(ids, dict):
+                signals.extend(
+                    from_profile_fields(
+                        source=self.name,
+                        platform=site.lower(),
+                        fields=ids,
+                        subject_value=value,
+                        subject_type=InputType.USERNAME,
+                        profile_url=info.get("url_user"),
+                    )
+                )
         return signals
 
 

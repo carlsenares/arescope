@@ -68,9 +68,11 @@ TAXONOMY: dict[Category, CategorySpec] = {
     Category.ACCOUNT_METADATA: CategorySpec(
         category=Category.ACCOUNT_METADATA,
         label="Account/identity metadata",
-        surfaced_by=("ghunt", "epieos"),
-        meaning="Public Google/account data: display name, photo, linked services, public reviews/Maps.",
-        severity_logic="Low-Medium (deanonymization, social-engineering fuel).",
+        surfaced_by=("github", "reddit", "gravatar", "maigret", "ghunt", "epieos"),
+        meaning="Real-world identity a handle/email leaks: real name, location, employer, "
+        "bio, linked profiles, public Google/account data.",
+        severity_logic="Low-Medium (deanonymization, social-engineering fuel); higher when it "
+        "ties a pseudonymous handle to a real name or precise location.",
         default_tier=RemediationTier.T0_GUIDANCE,
     ),
     Category.EXPOSED_INFRASTRUCTURE: CategorySpec(
@@ -103,8 +105,8 @@ TAXONOMY: dict[Category, CategorySpec] = {
     Category.FACE_PHOTO_EXPOSURE: CategorySpec(
         category=Category.FACE_PHOTO_EXPOSURE,
         label="Face / photo exposure",
-        surfaced_by=("pimeyes",),
-        meaning="A photo of the user appears on other sites/profiles.",
+        surfaced_by=("github", "reddit", "gravatar", "maigret", "facecheck", "pimeyes"),
+        meaning="A photo of the user (profile picture / avatar) is publicly tied to their accounts.",
         severity_logic="Medium-High (stalking, deanonymization, impersonation).",
         default_tier=RemediationTier.T1_ARTIFACT,
     ),

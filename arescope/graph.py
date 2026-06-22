@@ -17,6 +17,7 @@ owns into a single map (their whole footprint). Output is Cytoscape elements JSO
 
 from __future__ import annotations
 
+import hashlib
 from urllib.parse import urlparse
 
 from sqlalchemy import select
@@ -65,6 +66,11 @@ def _slug(platform: str) -> str:
     if platform in _SLUG_OVERRIDE:
         return _SLUG_OVERRIDE[platform]
     return platform.split(".")[0] if "." in platform else platform
+
+
+def _slug_hash(ref: str) -> str:
+    """Short stable id for a content-addressed node (e.g. a photo URL)."""
+    return hashlib.md5((ref or "").encode()).hexdigest()[:12]  # noqa: S324 (id only, not security)
 
 
 def _mask(value: str, itype: str) -> str:
@@ -118,7 +124,28 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
             "url": raw.get("listing_url"),
             "meta": {"domain": domain, "opt_out_url": raw.get("opt_out_url")},
         }
-    if sig.source in ("holehe", "maigret"):
+    if sig.kind == "identity_attribute":
+        # The real-world facts a handle leaks. Photos and locations get their own map
+        # nodes (visual, convergent); name/bio/company stay finding-only to avoid clutter.
+        attribute = raw.get("attribute")
+        value = raw.get("value") or ""
+        if attribute == "photo":
+            ref = raw.get("url") or value
+            return f"photo:{_slug_hash(ref)}", {
+                "type": "photo",
+                "label": "Profile photo",
+                "url": ref,
+                "meta": {"platform": raw.get("platform")},
+            }
+        if attribute == "location":
+            return f"location:{value.lower()}", {
+                "type": "location",
+                "label": value if len(value) <= 40 else value[:39] + "…",
+                "meta": {"platform": raw.get("platform")},
+            }
+        return None  # name/bio/company/link: surfaced in the finding, not the map
+
+    if sig.kind == "account":
         platform = _platform_key(sig)
         return f"site:{platform}", {
             "type": "site",

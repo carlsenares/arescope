@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from arescope.config import Settings
 from arescope.connectors.base import Connector
+from arescope.connectors.github import GitHubConnector
+from arescope.connectors.gravatar import GravatarConnector
 from arescope.connectors.hibp import HIBPConnector
 from arescope.connectors.holehe import HoleheConnector
 from arescope.connectors.hudsonrock import HudsonRockConnector
 from arescope.connectors.maigret import MaigretConnector
 from arescope.connectors.name import NameConnector
+from arescope.connectors.reddit import RedditConnector
 from arescope.connectors.shodan import ShodanConnector
 
 REGISTRY: list[Connector] = [
@@ -18,6 +21,9 @@ REGISTRY: list[Connector] = [
     MaigretConnector(),
     ShodanConnector(),
     NameConnector(),
+    GitHubConnector(),
+    GravatarConnector(),
+    RedditConnector(),
 ]
 
 
