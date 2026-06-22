@@ -104,14 +104,33 @@ def run_and_store_scan(scan_id: str) -> str:
             for i in subject.identifiers
         ]
         options = dict(scan.options or {})
+        # Admins bypass the self-audit ownership gate (DEEP_SEARCH_PLAN.md §safety
+        # frame: "Admin bypasses the gate — can audit anything"), so they get the
+        # extended name tier without a verified-email link.
+        owner = s.get(models.User, subject.user_id) if subject.user_id else None
+        owner_is_admin = bool(owner and owner.is_admin)
         scan.status = "running"
 
     top = options.get("maigret_top_sites")
     if top:
         cfg = cfg.model_copy(update={"maigret_top_sites": int(top)})
 
+    # Extended (dossier) name tier — "name + verified email => extended results".
+    # For regular users it's gated on verified ownership of a linked email (the P2
+    # gate, docs/OWNERSHIP_VERIFICATION.md), which isn't built yet, so it stays OFF:
+    # a name-only scan returns broker-listing existence + the removal track, never a
+    # dossier. ADMINS bypass the gate and always get extended. When the gate lands,
+    # OR the admin check in here with the verified-ownership check for regular users.
+    if owner_is_admin:
+        cfg = cfg.model_copy(update={"name_extended": True})
+
     available = available_connectors(cfg)
     gaps = unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
+    # Which of the inputs the user gave actually have a source that searches them.
+    # If this ends up empty (e.g. a name-only scan), a clean report must NOT read as
+    # "Nothing exposed" — we searched nothing. The results page uses this to be honest.
+    covered_types = set().union(*(c.consumes for c in available)) if available else set()
+    searched_types = sorted({i.type.value for i in identifiers if i.type in covered_types})
     fast = [c for c in available if c.name != "maigret"]
     slow = [c for c in available if c.name == "maigret"]
     has_username = any(i.type is InputType.USERNAME for i in identifiers)
@@ -130,7 +149,7 @@ def run_and_store_scan(scan_id: str) -> str:
         for jf in judge_signals(sig2):
             _persist_one_finding(scan_id, jf)
 
-    _finalize_scan(scan_id, gaps)
+    _finalize_scan(scan_id, gaps, searched_types)
     return scan_id
 
 
@@ -195,12 +214,15 @@ def _set_phase(scan_id: str, phase: str) -> None:
             scan.config_snapshot = snap
 
 
-def _finalize_scan(scan_id: str, gaps: list) -> None:
+def _finalize_scan(scan_id: str, gaps: list, searched_types: list[str] | None = None) -> None:
     with session_scope() as s:
         scan = s.get(models.Scan, scan_id)
         if scan is None:
             return
-        scan.config_snapshot = {"coverage_gaps": [g.model_dump() for g in gaps]}
+        scan.config_snapshot = {
+            "coverage_gaps": [g.model_dump() for g in gaps],
+            "searched_types": searched_types or [],
+        }
         scan.status = "complete"
         scan.finished_at = datetime.now(timezone.utc)
 

@@ -36,6 +36,15 @@ def test_classify_breach_and_service():
     assert svc[0] == "svc:22/tcp" and svc[1]["type"] == "service"
 
 
+def test_classify_broker_listing_node():
+    b = _classify(_sig("brokers", "broker_listing", "spokeo.com",
+                       {"broker": "Spokeo", "domain": "spokeo.com",
+                        "opt_out_url": "https://spokeo.com/optout"}))
+    assert b[0] == "broker:spokeo.com" and b[1]["type"] == "broker"
+    assert b[1]["label"] == "Spokeo"
+    assert b[1]["meta"]["opt_out_url"] == "https://spokeo.com/optout"
+
+
 def test_slug_override():
     assert _slug("twitter.com") == "x"
     assert _slug("github.com") == "github"

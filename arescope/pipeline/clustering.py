@@ -104,6 +104,18 @@ def _classify(ev: Evidence) -> tuple[str, Category, bool, str | None]:
             reason = "known CVE on the service" if vulns else f"sensitive service exposed (port {port})"
         return f"infra|{ev.subject_value}", Category.EXPOSED_INFRASTRUCTURE, force, reason
 
+    if ev.kind == "broker_listing":
+        # Every broker that lists this name is one "you're listed on N data-broker
+        # sites" story → one cluster per name, which the judge rates and routes to the
+        # T1 removal artifact. Force-escalate so Opus writes a proper verdict + the
+        # opt-out plan rather than a cheap label.
+        return (
+            f"broker|{ev.subject_value}",
+            Category.DATA_BROKER_LISTING,
+            True,
+            "name is listed on data-broker / people-search sites (removal recommended)",
+        )
+
     if ev.kind == "host_profile":
         # What the IP reveals (location, ISP, hostnames). Informational footprint,
         # not a vulnerability — its own cluster; the judge rates it (usually low).

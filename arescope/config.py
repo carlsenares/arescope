@@ -69,6 +69,19 @@ class Settings(BaseSettings):
     maigret_top_sites: int | None = None
     shodan_api_key: str = ""
 
+    # Name → data-broker / people-search listings (root input: name). Provider-agnostic
+    # and config-gated: point NAME_SEARCH_API_URL at your chosen people-search/broker API
+    # (or a thin shim you host) and set the key. Absent => connector unavailable =>
+    # honest coverage gap (never a failure), exactly like HIBP/Shodan. The connector
+    # returns listing EXISTENCE + opt-out links only (the "normal" tier); the full
+    # dossier (address/relatives/age) is the gated "extended" tier (name + verified
+    # email — see docs/OWNERSHIP_VERIFICATION.md), built next.
+    name_search_api_url: str = ""
+    name_search_api_key: str = ""
+    # Flipped on per-scan only when the name's ownership is verified via a linked email
+    # (the extended dossier tier). Default off — name-only stays listing-existence.
+    name_extended: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

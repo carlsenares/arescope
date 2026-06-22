@@ -109,6 +109,15 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
             "label": f"{raw.get('product') or 'service'} :{raw.get('port')}",
             "meta": {"port": raw.get("port"), "vulns": raw.get("vulns", [])},
         }
+    if sig.kind == "broker_listing":
+        domain = (raw.get("domain") or sig.locator or "broker").lower()
+        return f"broker:{domain}", {
+            "type": "broker",
+            "label": raw.get("broker") or domain,
+            "slug": _slug(domain),
+            "url": raw.get("listing_url"),
+            "meta": {"domain": domain, "opt_out_url": raw.get("opt_out_url")},
+        }
     if sig.source in ("holehe", "maigret"):
         platform = _platform_key(sig)
         return f"site:{platform}", {

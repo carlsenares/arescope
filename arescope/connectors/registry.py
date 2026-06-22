@@ -8,6 +8,7 @@ from arescope.connectors.hibp import HIBPConnector
 from arescope.connectors.holehe import HoleheConnector
 from arescope.connectors.hudsonrock import HudsonRockConnector
 from arescope.connectors.maigret import MaigretConnector
+from arescope.connectors.name import NameConnector
 from arescope.connectors.shodan import ShodanConnector
 
 REGISTRY: list[Connector] = [
@@ -16,6 +17,7 @@ REGISTRY: list[Connector] = [
     HoleheConnector(),
     MaigretConnector(),
     ShodanConnector(),
+    NameConnector(),
 ]
 
 

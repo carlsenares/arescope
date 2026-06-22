@@ -18,11 +18,42 @@ def test_hibp_available_with_key():
 
 
 def test_name_input_reported_as_uncovered_gap():
-    # No connector consumes a name, so a name-only scan must surface an honest
-    # coverage gap rather than silently reading as "nothing exposed".
-    cfg = Settings()
+    # The name connector is config-gated: with no provider configured, a name-only
+    # scan must surface an honest coverage gap rather than reading as "nothing exposed".
+    cfg = Settings(name_search_api_url="", name_search_api_key="")
     gaps = uncovered_input_gaps([Identifier(type=InputType.NAME, value="Jane Doe")], cfg)
     assert any(g.source == "name lookup" for g in gaps)
+
+
+def test_name_input_covered_when_provider_configured():
+    cfg = Settings(name_search_api_url="https://broker.example/search", name_search_api_key="k")
+    gaps = uncovered_input_gaps([Identifier(type=InputType.NAME, value="Jane Doe")], cfg)
+    assert not any(g.source == "name lookup" for g in gaps)
+
+
+def test_name_connector_emits_broker_listing_signals(monkeypatch):
+    from arescope.connectors import name as name_mod
+    from arescope.connectors.name_providers import BrokerListing
+
+    class FakeProvider:
+        name = "brokers"
+
+        def available(self, cfg):
+            return True
+
+        def search(self, full_name, cfg, *, extended=False):
+            assert extended is False  # name-only stays listing-existence
+            return [BrokerListing(broker="Spokeo", broker_domain="spokeo.com",
+                                  opt_out_url="https://spokeo.com/optout")]
+
+    monkeypatch.setattr(name_mod, "resolve_name_provider", lambda cfg: FakeProvider())
+    signals = name_mod.NameConnector().run("Jane Doe", InputType.NAME, Settings())
+    assert len(signals) == 1
+    s = signals[0]
+    assert s.source == "brokers" and s.kind == "broker_listing"
+    assert s.subject_type is InputType.NAME and s.locator == "spokeo.com"
+    assert s.raw["opt_out_url"] == "https://spokeo.com/optout"
+    assert s.raw["has_details"] is False  # no dossier in the normal tier
 
 
 def test_email_input_is_covered_no_gap():

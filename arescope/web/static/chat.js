@@ -3,7 +3,11 @@
 // window.__chatExtras that returns extra form fields (used by the map for the
 // current scan + highlighted-node selection).
 (function () {
-  var CSRF = window.ARESCOPE_CSRF || '';
+  // Read the CSRF token lazily at submit time — this script is included inside
+  // <main>, which parses BEFORE the `window.ARESCOPE_CSRF = …` line at the end of
+  // <body>. Reading it at module-eval time would capture '' and every Ask-Opus
+  // POST would 400 ("Something went wrong"). So resolve it per-send instead.
+  function csrf() { return window.ARESCOPE_CSRF || ''; }
   var extras = window.__chatExtras || (window.__chatExtras = {});
 
   function el(tag, cls, txt) {
@@ -58,7 +62,7 @@
       log.scrollTop = log.scrollHeight;
 
       var body = new URLSearchParams();
-      body.set('csrf', CSRF);
+      body.set('csrf', csrf());
       body.set('message', q);
       if (extraId && extras[extraId]) {
         var ex = extras[extraId]();

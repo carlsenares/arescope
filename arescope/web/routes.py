@@ -96,6 +96,11 @@ def _safe_next(raw: str | None) -> str:
     return "/app"
 
 
+def _wants_json(request: Request) -> bool:
+    """True when the caller asked for JSON (the dashboard's in-place AJAX actions)."""
+    return "application/json" in request.headers.get("accept", "")
+
+
 # --- signup / login / logout -------------------------------------------------
 
 
@@ -421,6 +426,7 @@ _SOURCE_LABEL = {
     "shodan": "Shodan",
     "holehe": "Holehe",
     "maigret": "Maigret",
+    "brokers": "People-search / data-broker",
 }
 _EVIDENCE_HINTS: dict[str, list[tuple[str, str]]] = {
     "hudsonrock": [
@@ -441,6 +447,12 @@ _EVIDENCE_HINTS: dict[str, list[tuple[str, str]]] = {
     ],
     "holehe": [("url", "Site")],
     "maigret": [("url", "Profile")],
+    "brokers": [
+        ("broker", "Broker"),
+        ("listing_url", "Listing"),
+        ("opt_out_url", "Opt-out"),
+        ("match_confidence", "Match confidence"),
+    ],
 }
 
 
@@ -550,6 +562,12 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
             "options": scan.options or {},
             "phase": snap.get("phase"),
             "coverage_gaps": snap.get("coverage_gaps", []),
+            # Did any input actually have a source that searched it? (e.g. a name-only
+            # scan searches nothing — a clean report must not claim "Nothing exposed".)
+            # Missing key = legacy scan from before we tracked this → assume it searched.
+            "searched_anything": (
+                "searched_types" not in snap or bool(snap.get("searched_types"))
+            ),
             "findings": views,
             "sev_tabs": tabs,
             "actionable": sum(1 for v in views if v["action"] in ("fix_now", "worth_fixing")),
@@ -611,6 +629,8 @@ async def scan_rename(request: Request, scan_id: str):
         scan = s.get(models.Scan, scan_id)
         if scan is not None:
             scan.name = name
+    if _wants_json(request):
+        return JSONResponse({"ok": True, "name": name or ""})
     back = _safe_next(str(form.get("next", "")) or f"/app/scans/{scan_id}")
     return RedirectResponse(back, status_code=303)
 
@@ -640,6 +660,8 @@ async def scan_map_visibility(request: Request, scan_id: str):
             else:
                 opts["exclude_from_map"] = True
             scan.options = opts
+    if _wants_json(request):
+        return JSONResponse({"ok": True, "in_map": include})
     back = _safe_next(str(form.get("next", "")) or "/app")
     return RedirectResponse(back, status_code=303)
 

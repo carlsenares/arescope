@@ -163,7 +163,7 @@
     {% endfor %}
   </div>
 
-  {% elif not running %}
+  {% elif not running and scan.searched_anything %}
   <div class="empty">
     <div class="empty-mark ok" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -171,6 +171,18 @@
     <h3>Nothing exposed</h3>
     <p class="muted">No actionable exposure turned up for the inputs we could search.
       {% if scan.coverage_gaps %}Some inputs weren't covered — see below.{% endif %}</p>
+  </div>
+  {% elif not running %}
+  {# Nothing was actually searchable (e.g. a name with no connected source). Do NOT
+     imply a clean bill of health — be explicit that no search happened. #}
+  <div class="empty">
+    <div class="empty-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    </div>
+    <h3>Not searched yet</h3>
+    <p class="muted">None of the inputs you entered have a connected source yet, so nothing
+      was actually checked — this is a coverage gap, not a clean result. See below for what
+      we couldn't search.</p>
   </div>
   {% endif %}
 

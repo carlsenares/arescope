@@ -35,9 +35,8 @@
     <div class="ask-opus ask-map" data-extra-id="map"
          data-history-url="/app/map/chat{% if scope == 'scan' %}?scan_id={{ scan }}{% endif %}"
          data-send-url="/app/map/chat">
-      <button type="button" class="ask-btn">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        Ask Opus
+      <button type="button" class="ask-btn ask-btn-icon" aria-label="Ask Opus" title="Ask Opus">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       </button>
       <div class="ask-panel" hidden>
         <div class="ask-focus" id="askFocus"></div>
@@ -70,6 +69,14 @@
     medium: 'oklch(0.82 0.15 95)', low: 'oklch(0.78 0.24 145)', info: 'oklch(0.62 0 0)'
   };
   const sev = e => SEV[e.data('severity')] || SEV.info;
+  // Dark fill tinted toward the finding's severity hue, so even before you read a
+  // label the node says "red = critical, orange = high" at a glance (feedback: only
+  // white nodes seen). Site nodes keep their white logo plate + a thick severity ring.
+  const BGTINT = {
+    critical: 'oklch(0.23 0.09 18)', high: 'oklch(0.25 0.07 70)',
+    medium: 'oklch(0.26 0.06 95)', low: 'oklch(0.23 0.05 145)', info: '#1c1c1c',
+  };
+  const nodeBg = e => BGTINT[e.data('severity')] || '#1c1c1c';
 
   if (document.getElementById('cy') && window.cytoscape && window.cytoscapeFcose) {
     cytoscape.use(window.cytoscapeFcose);
@@ -79,18 +86,72 @@
       if (n.data.type === 'site' && n.data.slug) n.data.logoUrl = '/app/logo/' + n.data.slug;
     });
 
-    // Deterministic seed positions, so the map doesn't tumble to a new rotation on
-    // every reload (feedback #8). Self at the centre; everything else fanned out on
-    // a golden-angle spiral by its stable server order. fcose then refines from
-    // these fixed seeds with randomize:false → same layout every time.
-    const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-    let i = 0;
-    ELEMENTS.nodes.forEach(n => {
-      if (n.data.type === 'identity') { n.position = { x: 0, y: 0 }; return; }
-      i += 1;
-      const r = 90 + i * 26, a = i * GOLDEN;
-      n.position = { x: Math.cos(a) * r, y: Math.sin(a) * r };
+    // --- arm layout (feedback: grouping was random — some nodes far, some stacked).
+    // Each input the user entered becomes ONE arm radiating off the central identity
+    // in its own direction; the sites/breaches reached through that input fan out
+    // along the arm. Inputs are ordered email→username→name→ip so likely-to-overlap
+    // pairs (email & username share many sites) sit on ADJACENT arms, keeping the
+    // cross-links short. A node reached by several inputs is seeded at their mean
+    // angle (between the arms). fcose then relaxes from these seeds with the inputs
+    // PINNED (fixedNodeConstraint), so the arm structure holds but leaves never stack.
+    const idNode = ELEMENTS.nodes.find(n => n.data.type === 'identity');
+    const identityId = idNode ? idNode.data.id : null;
+    const inputs = ELEMENTS.nodes.filter(n => n.data.type === 'input');
+    const KIND_ORDER = { email: 0, username: 1, name: 2, ip: 3 };
+    inputs.sort((a, b) =>
+      ((KIND_ORDER[a.data.kind] ?? 9) - (KIND_ORDER[b.data.kind] ?? 9)) ||
+      String(a.data.id).localeCompare(String(b.data.id)));
+
+    // stable 0..1 hash of a node id → deterministic jitter (no reload tumble).
+    const hash01 = s => {
+      let h = 2166136261;
+      for (let k = 0; k < s.length; k++) { h ^= s.charCodeAt(k); h = Math.imul(h, 16777619); }
+      return ((h >>> 0) % 1000) / 1000;
+    };
+
+    const ARM_R = 250, LEAF_R = 420;
+    const armAngle = {};
+    const fixed = [];
+    if (identityId) fixed.push({ nodeId: identityId, position: { x: 0, y: 0 } });
+    if (idNode) idNode.position = { x: 0, y: 0 };
+    inputs.forEach((n, k) => {
+      const a = (-Math.PI / 2) + (k * 2 * Math.PI / Math.max(inputs.length, 1));
+      armAngle[n.data.id] = a;
+      const pos = { x: Math.cos(a) * ARM_R, y: Math.sin(a) * ARM_R };
+      n.position = pos;
+      fixed.push({ nodeId: n.data.id, position: pos });
     });
+
+    // which input arm(s) each leaf hangs off (via its edges to input nodes).
+    const inputIds = new Set(inputs.map(n => n.data.id));
+    const leafArms = {};
+    ELEMENTS.edges.forEach(e => {
+      const { source, target } = e.data;
+      if (inputIds.has(source) && !inputIds.has(target)) (leafArms[target] ||= []).push(source);
+      if (inputIds.has(target) && !inputIds.has(source)) (leafArms[source] ||= []).push(target);
+    });
+    ELEMENTS.nodes.forEach(n => {
+      if (n.data.type === 'identity' || n.data.type === 'input') return;
+      const arms = leafArms[n.data.id];
+      let a;
+      if (arms && arms.length) {
+        let sx = 0, sy = 0;
+        arms.forEach(id => { const ang = armAngle[id] ?? 0; sx += Math.cos(ang); sy += Math.sin(ang); });
+        a = Math.atan2(sy, sx);
+      } else {
+        a = hash01(n.data.id) * 2 * Math.PI;  // not on any arm (rare) — let fcose place it
+      }
+      const jitter = (hash01(n.data.id) - 0.5) * 0.7;
+      const r = LEAF_R + hash01(n.data.id + 'r') * 90;
+      n.position = { x: Math.cos(a + jitter) * r, y: Math.sin(a + jitter) * r };
+    });
+
+    const LAYOUT = {
+      name: 'fcose', quality: 'proof', randomize: false, animate: false,
+      fit: true, padding: 60, nodeSeparation: 130, idealEdgeLength: 110,
+      nodeRepulsion: 9000, gravity: 0.04, gravityCompound: 0.3,
+      fixedNodeConstraint: fixed,
+    };
 
     const cy = cytoscape({
       container: document.getElementById('cy'),
@@ -105,8 +166,8 @@
             'text-valign': 'bottom', 'text-margin-y': 7, 'text-wrap': 'wrap',
             'text-max-width': 120, 'text-outline-width': 3,
             'text-outline-color': '#070707', 'min-zoomed-font-size': 7,
-            'width': 36, 'height': 36, 'background-color': '#1c1c1c',
-            'border-width': 2.5, 'border-color': sev } },
+            'width': 38, 'height': 38, 'background-color': nodeBg,
+            'border-width': 4, 'border-color': sev } },
         { selector: 'node[type="identity"]', style: {
             'width': 84, 'height': 84, 'background-color': 'oklch(0.86 0.26 143)',
             'color': '#06210f', 'font-weight': 700, 'font-size': 17,
@@ -118,6 +179,9 @@
         { selector: 'node[type="iploc"]', style: {
             'width': 50, 'height': 50, 'background-color': '#143', 'font-size': 13,
             'shape': 'round-diamond', 'border-color': sev } },
+        { selector: 'node[type="broker"]', style: {
+            'width': 46, 'height': 46, 'shape': 'round-hexagon', 'font-size': 13,
+            'background-color': nodeBg, 'border-color': sev } },
         { selector: 'node[type="site"]', style: {
             'width': 46, 'height': 46, 'background-color': '#fff',
             'background-image': 'data(logoUrl)', 'background-fit': 'contain',
@@ -135,11 +199,7 @@
         { selector: 'node.sel', style: {
             'border-color': '#fff', 'border-width': 4, 'text-opacity': 1, 'z-index': 50 } },
       ],
-      layout: {
-        name: 'fcose', quality: 'proof', randomize: false, animate: false,
-        fit: true, padding: 60, nodeSeparation: 130,
-        idealEdgeLength: 120, nodeRepulsion: 9000, gravity: 0.12,
-      },
+      layout: LAYOUT,
     });
 
     // --- hover: highlight the path, gently de-emphasise the rest -------------
@@ -166,6 +226,7 @@
       if (d.type === 'stealer' && m.machine) extra = '<div class="t-sub">Machine: ' + m.machine + '</div>';
       if (d.type === 'iploc') extra = '<div class="t-sub">' + [m.location, m.isp, (m.open_ports || []).length + ' open ports'].filter(Boolean).join(' · ') + '</div>';
       if (d.type === 'site' && d.url) extra = '<div class="t-sub">' + d.url + '</div>';
+      if (d.type === 'broker') extra = '<div class="t-sub">' + (m.domain || '') + (m.opt_out_url ? ' · opt-out available' : '') + '</div>';
       if (d.type === 'service' && m.vulns && m.vulns.length) extra = '<div class="t-sub">' + m.vulns.join(', ') + '</div>';
       showTip('<strong>' + (d.label || d.id) + '</strong><div class="t-sev t-' + d.severity + '">' + d.severity + '</div>' + extra, e.renderedPosition);
       trace(e.target);
@@ -203,9 +264,7 @@
     // --- controls ------------------------------------------------------------
     document.getElementById('cyFit').addEventListener('click', () => cy.animate({ fit: { padding: 60 }, duration: 250 }));
     document.getElementById('cyRelayout').addEventListener('click', () => {
-      cy.layout({ name: 'fcose', quality: 'proof', randomize: false, animate: true,
-                  animationDuration: 500, fit: true, padding: 60, nodeSeparation: 130,
-                  idealEdgeLength: 120, nodeRepulsion: 9000, gravity: 0.12 }).run();
+      cy.layout({ ...LAYOUT, animate: true, animationDuration: 500 }).run();
     });
   }
 </script>

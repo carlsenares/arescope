@@ -46,11 +46,13 @@
     {% if scans %}
     <ul class="scan-list">
       {% for sc in scans %}
-      <li class="scan-item">
+      <li class="scan-item" data-scan="{{ sc.id }}">
         <a class="scan-row" href="/app/scans/{{ sc.id }}">
           <span class="scan-name">{{ sc.name or 'Analysis ' ~ sc.id[:8] }}</span>
-          <span class="chip chip-{{ sc.status }}">{{ sc.status }}</span>
-          {% if not sc.in_map %}<span class="chip chip-muted" title="Hidden from your exposure map">off map</span>{% endif %}
+          <span class="scan-chips">
+            <span class="chip chip-{{ sc.status }}">{{ sc.status }}</span>
+            <span class="chip chip-muted js-offmap" title="Hidden from your exposure map" {% if sc.in_map %}hidden{% endif %}>off map</span>
+          </span>
           <span class="scan-date muted">{{ sc.started_at.strftime('%b %d, %Y · %H:%M') if sc.started_at else '—' }}</span>
         </a>
         <details class="row-menu">
@@ -58,23 +60,24 @@
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
           </summary>
           <div class="row-pop">
-            <form class="rename-form" method="post" action="/app/scans/{{ sc.id }}/rename">
+            <div class="row-actions">
+              <button type="button" class="row-action js-rename-toggle">Rename</button>
+              <form class="js-mapvis" method="post" action="/app/scans/{{ sc.id }}/map-visibility">
+                <input type="hidden" name="csrf" value="{{ csrf }}" />
+                <input type="hidden" name="include" value="{{ '0' if sc.in_map else '1' }}" />
+                <button type="submit" class="row-action js-mapvis-btn">
+                  {{ 'Hide from map' if sc.in_map else 'Show on map' }}
+                </button>
+              </form>
+            </div>
+            <form class="rename-form js-rename" method="post" action="/app/scans/{{ sc.id }}/rename" hidden>
               <input type="hidden" name="csrf" value="{{ csrf }}" />
-              <input type="hidden" name="next" value="/app" />
-              <label class="fc-label" for="name-{{ sc.id }}">Name</label>
+              <label class="fc-label" for="name-{{ sc.id }}">Rename analysis</label>
               <div class="rename-row">
                 <input id="name-{{ sc.id }}" type="text" name="name" maxlength="80"
                        value="{{ sc.name or '' }}" placeholder="Analysis {{ sc.id[:8] }}" />
                 <button class="btn btn-ghost btn-sm" type="submit">Save</button>
               </div>
-            </form>
-            <form method="post" action="/app/scans/{{ sc.id }}/map-visibility">
-              <input type="hidden" name="csrf" value="{{ csrf }}" />
-              <input type="hidden" name="next" value="/app" />
-              <input type="hidden" name="include" value="{{ '0' if sc.in_map else '1' }}" />
-              <button class="btn btn-ghost btn-sm btn-block" type="submit">
-                {{ 'Hide from exposure map' if sc.in_map else 'Show on exposure map' }}
-              </button>
             </form>
           </div>
         </details>
@@ -94,4 +97,99 @@
   </div>
 
 </section>
+
+<script>
+  // Per-row options menu: two-step (Rename / Hide) like Ask-Opus, and AJAX so the
+  // page never reloads or jumps to the top when you rename or toggle map visibility.
+  (function () {
+    // Resolve CSRF lazily — this script parses inside <main>, before the
+    // `window.ARESCOPE_CSRF = …` line at the end of <body>.
+    function csrf() { return window.ARESCOPE_CSRF || ''; }
+
+    // Reopening the menu returns to the two-option view (not a stuck rename field).
+    document.querySelectorAll('.row-menu').forEach(function (menu) {
+      menu.addEventListener('toggle', function () {
+        if (menu.open) return;
+        var pop = menu.querySelector('.row-pop');
+        if (!pop) return;
+        var actions = pop.querySelector('.row-actions');
+        var form = pop.querySelector('.js-rename');
+        if (actions) actions.hidden = false;
+        if (form) form.hidden = true;
+      });
+    });
+
+    // "Rename" reveals the name field instead of opening it straight away.
+    document.querySelectorAll('.js-rename-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var pop = btn.closest('.row-pop');
+        var form = pop.querySelector('.js-rename');
+        var actions = pop.querySelector('.row-actions');
+        actions.hidden = true;
+        form.hidden = false;
+        var input = form.querySelector('input[name="name"]');
+        if (input) { input.focus(); input.select(); }
+      });
+    });
+
+    // Toggle map visibility without a navigation.
+    document.querySelectorAll('form.js-mapvis').forEach(function (form) {
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var item = form.closest('.scan-item');
+        var includeInput = form.querySelector('input[name="include"]');
+        var willInclude = includeInput.value === '1';  // showing it back on the map
+        var body = new URLSearchParams();
+        body.set('csrf', csrf());
+        body.set('include', includeInput.value);
+        var btn = form.querySelector('button');
+        btn.disabled = true;
+        try {
+          var r = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+            body: body,
+          });
+          if (!r.ok) { btn.disabled = false; return; }
+          // Flip local state: the chip, the button label, and the next toggle value.
+          var chip = item.querySelector('.js-offmap');
+          if (chip) chip.hidden = willInclude;       // hide "off map" when shown again
+          includeInput.value = willInclude ? '0' : '1';
+          btn.textContent = willInclude ? 'Hide from map' : 'Show on map';
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // Rename without a navigation; update the row title in place.
+    document.querySelectorAll('form.js-rename').forEach(function (form) {
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var item = form.closest('.scan-item');
+        var input = form.querySelector('input[name="name"]');
+        var body = new URLSearchParams();
+        body.set('csrf', csrf());
+        body.set('name', input.value);
+        var btn = form.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try {
+          var r = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+            body: body,
+          });
+          if (!r.ok) { btn.disabled = false; return; }
+          var d = await r.json();
+          var nameEl = item.querySelector('.scan-name');
+          if (nameEl) nameEl.textContent = d.name || ('Analysis ' + item.dataset.scan.slice(0, 8));
+          var details = item.querySelector('.row-menu');
+          if (details) details.open = false;          // close the menu on save
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  })();
+</script>
 {% endblock %}

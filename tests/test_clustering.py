@@ -28,6 +28,20 @@ def test_old_password_breaches_collapse_to_one_cluster():
     assert len(c.member_locators) == 20
 
 
+def test_broker_listings_collapse_to_one_data_broker_finding():
+    evs = [
+        _ev("broker_listing", dom, {"broker": dom, "domain": dom},
+            value="Jane Doe", stype=InputType.NAME)
+        for dom in ("spokeo.com", "whitepages.com", "beenverified.com")
+    ]
+    clusters = cluster_evidence(evs)
+    assert len(clusters) == 1
+    c = clusters[0]
+    assert c.category_hint is Category.DATA_BROKER_LISTING
+    assert c.force_escalate is True
+    assert len(c.member_locators) == 3
+
+
 def test_recency_and_salience_split_clusters():
     evs = [
         _breach("OldPw", ["Passwords"], "2010-01-01"),
