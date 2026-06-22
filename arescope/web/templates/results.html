@@ -64,6 +64,29 @@
       <p class="fc-members"><span class="fc-label">Where</span> {{ f.members|join(' · ') }}</p>
       {% endif %}
 
+      {% if f.evidence %}
+      <details class="fc-evidence">
+        <summary>See the exact data we found ({{ f.evidence|length }})</summary>
+        <div class="ev-list">
+          {% for ev in f.evidence %}
+          <div class="ev-item">
+            <div class="ev-head"><span class="ev-source">{{ ev.source_label }}</span><span class="ev-loc mono">{{ ev.locator }}</span></div>
+            {% if ev.highlights %}
+            <dl class="ev-facts">
+              {% for label, value in ev.highlights %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}
+            </dl>
+            {% endif %}
+            <details class="ev-raw">
+              <summary>Raw entry</summary>
+              <pre>{{ ev.raw_json }}</pre>
+            </details>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="ev-note muted">This is the unmodified data the source returned — use it to confirm whether a record is really yours (e.g. is this machine one of your devices?).</p>
+      </details>
+      {% endif %}
+
       {% if f.easy_fix %}
       <div class="fc-fix"><span class="fc-label">Quick fix</span><span>{{ f.easy_fix }}</span></div>
       {% endif %}

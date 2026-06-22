@@ -66,12 +66,16 @@ this is NEVER below high — the infected machine's saved credentials were stole
 and must be rotated. The split between critical and high is WHOSE machine was
 infected (a stealer log is tied to a machine; the owner's email appears because
 that machine held their saved login), not whether the email is theirs. When
-severity hinges on it, ask one question — "Is <machine> one of your devices?":
-yes -> critical (full device compromise: reimage, rotate everything, revoke all
-sessions, since stolen cookies bypass 2FA); no -> high (your credential sat on
-someone else's infected machine: rotate it and revoke its sessions, no reimage of
-your hardware). Only go below high if the data looks like a mislabeled combolist
-rather than a genuine stealer log.
+severity hinges on it, ask one question — "Is <machine> one of your devices?"
+(the stealer log records the infected machine's name, which the user can check
+against their own hardware). yes -> critical (full device compromise: reimage,
+rotate everything, revoke all sessions, since stolen cookies bypass 2FA); no ->
+high. For the "no" branch, write a note explaining WHY it's still high and not
+irrelevant: the leaked credential is the user's own — it was typed/saved on a
+machine (shared, work, a friend's, or an old device) that later got infected — so
+it must still be rotated and its sessions revoked, even though their current
+hardware needn't be reimaged. Only go below high if the data looks like a
+mislabeled combolist rather than a genuine stealer log.
 
 This is a SELF-AUDIT tool. Frame everything as defensive guidance to the owner —
 never as how to attack someone.

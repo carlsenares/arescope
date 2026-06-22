@@ -8,6 +8,7 @@ to the worker. Results UI is a separate pass.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import secrets
@@ -408,9 +409,58 @@ _SEV_LABEL = {
 }
 
 
-def _finding_view(f: models.Finding) -> dict:
+# Human labels for the raw-evidence panel, and which raw fields to surface first
+# per source (the rest stay in the full-JSON details). Lets a user check, e.g.,
+# whether an infostealer's machine name is one of their devices (feedback #1).
+_SOURCE_LABEL = {
+    "hibp": "Have I Been Pwned",
+    "hudsonrock": "Hudson Rock — infostealer log",
+    "shodan": "Shodan",
+    "holehe": "Holehe",
+    "maigret": "Maigret",
+}
+_EVIDENCE_HINTS: dict[str, list[tuple[str, str]]] = {
+    "hudsonrock": [
+        ("computer_name", "Machine name"),
+        ("date_compromised", "Compromised"),
+        ("malware_path", "Malware path"),
+        ("antiviruses", "Antivirus present"),
+        ("ip", "Machine IP"),
+        ("url", "Login URL"),
+    ],
+    "hibp": [("title", "Breach"), ("breach_date", "Date"), ("data_classes", "Leaked data")],
+    "shodan": [("port", "Port"), ("product", "Service"), ("org", "Network"), ("vulns", "Known CVEs")],
+    "holehe": [("url", "Site")],
+    "maigret": [("url", "Profile")],
+}
+
+
+def _humanize_signal(sig: models.Signal) -> dict:
+    """One raw signal as a readable evidence row: key highlights + the full payload."""
+    raw = sig.raw or {}
+    highlights: list[tuple[str, str]] = []
+    for key, label in _EVIDENCE_HINTS.get(sig.source, []):
+        val = raw.get(key)
+        if val in (None, "", [], {}):
+            continue
+        highlights.append((label, ", ".join(map(str, val)) if isinstance(val, list) else str(val)))
+    return {
+        "source_label": _SOURCE_LABEL.get(sig.source, sig.source),
+        "locator": sig.locator,
+        "highlights": highlights,
+        "raw_json": json.dumps(raw, indent=2, default=str, ensure_ascii=False),
+    }
+
+
+def _finding_view(f: models.Finding, signals_by_id: dict | None = None) -> dict:
     """Flatten a Finding row into everything the results template needs."""
     rem = f.remediation
+    signals_by_id = signals_by_id or {}
+    evidence = [
+        _humanize_signal(signals_by_id[sid])
+        for sid in (f.signal_ids or [])
+        if sid in signals_by_id
+    ]
     try:
         cat_label = TAXONOMY[Category(f.category)].label
     except (KeyError, ValueError):
@@ -434,6 +484,7 @@ def _finding_view(f: models.Finding) -> dict:
         "fix_difficulty": f.fix_difficulty,
         "easy_fix": f.easy_fix,
         "members": f.member_locators or [],
+        "evidence": evidence,
         "show_questions": f.action == "depends" and bool(questions),
         "questions": [{"idx": i, "prompt": q.get("prompt", "")} for i, q in enumerate(questions)],
         "can_generate_solution": (
@@ -464,8 +515,12 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
         if subject is None or (subject.user_id != user.id and not user.is_admin):
             return None
         findings = s.query(models.Finding).filter(models.Finding.scan_id == scan_id).all()
+        # The raw signals behind these findings, so each card can show the exact
+        # entry Opus saw (feedback #1: "is this infostealer machine mine?").
+        signals = s.query(models.Signal).filter(models.Signal.scan_id == scan_id).all()
+        signals_by_id = {sig.id: sig for sig in signals}
         views = sorted(
-            (_finding_view(f) for f in findings),
+            (_finding_view(f, signals_by_id) for f in findings),
             key=lambda v: (-v["rank"], -v["confidence"]),
         )
         snap = scan.config_snapshot or {}
@@ -474,9 +529,9 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
         for v in views:
             counts[v["severity"]] = counts.get(v["severity"], 0) + 1
         tabs = [
-            {"sev": s, "label": _SEV_LABEL[s], "count": counts[s]}
-            for s in ("critical", "high", "medium", "low", "info")
-            if counts.get(s)
+            {"sev": sev, "label": _SEV_LABEL[sev], "count": counts[sev]}
+            for sev in ("critical", "high", "medium", "low", "info")
+            if counts.get(sev)
         ]
         return {
             "id": scan.id,

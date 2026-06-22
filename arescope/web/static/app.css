@@ -1070,6 +1070,67 @@ td.right,
   font-size: 0.86rem;
 }
 
+/* raw evidence panel — the exact source data behind a finding */
+.fc-evidence {
+  margin-top: 0.9rem;
+  font-size: 0.9rem;
+}
+.fc-evidence > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.fc-evidence > summary:hover { color: var(--ink); }
+.ev-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.75rem;
+}
+.ev-item {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 0.9rem;
+  background: var(--bg);
+}
+.ev-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.ev-source { font-weight: 600; }
+.ev-loc { color: var(--faint); font-size: 0.82rem; }
+.ev-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.9rem;
+  margin: 0;
+}
+.ev-facts dt {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ev-facts dd { margin: 0; color: var(--ink); }
+.ev-raw { margin-top: 0.6rem; font-size: 0.82rem; }
+.ev-raw summary { cursor: pointer; color: var(--faint); }
+.ev-raw pre {
+  margin: 0.5rem 0 0;
+  padding: 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.ev-note { margin: 0.7rem 0 0; font-size: 0.82rem; }
+
 /* coverage gaps footnote */
 .coverage {
   font-size: 0.85rem;
