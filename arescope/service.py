@@ -293,4 +293,5 @@ def resolve_finding(finding_id: str, answers: dict[int, bool]) -> Verdict:
         f.action = rv.action.value
         f.rationale = rv.rationale
         f.questions = [q.model_dump() for q in rv.questions]
+        f.fix_difficulty = rv.fix_difficulty.value if rv.fix_difficulty else None
         return rv

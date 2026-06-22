@@ -46,13 +46,38 @@
     {% if scans %}
     <ul class="scan-list">
       {% for sc in scans %}
-      <li>
+      <li class="scan-item">
         <a class="scan-row" href="/app/scans/{{ sc.id }}">
           <span class="scan-name">{{ sc.name or 'Analysis ' ~ sc.id[:8] }}</span>
           <span class="chip chip-{{ sc.status }}">{{ sc.status }}</span>
+          {% if not sc.in_map %}<span class="chip chip-muted" title="Hidden from your exposure map">off map</span>{% endif %}
           <span class="scan-date muted">{{ sc.started_at.strftime('%b %d, %Y · %H:%M') if sc.started_at else '—' }}</span>
-          <span class="scan-go" aria-hidden="true">→</span>
         </a>
+        <details class="row-menu">
+          <summary aria-label="Analysis options">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </summary>
+          <div class="row-pop">
+            <form class="rename-form" method="post" action="/app/scans/{{ sc.id }}/rename">
+              <input type="hidden" name="csrf" value="{{ csrf }}" />
+              <input type="hidden" name="next" value="/app" />
+              <label class="fc-label" for="name-{{ sc.id }}">Name</label>
+              <div class="rename-row">
+                <input id="name-{{ sc.id }}" type="text" name="name" maxlength="80"
+                       value="{{ sc.name or '' }}" placeholder="Analysis {{ sc.id[:8] }}" />
+                <button class="btn btn-ghost btn-sm" type="submit">Save</button>
+              </div>
+            </form>
+            <form method="post" action="/app/scans/{{ sc.id }}/map-visibility">
+              <input type="hidden" name="csrf" value="{{ csrf }}" />
+              <input type="hidden" name="next" value="/app" />
+              <input type="hidden" name="include" value="{{ '0' if sc.in_map else '1' }}" />
+              <button class="btn btn-ghost btn-sm btn-block" type="submit">
+                {{ 'Hide from exposure map' if sc.in_map else 'Show on exposure map' }}
+              </button>
+            </form>
+          </div>
+        </details>
       </li>
       {% endfor %}
     </ul>

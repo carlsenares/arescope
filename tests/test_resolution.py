@@ -7,6 +7,7 @@ from arescope.schemas import (
     ContingencyQuestion,
     Evidence,
     EvidenceCluster,
+    FixDifficulty,
     InputType,
     JudgedFinding,
     Resolution,
@@ -47,6 +48,20 @@ def test_no_resolves_to_high_fix_now():
     out = resolve(_depends_finding(), {0: False})
     assert out.verdict.action is ActionBucket.FIX_NOW
     assert out.verdict.severity is Severity.HIGH
+
+
+def test_resolving_into_actionable_assigns_fix_difficulty():
+    # A DEPENDS verdict has no fix_difficulty; resolving it into fix_now must set
+    # one so the results page can offer a solution (the infostealer-no-solution bug).
+    out = resolve(_depends_finding(), {0: False})
+    assert out.verdict.fix_difficulty is FixDifficulty.INVOLVED
+
+
+def test_resolving_keeps_easy_when_inline_fix_present():
+    jf = _depends_finding()
+    jf.verdict.easy_fix = "Rotate the password and enable 2FA."
+    out = resolve(jf, {0: False})
+    assert out.verdict.fix_difficulty is FixDifficulty.EASY
 
 
 def test_unanswered_stays_depends():

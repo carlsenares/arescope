@@ -262,7 +262,13 @@ def app_home(request: Request):
             .all()
         )
         rows = [
-            {"id": sc.id, "name": sc.name, "status": sc.status, "started_at": sc.started_at}
+            {
+                "id": sc.id,
+                "name": sc.name,
+                "status": sc.status,
+                "started_at": sc.started_at,
+                "in_map": not (sc.options or {}).get("exclude_from_map"),
+            }
             for sc in scans
         ]
     return _render(request, "app_home.html", scans=rows)
@@ -511,6 +517,54 @@ def scan_status(request: Request, scan_id: str) -> dict:
     }
 
 
+@router.post("/app/scans/{scan_id}/rename")
+async def scan_rename(request: Request, scan_id: str):
+    """Rename an analysis from the dashboard or results header."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+    if _load_owned_scan(user, scan_id) is None:
+        raise HTTPException(404, "scan not found")
+    name = str(form.get("name", "")).strip()[:80] or None
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is not None:
+            scan.name = name
+    back = _safe_next(str(form.get("next", "")) or f"/app/scans/{scan_id}")
+    return RedirectResponse(back, status_code=303)
+
+
+@router.post("/app/scans/{scan_id}/map-visibility")
+async def scan_map_visibility(request: Request, scan_id: str):
+    """Toggle whether this analysis feeds the whole-account exposure map.
+
+    Lets a user keep a scan (e.g. a friend's, run with their consent) out of their
+    own identity graph. Stored on Scan.options so build_account_graph can skip it.
+    """
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+    if _load_owned_scan(user, scan_id) is None:
+        raise HTTPException(404, "scan not found")
+    # include=='1' => part of the map; anything else => excluded.
+    include = str(form.get("include", "")) == "1"
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is not None:
+            opts = dict(scan.options or {})
+            if include:
+                opts.pop("exclude_from_map", None)
+            else:
+                opts["exclude_from_map"] = True
+            scan.options = opts
+    back = _safe_next(str(form.get("next", "")) or "/app")
+    return RedirectResponse(back, status_code=303)
+
+
 @router.post("/app/findings/{finding_id}/solution")
 async def finding_solution(request: Request, finding_id: str):
     """Generate the involved, tailored fix for one finding (on demand, Opus)."""
@@ -561,6 +615,20 @@ async def finding_resolve(request: Request, finding_id: str):
 # --- exposure map (graph) ----------------------------------------------------
 
 _LOGO_CACHE = os.path.join(APP_STATIC_DIR, "logocache")
+
+
+@router.get("/app/password", response_class=HTMLResponse)
+def password_check(request: Request):
+    """Check a password against HIBP's Pwned Passwords.
+
+    The check is done ENTIRELY in the browser via k-anonymity: the page SHA-1s the
+    password locally and sends only the first 5 hex chars to api.pwnedpasswords.com.
+    The password never touches our server, so there's no POST and nothing to store
+    or log. Zero cost to us, so it's open to any verified user (not run-gated)."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    return _render(request, "password.html")
 
 
 @router.get("/app/map", response_class=HTMLResponse)

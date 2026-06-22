@@ -183,11 +183,13 @@ def build_account_graph(user_id: str, label: str = "you") -> dict:
     """Merge every scan the user owns into one map (their whole footprint)."""
     with session_scope() as s:
         scan_ids = [
-            row[0]
-            for row in s.execute(
-                select(models.Scan.id)
+            sid
+            for sid, opts in s.execute(
+                select(models.Scan.id, models.Scan.options)
                 .join(models.Subject, models.Scan.subject_id == models.Subject.id)
                 .where(models.Subject.user_id == user_id)
             ).all()
+            # honour the per-scan "keep out of my map" toggle (e.g. a friend's scan)
+            if not (opts or {}).get("exclude_from_map")
         ]
     return _build(scan_ids, label)
