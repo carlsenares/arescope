@@ -4,6 +4,11 @@ Each source is a **connector**: declares the input types it consumes, runs its q
 emits normalized `Signal`s. Connectors are config-gated (API key / enabled flag) and must
 degrade gracefully — a missing key or a rate-limit logs a coverage gap, never a scan failure.
 
+> **Extended-search (identity-enrichment) connectors** — Maigret-metadata, GitHub, Reddit,
+> Gravatar, GHunt, Wayback, Brave, Apify, FaceCheck/TinEye, Dehashed, IntelX — have their own
+> scope, tier rules, and acquisition status in `EXTENDED_SEARCH_SCOPE.md`. This file is the v1
+> baseline stack.
+
 ## v1 stack
 
 | Source | Consumes | Surfaces (→ taxonomy #) | Access | Notes / legal |
@@ -32,13 +37,13 @@ quote-based. The LLM spend (Opus/Haiku) is separate — see `DISTRIBUTION.md`.
 | **email** → breach membership (#1,#3) | HIBP (key needed, but cheap: ~$3.95/mo "Pwned 1") | HIBP **+ Dehashed** (actual leaked passwords/hashes, ~$5/mo or PAYG) | HIBP baseline + Dehashed for credential depth |
 | **email** → infostealer (#2) | **Hudson Rock Cavalier** — free, no key | Hudson Rock paid tier (volume/SLA) | Hudson Rock (highest-signal "critical") |
 | **email** → account footprint (#4) | **Holehe** — free, self-hosted (~120 sites) | Epieos (hosted, deeper Google/linked accounts, free+paid) | Holehe + Epieos |
-| **email** → account metadata (#5) | GHunt — free, self-hosted (fragile; needs Google cookies) | Epieos (stable hosted) | Epieos |
+| **email** → account metadata (#5) | **GHunt** — free, self-hosted (fragile; needs Google cookies) | Epieos (stable hosted) — but **API is request-only, approval unlikely** | **GHunt** (Epieos only if ever approved — see `EXTENDED_SEARCH_SCOPE.md`) |
 | **username** → site enumeration (#4,#8) | **Maigret** — free, self-hosted (~3000 sites) | — (Maigret stays the workhorse) | Maigret |
 | **username** → infostealer (#2) | **Hudson Rock** — free | Hudson Rock paid tier | Hudson Rock |
 | **ip** → services + CVEs (#6) | **Shodan** — free-tier API key (limited credits) | Shodan paid + Censys | Shodan (+ Censys cross-check) |
 | **ip** → geo / reputation (#6) | IPinfo / Shodan host_profile — free tiers | IPinfo paid tier | IPinfo |
-| **name** → data-broker listings (#7) | **local mock shim** (~30-line endpoint matching the adapter contract) or People Data Labs free tier (~100/mo, enrichment-shaped) | **Optery / Onerep** (removal-oriented, normal tier); **Endato / Pipl** (dossier, extended/admin tier) | Optery (normal + removal) + Endato (extended) — see `DEEP_SEARCH_PLAN.md` |
-| **photo** → face exposure (#9) | none (deferred) | PimEyes / FaceCheck.ID (paid, consent-gated) | deferred (Tier C) |
+| **name** → data-broker listings (#7) | **SHIPPED: free CA-registry-backed people-search catalog** (`PeopleSearchRegistryProvider` — ~30 brokers + opt-out links, `confirmed:false` enumeration) | **Optery / Onerep** (confirming removal, B2B apply-only); paid dossier APIs are US-entity-walled | the free registry catalog now; confirming provider drops in later — see `DEEP_SEARCH_PLAN.md` |
+| **photo** → face exposure (#9) | EXIF/GPS (local, free) | **FaceCheck.ID** (API now self-serve, ~$0.30/search) / TinEye (pic-reuse) | FaceCheck.ID **admin-only, audit-logged** — see `EXTENDED_SEARCH_SCOPE.md` |
 
 Notes:
 - **Test build is genuinely runnable for free** on Hudson Rock + Holehe + Maigret + a Shodan

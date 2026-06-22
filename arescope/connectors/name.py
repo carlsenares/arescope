@@ -35,6 +35,10 @@ class NameConnector(Connector):
         # Extended (dossier) tier only when ownership is verified for this name — gated
         # by the per-scan flag the service sets; default off => listing-existence only.
         extended = bool(getattr(cfg, "name_extended", False))
+        # Did the provider actually confirm THIS name is listed (paid lookup), or only
+        # enumerate the removal catalog (free fallback)? Threads into every signal so the
+        # judge + report never imply coverage we didn't have (CLAUDE.md degrade-gracefully).
+        confirmed = bool(getattr(provider, "confirms_listings", True))
         try:
             listings = provider.search(value, cfg, extended=extended)
         except httpx.HTTPError as e:  # network/transport/status
@@ -55,6 +59,10 @@ class NameConnector(Connector):
                         "listing_url": li.listing_url,
                         "opt_out_url": li.opt_out_url,
                         "match_confidence": li.match_confidence,
+                        # False => "you may be listed here, opt out to be safe", not a
+                        # confirmed hit. The report and the judge key off this.
+                        "confirmed": confirmed,
+                        "ca_registered": li.ca_registered,
                         # the dossier exists but is gated unless extended was requested
                         "has_details": bool(li.extended),
                         **({"details": li.extended} if li.extended else {}),

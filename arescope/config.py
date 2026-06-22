@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     # email — see docs/OWNERSHIP_VERIFICATION.md), built next.
     name_search_api_url: str = ""
     name_search_api_key: str = ""
+    # Free, no-key fallback for the name connector: enumerate the consumer people-search
+    # brokers + opt-out links (the removal track) when no paid lookup is configured. On by
+    # default — it's a bundled catalog, not a paid source. Results are listing-existence-
+    # AGNOSTIC (we don't confirm the name is listed); the connector marks them confirmed:false.
+    broker_registry_enabled: bool = True
     # Flipped on per-scan only when the name's ownership is verified via a linked email
     # (the extended dossier tier). Default off — name-only stays listing-existence.
     name_extended: bool = False

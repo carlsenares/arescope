@@ -18,6 +18,8 @@ venv/
 data/
 # ...but the website's source data dir (static build inputs, no PII) is tracked
 !web/src/data/
+# ...and the connectors' bundled reference data (broker catalog — static, no PII) is tracked
+!arescope/connectors/data/
 scans/
 *.sqlite
 *.db

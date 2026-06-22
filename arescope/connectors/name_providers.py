@@ -20,12 +20,17 @@ Two tiers, gated by ownership (the self-audit hard rule, CLAUDE.md):
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 import httpx
 
 from arescope.config import Settings
+
+_REGISTRY_DATA = Path(__file__).parent / "data" / "people_search_brokers.json"
 
 
 @dataclass
@@ -37,6 +42,7 @@ class BrokerListing:
     listing_url: str | None = None   # the public listing page (if the provider gives one)
     opt_out_url: str | None = None   # where the user removes themselves
     match_confidence: float | None = None  # 0..1 if the provider scores name matches
+    ca_registered: bool | None = None  # listed in the CA Data Broker Registry (provenance)
     # Dossier detail (address/relatives/age). ONLY populated on the extended tier and
     # ONLY surfaced when ownership is verified — never in the normal name-only output.
     extended: dict = field(default_factory=dict)
@@ -45,6 +51,12 @@ class BrokerListing:
 @runtime_checkable
 class NameProvider(Protocol):
     name: str
+    # True  => the provider confirms a specific person's listing exists (paid lookup);
+    #          each result is a real "you ARE on this broker" hit.
+    # False => the provider only ENUMERATES brokers + opt-out links (the free removal
+    #          catalog); results are "you may be listed here" — the connector marks
+    #          every signal confirmed:false so the report never overstates coverage.
+    confirms_listings: bool
 
     def available(self, cfg: Settings) -> bool: ...
 
@@ -71,6 +83,7 @@ class GenericRestNameProvider:
     """
 
     name = "brokers"
+    confirms_listings = True  # a real provider confirms the individual's listing exists
 
     def available(self, cfg: Settings) -> bool:
         return bool(cfg.name_search_api_url and cfg.name_search_api_key)
@@ -106,8 +119,53 @@ class GenericRestNameProvider:
         return out
 
 
-# Registered providers. Add concrete adapters here; the first available one wins.
-_PROVIDERS: list[NameProvider] = [GenericRestNameProvider()]
+@lru_cache(maxsize=1)
+def _load_curated_brokers() -> list[BrokerListing]:
+    """The bundled people-search catalog (scripts/refresh_broker_registry.py)."""
+    try:
+        payload = json.loads(_REGISTRY_DATA.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [
+        BrokerListing(
+            broker=b["broker"],
+            broker_domain=b["domain"],
+            opt_out_url=b.get("opt_out_url"),
+            match_confidence=None,  # we did NOT confirm this name is listed
+            ca_registered=b.get("ca_registered"),
+        )
+        for b in payload.get("brokers", [])
+        if b.get("domain")
+    ]
+
+
+class PeopleSearchRegistryProvider:
+    """Free, no-key fallback: enumerate the consumer people-search brokers + opt-out links.
+
+    The honest "removal track" when no paid people-search API is reachable (the reality
+    for a non-US individual — see docs/DEEP_SEARCH_PLAN.md). It does NOT confirm the
+    searched name is listed anywhere; it returns the catalog of brokers a person is most
+    likely on, each with its opt-out URL, so the T1 removal artifact has real targets.
+    `confirms_listings = False` makes the connector stamp every signal confirmed:false.
+
+    No dossier: the `extended` flag is ignored — this provider never returns address/
+    relatives/age (it has none), so it is safe on every tier.
+    """
+
+    name = "brokers"
+    confirms_listings = False
+
+    def available(self, cfg: Settings) -> bool:
+        return bool(getattr(cfg, "broker_registry_enabled", True)) and bool(_load_curated_brokers())
+
+    def search(self, full_name: str, cfg: Settings, *, extended: bool = False) -> list[BrokerListing]:
+        # Enumeration is name-independent: same catalog of removal targets for any name.
+        return list(_load_curated_brokers())
+
+
+# Registered providers, in precedence order: a configured paid lookup (confirms the
+# individual's listing) wins; otherwise the free enumeration catalog. First available wins.
+_PROVIDERS: list[NameProvider] = [GenericRestNameProvider(), PeopleSearchRegistryProvider()]
 
 
 def resolve_name_provider(cfg: Settings) -> NameProvider | None:

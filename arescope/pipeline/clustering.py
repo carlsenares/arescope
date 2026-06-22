@@ -105,16 +105,20 @@ def _classify(ev: Evidence) -> tuple[str, Category, bool, str | None]:
         return f"infra|{ev.subject_value}", Category.EXPOSED_INFRASTRUCTURE, force, reason
 
     if ev.kind == "broker_listing":
-        # Every broker that lists this name is one "you're listed on N data-broker
-        # sites" story → one cluster per name, which the judge rates and routes to the
-        # T1 removal artifact. Force-escalate so Opus writes a proper verdict + the
-        # opt-out plan rather than a cheap label.
-        return (
-            f"broker|{ev.subject_value}",
-            Category.DATA_BROKER_LISTING,
-            True,
-            "name is listed on data-broker / people-search sites (removal recommended)",
+        # Every broker for this name is one "data-broker exposure" story → one cluster
+        # per name, which the judge rates and routes to the T1 removal artifact.
+        # Force-escalate so Opus writes a proper verdict + opt-out plan, not a cheap label.
+        # `confirmed` distinguishes a paid lookup (the name IS listed) from the free
+        # enumeration catalog (these brokers MAY list the name) — the judge must not
+        # overstate the latter.
+        confirmed = bool(raw.get("confirmed", True))
+        reason = (
+            "name is listed on these data-broker / people-search sites (removal recommended)"
+            if confirmed
+            else "major people-search brokers the name may be listed on — enumeration, NOT "
+            "confirmed for this person; frame as a removal/opt-out checklist, not proven exposure"
         )
+        return (f"broker|{ev.subject_value}", Category.DATA_BROKER_LISTING, True, reason)
 
     if ev.kind == "host_profile":
         # What the IP reveals (location, ISP, hostnames). Informational footprint,

@@ -1,0 +1,187 @@
+{
+  "_source": "Curated consumer people-search brokers; ca_registered cross-referenced against the California Data Broker Registry (cppa.ca.gov/data_broker_registry).",
+  "_generated": "2026-06-22",
+  "_note": "Enumeration, not confirmation \u2014 the connector marks every signal confirmed:false.",
+  "brokers": [
+    {
+      "broker": "Spokeo",
+      "domain": "spokeo.com",
+      "opt_out_url": "https://www.spokeo.com/optout",
+      "ca_registered": true
+    },
+    {
+      "broker": "Whitepages",
+      "domain": "whitepages.com",
+      "opt_out_url": "https://www.whitepages.com/suppression-requests",
+      "ca_registered": true
+    },
+    {
+      "broker": "BeenVerified",
+      "domain": "beenverified.com",
+      "opt_out_url": "https://www.beenverified.com/app/optout/search",
+      "ca_registered": true
+    },
+    {
+      "broker": "Intelius",
+      "domain": "intelius.com",
+      "opt_out_url": "https://www.intelius.com/opt-out/",
+      "ca_registered": true
+    },
+    {
+      "broker": "PeopleFinders",
+      "domain": "peoplefinders.com",
+      "opt_out_url": "https://www.peoplefinders.com/opt-out",
+      "ca_registered": true
+    },
+    {
+      "broker": "TruePeopleSearch",
+      "domain": "truepeoplesearch.com",
+      "opt_out_url": "https://www.truepeoplesearch.com/removal",
+      "ca_registered": true
+    },
+    {
+      "broker": "MyLife",
+      "domain": "mylife.com",
+      "opt_out_url": "https://www.mylife.com/ccpa/index.pubview",
+      "ca_registered": true
+    },
+    {
+      "broker": "Instant Checkmate",
+      "domain": "instantcheckmate.com",
+      "opt_out_url": "https://www.instantcheckmate.com/opt-out/",
+      "ca_registered": true
+    },
+    {
+      "broker": "TruthFinder",
+      "domain": "truthfinder.com",
+      "opt_out_url": "https://www.truthfinder.com/opt-out/",
+      "ca_registered": true
+    },
+    {
+      "broker": "Nuwber",
+      "domain": "nuwber.com",
+      "opt_out_url": "https://nuwber.com/removal/link",
+      "ca_registered": true
+    },
+    {
+      "broker": "Advanced Background Checks",
+      "domain": "advancedbackgroundchecks.com",
+      "opt_out_url": "https://www.advancedbackgroundchecks.com/removal",
+      "ca_registered": true
+    },
+    {
+      "broker": "Pipl",
+      "domain": "pipl.com",
+      "opt_out_url": "https://pipl.com/personal-information-removal-request",
+      "ca_registered": true
+    },
+    {
+      "broker": "FamilyTreeNow",
+      "domain": "familytreenow.com",
+      "opt_out_url": "https://www.familytreenow.com/optout",
+      "ca_registered": true
+    },
+    {
+      "broker": "Radaris",
+      "domain": "radaris.com",
+      "opt_out_url": "https://radaris.com/control/privacy",
+      "ca_registered": false
+    },
+    {
+      "broker": "PeekYou",
+      "domain": "peekyou.com",
+      "opt_out_url": "https://www.peekyou.com/about/contact/optout/",
+      "ca_registered": false
+    },
+    {
+      "broker": "FastPeopleSearch",
+      "domain": "fastpeoplesearch.com",
+      "opt_out_url": "https://www.fastpeoplesearch.com/removal",
+      "ca_registered": true
+    },
+    {
+      "broker": "PeopleLooker",
+      "domain": "peoplelooker.com",
+      "opt_out_url": "https://www.peoplelooker.com/f/optout/search",
+      "ca_registered": true
+    },
+    {
+      "broker": "ClustrMaps",
+      "domain": "clustrmaps.com",
+      "opt_out_url": "https://clustrmaps.com/bl/opt-out",
+      "ca_registered": false
+    },
+    {
+      "broker": "SearchPeopleFree",
+      "domain": "searchpeoplefree.com",
+      "opt_out_url": "https://www.searchpeoplefree.com/opt-out",
+      "ca_registered": true
+    },
+    {
+      "broker": "ThatsThem",
+      "domain": "thatsthem.com",
+      "opt_out_url": "https://thatsthem.com/optout",
+      "ca_registered": true
+    },
+    {
+      "broker": "ZabaSearch",
+      "domain": "zabasearch.com",
+      "opt_out_url": "https://www.zabasearch.com/block_records/",
+      "ca_registered": true
+    },
+    {
+      "broker": "SmartBackgroundChecks",
+      "domain": "smartbackgroundchecks.com",
+      "opt_out_url": "https://www.smartbackgroundchecks.com/optout",
+      "ca_registered": true
+    },
+    {
+      "broker": "US Search",
+      "domain": "ussearch.com",
+      "opt_out_url": "https://www.ussearch.com/opt-out/",
+      "ca_registered": true
+    },
+    {
+      "broker": "CheckPeople",
+      "domain": "checkpeople.com",
+      "opt_out_url": "https://www.checkpeople.com/do-not-sell-info",
+      "ca_registered": true
+    },
+    {
+      "broker": "PublicRecordsNow",
+      "domain": "publicrecordsnow.com",
+      "opt_out_url": "https://www.publicrecordsnow.com/optout/",
+      "ca_registered": false
+    },
+    {
+      "broker": "USPhoneBook",
+      "domain": "usphonebook.com",
+      "opt_out_url": "https://www.usphonebook.com/opt-out",
+      "ca_registered": true
+    },
+    {
+      "broker": "CocoFinder",
+      "domain": "cocofinder.com",
+      "opt_out_url": "https://cocofinder.com/optout",
+      "ca_registered": false
+    },
+    {
+      "broker": "IDTrue",
+      "domain": "idtrue.com",
+      "opt_out_url": "https://www.idtrue.com/optout",
+      "ca_registered": false
+    },
+    {
+      "broker": "Neighbor.report",
+      "domain": "neighbor.report",
+      "opt_out_url": "https://neighbor.report/remove",
+      "ca_registered": false
+    },
+    {
+      "broker": "Homemetry",
+      "domain": "homemetry.com",
+      "opt_out_url": "https://homemetry.com/optout",
+      "ca_registered": false
+    }
+  ]
+}

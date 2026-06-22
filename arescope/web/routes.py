@@ -452,6 +452,7 @@ _EVIDENCE_HINTS: dict[str, list[tuple[str, str]]] = {
         ("listing_url", "Listing"),
         ("opt_out_url", "Opt-out"),
         ("match_confidence", "Match confidence"),
+        ("ca_registered", "CA-registered broker"),
     ],
 }
 

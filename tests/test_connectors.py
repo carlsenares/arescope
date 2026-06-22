@@ -18,9 +18,10 @@ def test_hibp_available_with_key():
 
 
 def test_name_input_reported_as_uncovered_gap():
-    # The name connector is config-gated: with no provider configured, a name-only
-    # scan must surface an honest coverage gap rather than reading as "nothing exposed".
-    cfg = Settings(name_search_api_url="", name_search_api_key="")
+    # With BOTH the paid provider unconfigured AND the free registry disabled, a
+    # name-only scan has no source and must surface an honest coverage gap rather
+    # than reading as "nothing exposed".
+    cfg = Settings(name_search_api_url="", name_search_api_key="", broker_registry_enabled=False)
     gaps = uncovered_input_gaps([Identifier(type=InputType.NAME, value="Jane Doe")], cfg)
     assert any(g.source == "name lookup" for g in gaps)
 
@@ -29,6 +30,29 @@ def test_name_input_covered_when_provider_configured():
     cfg = Settings(name_search_api_url="https://broker.example/search", name_search_api_key="k")
     gaps = uncovered_input_gaps([Identifier(type=InputType.NAME, value="Jane Doe")], cfg)
     assert not any(g.source == "name lookup" for g in gaps)
+
+
+def test_name_covered_by_free_broker_registry_by_default():
+    # The free, no-key people-search catalog is on by default: a name-only scan is
+    # covered (the removal track) without any paid provider.
+    cfg = Settings(name_search_api_url="", name_search_api_key="")  # registry default-on
+    gaps = uncovered_input_gaps([Identifier(type=InputType.NAME, value="Jane Doe")], cfg)
+    assert not any(g.source == "name lookup" for g in gaps)
+
+
+def test_registry_provider_enumerates_brokers_marked_unconfirmed():
+    # The free fallback emits the opt-out catalog with confirmed:false — never an
+    # implied "you ARE listed here".
+    from arescope.connectors import name as name_mod
+
+    cfg = Settings(name_search_api_url="", name_search_api_key="")  # => registry provider
+    signals = name_mod.NameConnector().run("Jane Doe", InputType.NAME, cfg)
+    assert len(signals) >= 10  # curated catalog
+    assert all(s.kind == "broker_listing" and s.source == "brokers" for s in signals)
+    assert all(s.raw["confirmed"] is False for s in signals)
+    assert all(s.raw["opt_out_url"] for s in signals)  # every removal target is actionable
+    # the CA-registry provenance flag is threaded through
+    assert any(s.raw.get("ca_registered") for s in signals)
 
 
 def test_name_connector_emits_broker_listing_signals(monkeypatch):
@@ -71,6 +95,7 @@ def test_available_connectors_respects_toggles():
         holehe_enabled=True,
         maigret_enabled=False,
         shodan_api_key="",
+        broker_registry_enabled=False,  # the free name catalog is otherwise on by default
     )
     names = {c.name for c in available_connectors(cfg)}
     assert names == {"holehe"}
