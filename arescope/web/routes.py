@@ -430,6 +430,8 @@ _SOURCE_LABEL = {
     "github": "GitHub",
     "reddit": "Reddit",
     "gravatar": "Gravatar",
+    "ghunt": "Google account (GHunt)",
+    "brave": "Web search (Brave)",
 }
 _EVIDENCE_HINTS: dict[str, list[tuple[str, str]]] = {
     "hudsonrock": [
@@ -454,6 +456,7 @@ _EVIDENCE_HINTS: dict[str, list[tuple[str, str]]] = {
                ("followers", "Followers"), ("created_at", "Joined")],
     "reddit": [("url", "Profile"), ("total_karma", "Karma")],
     "gravatar": [("url", "Profile"), ("handle", "Handle")],
+    "brave": [("title", "Page"), ("domain", "Site"), ("description", "Snippet")],
     "brokers": [
         ("broker", "Broker"),
         ("listing_url", "Listing"),

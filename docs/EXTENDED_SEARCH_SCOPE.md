@@ -82,12 +82,13 @@ Out of scope: **PimEyes** (no real API), **X/Twitter API** (locked/expensive), *
 | *(none)* | Maigret-meta, GitHub, Gravatar | **live, no key** | the free identity core |
 | `ARESCOPE_GITHUB_TOKEN` | GitHub | optional | raises rate limit 60→5000/hr (unauth works) |
 | `ARESCOPE_REDDIT_CLIENT_ID` / `_SECRET` | Reddit | **needed to return data** | Reddit now 403-blocks unauth from servers; free "script" app fixes it |
-| `ARESCOPE_GHUNT_CREDS_PATH` | GHunt | not built yet | Google identity (name/photo/locations) |
-| `ARESCOPE_BRAVE_API_KEY` | Brave Search | not built yet (free credits) | name → web mentions (admin) |
+| `ARESCOPE_GHUNT_CREDS_PATH` | GHunt | **built (unvalidated)** — needs `ghunt login` cookie | Google identity: photo, Maps-review locations, YouTube |
+| `ARESCOPE_BRAVE_API_KEY` | Brave Search | **built** — needs free key | name → web mentions (admin-only) |
 | `ARESCOPE_APIFY_TOKEN` | Apify | not built yet (free credits) | locked-platform posts/pics (admin) |
 | `ARESCOPE_DEHASHED_API_KEY` | Dehashed | not built yet (paid) | credential depth |
 | `ARESCOPE_INTELX_API_KEY` | IntelX | not built yet (paid) | leaks/pastes (admin) |
 | `ARESCOPE_FACECHECK_API_KEY` | FaceCheck.id | not built yet (paid) | reverse face (admin) |
+| `ARESCOPE_SCRAPIN_API_KEY` | ScrapIn (LinkedIn) | not built yet (paid) | email/name → LinkedIn profile (admin-only / own-profile) |
 
 ### Build status (2026-06-23)
 
@@ -97,9 +98,23 @@ co-occurrence seed in action), Maigret-metadata (profile `ids` → identity attr
 New `identity_attribute` signal wired through clustering (→ ACCOUNT_METADATA / FACE_PHOTO_
 EXPOSURE), the exposure graph (photo + location nodes), and the report. Config flags added
 for every drop-in. **Reddit** built but needs a free OAuth app (see above) — without it the
-connector reports an honest coverage gap (it no longer pretends "no account"). **Not built
-yet:** photo-input+EXIF, GHunt, Brave, Apify, FaceCheck/TinEye, Dehashed, IntelX, and the
-per-connector admin gate the admin-only sources need before they can run for non-admins.
+connector reports an honest coverage gap (it no longer pretends "no account").
+
+**Added 2026-06-23 (universality pass):** the email/name anchors everyone has, not just devs.
+**GHunt** (email → Google photo + Maps-review locations + YouTube) — built, config-gated on a
+Google cookie, defensive JSON parsing, *unvalidated end-to-end* (no cookie here; name retrieval
+is unreliable upstream since ~2024 but photo/Maps land). **Brave Search** (name → public web
+mentions) — built, key-gated, **admin-only**. New `web_mention` signal → ACCOUNT_METADATA. Added
+the **per-connector admin gate** (`Connector.admin_only`; the service drops admin-only sources
+for non-admins) — the mechanism the heavy sources needed.
+
+**Provider correction:** Proxycurl (email→LinkedIn) was sued by LinkedIn and shut down Jul 2025.
+LinkedIn successors that are self-serve: **ScrapIn** (email/name → full profile) or **Apify**
+LinkedIn scraper. LinkedIn is greenlit as **admin-only / own-profile**, audit-logged — build next.
+
+**Not built yet:** photo-input+EXIF, LinkedIn (ScrapIn/Apify, admin-only), Apify (Instagram),
+Dehashed (plaintext breach: name/phone/address — the richest universal data), IntelX, FaceCheck/
+TinEye.
 
 ## Per-input summary (admin, no gate)
 

@@ -26,6 +26,10 @@ class ConnectorGap(Exception):
 class Connector(abc.ABC):
     name: str
     consumes: set[InputType]
+    # Admin-only sources (broad web search, locked-platform scraping, reverse face)
+    # cross the line the self-audit hard rule guards on the user tier. The service
+    # drops these for non-admins (EXTENDED_SEARCH_SCOPE.md). Default False = both tiers.
+    admin_only: bool = False
 
     @abc.abstractmethod
     def available(self, cfg: Settings) -> bool:

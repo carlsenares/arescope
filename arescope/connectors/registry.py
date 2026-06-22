@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from arescope.config import Settings
 from arescope.connectors.base import Connector
+from arescope.connectors.brave import BraveConnector
+from arescope.connectors.ghunt import GHuntConnector
 from arescope.connectors.github import GitHubConnector
 from arescope.connectors.gravatar import GravatarConnector
 from arescope.connectors.hibp import HIBPConnector
@@ -24,6 +26,8 @@ REGISTRY: list[Connector] = [
     GitHubConnector(),
     GravatarConnector(),
     RedditConnector(),
+    GHuntConnector(),
+    BraveConnector(),
 ]
 
 

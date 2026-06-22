@@ -149,3 +149,65 @@ def test_github_account_becomes_site_node():
                           raw={"domain": "github.com", "url": "https://github.com/jdoe"})
     node = graph_classify(sig)
     assert node and node[0] == "site:github.com" and node[1]["type"] == "site"
+
+
+# --- Brave (admin web-mention search) ---------------------------------------
+
+def test_brave_emits_web_mentions(monkeypatch):
+    from arescope.connectors.brave import BraveConnector
+    payload = {"web": {"results": [
+        {"title": "Jane Doe — LinkedIn", "url": "https://www.linkedin.com/in/janedoe",
+         "description": "Engineer at Acme"},
+        {"title": "Jane Doe wins award", "url": "https://news.example/jane"},
+        {"title": "no url dropped"},
+    ]}}
+    monkeypatch.setattr("arescope.connectors.brave.httpx.get",
+                        lambda *a, **k: _Resp(payload))
+    sigs = BraveConnector().run("Jane Doe", InputType.NAME, Settings(brave_api_key="k"))
+    assert len(sigs) == 2  # the url-less result is skipped
+    assert all(s.kind == "web_mention" and s.subject_type is InputType.NAME for s in sigs)
+    assert sigs[0].raw["domain"] == "linkedin.com"
+
+
+def test_brave_is_admin_only_and_key_gated():
+    from arescope.connectors.brave import BraveConnector
+    c = BraveConnector()
+    assert c.admin_only is True
+    assert c.available(Settings(brave_api_key="")) is False
+    assert c.available(Settings(brave_api_key="k")) is True
+
+
+def test_web_mention_clusters_to_account_metadata():
+    from arescope.schemas import Signal
+    sigs = [Signal(source="brave", kind="web_mention", locator="https://x/1",
+                   subject_value="Jane Doe", subject_type=InputType.NAME,
+                   raw={"title": "t", "url": "https://x/1"})]
+    clusters = cluster_evidence(normalize(sigs))
+    assert clusters[0].category_hint is Category.ACCOUNT_METADATA
+
+
+# --- GHunt (Google identity, key-gated, defensive parsing) -------------------
+
+def test_ghunt_gated_on_creds_path():
+    from arescope.connectors.ghunt import GHuntConnector
+    c = GHuntConnector()
+    assert c.available(Settings(ghunt_creds_path="")) is False
+    assert c.available(Settings(ghunt_creds_path="/tmp/creds")) is True
+    assert c.admin_only is False  # email-seeded self-audit, allowed on both tiers
+
+
+def test_ghunt_defensive_parsers_extract_photo_and_places():
+    from arescope.connectors.ghunt import _find_first, _looks_like_photo, _maps_places
+    sample = {
+        "profile": {"name": "Jane", "picture": "https://lh3.googleusercontent.com/a/x=s64"},
+        "maps": {"reviews": [{"location": "Blue Bottle, Berlin"}, {"address": "Acme HQ, Berlin"}]},
+    }
+    assert _find_first(sample, _looks_like_photo).startswith("https://lh3.googleusercontent")
+    places = _maps_places(sample)
+    assert "Blue Bottle, Berlin" in places and "Acme HQ, Berlin" in places
+
+
+def test_new_connectors_registered():
+    from arescope.connectors.registry import REGISTRY
+    names = {c.name for c in REGISTRY}
+    assert {"github", "reddit", "gravatar", "brave", "ghunt"} <= names

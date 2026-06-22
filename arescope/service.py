@@ -125,6 +125,13 @@ def run_and_store_scan(scan_id: str) -> str:
         cfg = cfg.model_copy(update={"name_extended": True})
 
     available = available_connectors(cfg)
+    # Admin-only sources (broad web search / scraping / reverse face) never run for
+    # regular users — the self-audit hard rule (EXTENDED_SEARCH_SCOPE.md). Until the
+    # per-input ownership gate lands this is the line that keeps the heavy connectors
+    # admin-bound. They're simply absent for non-admins (not even a coverage gap —
+    # a regular user was never entitled to them, so it's not "missing coverage").
+    if not owner_is_admin:
+        available = [c for c in available if not c.admin_only]
     gaps = unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
     # Which of the inputs the user gave actually have a source that searches them.
     # If this ends up empty (e.g. a name-only scan), a clean report must NOT read as

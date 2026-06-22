@@ -68,9 +68,9 @@ TAXONOMY: dict[Category, CategorySpec] = {
     Category.ACCOUNT_METADATA: CategorySpec(
         category=Category.ACCOUNT_METADATA,
         label="Account/identity metadata",
-        surfaced_by=("github", "reddit", "gravatar", "maigret", "ghunt", "epieos"),
-        meaning="Real-world identity a handle/email leaks: real name, location, employer, "
-        "bio, linked profiles, public Google/account data.",
+        surfaced_by=("github", "reddit", "gravatar", "maigret", "ghunt", "brave", "epieos"),
+        meaning="Real-world identity a handle/email/name leaks: real name, location, employer, "
+        "bio, linked profiles, public Google/account data, and where the name surfaces on the web.",
         severity_logic="Low-Medium (deanonymization, social-engineering fuel); higher when it "
         "ties a pseudonymous handle to a real name or precise location.",
         default_tier=RemediationTier.T0_GUIDANCE,

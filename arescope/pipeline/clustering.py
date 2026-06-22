@@ -130,6 +130,12 @@ def _classify(ev: Evidence) -> tuple[str, Category, bool, str | None]:
             return f"photo|{ev.subject_value}", Category.FACE_PHOTO_EXPOSURE, False, None
         return f"identity|{ev.subject_value}", Category.ACCOUNT_METADATA, False, None
 
+    if ev.kind == "web_mention":
+        # Public web pages that surface a name (news, records, profiles). One cluster
+        # per name — "your name appears on N public pages" — judged as identity
+        # metadata. Let triage rate it (usually low-medium); not force-escalated.
+        return f"webmention|{ev.subject_value}", Category.ACCOUNT_METADATA, False, None
+
     if ev.kind == "host_profile":
         # What the IP reveals (location, ISP, hostnames). Informational footprint,
         # not a vulnerability — its own cluster; the judge rates it (usually low).
