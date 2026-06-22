@@ -49,7 +49,7 @@ self-audit hard rule; they are audit-logged.
 | **Gravatar** | email → avatar, display name, linked profiles | gravatar.com (no key) | the normal-tier PHOTO, from the verified seed |
 | **Photo EXIF** | uploaded image → GPS, device, timestamp | local parse (Pillow/exifread) | $0, high-impact; needs the photo input added to the form |
 | **Wayback** | name/username/url → deleted / historical profile versions | archive.org (free) | "what you thought you removed" |
-| **GHunt** | email → Google identity: display name, profile PHOTO, Maps reviews (locations), YouTube/Chat | free, self-hosted | needs a Google session cookie (operator-provided); fragile — pin version |
+| **GHunt** | email → Google identity: profile PHOTO, Maps reviews (locations), YouTube | free, self-hosted | **install isolated (`pipx install ghunt`) — it pins httpx<0.28 and conflicts with the app**; auth via `ghunt login` (browser + GHunt Companion extension + a burner Google account) → creds at `~/.malfrats/ghunt/creds.m`; point `ARESCOPE_GHUNT_CREDS_PATH` at that file; fragile, name unreliable since 2024 |
 | **Brave Search** (admin) | **name** → web/news/court/social mentions | Brave Search API | $5 free credit/mo covers dev; owns its index (no scrape-legal exposure) |
 | **Apify** (admin) | username → locked-platform public posts/pics (IG/TikTok/LinkedIn) | Apify actors | $5 free credit/mo; public surfaces only, no login bypass |
 

@@ -17,11 +17,15 @@ shape is parsed defensively; treat field extraction as best-effort until run liv
 from __future__ import annotations
 
 import json
-import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
+
+# GHunt only reads creds from this fixed location (no flag, no env override — verified
+# against ghunt 2.3.4). We stage the operator's creds file here before running.
+_GHUNT_DEFAULT_CREDS = Path.home() / ".malfrats" / "ghunt" / "creds.m"
 
 from arescope.config import Settings
 from arescope.connectors._identity import LOCATION, NAME, PHOTO, identity_signal
@@ -88,14 +92,18 @@ class GHuntConnector(Connector):
 # --- driving + defensive parsing --------------------------------------------
 
 def _run_ghunt(email: str, creds_path: str) -> dict:
-    env = dict(os.environ)
-    if creds_path:
-        env["GHUNT_CREDS"] = creds_path  # honoured by GHunt builds that read it
+    # GHunt reads creds only from _GHUNT_DEFAULT_CREDS. If the operator pointed us at a
+    # creds file elsewhere (e.g. copied onto the server), stage it into place first.
+    if creds_path and Path(creds_path).is_file() \
+            and Path(creds_path).resolve() != _GHUNT_DEFAULT_CREDS.resolve():
+        _GHUNT_DEFAULT_CREDS.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(creds_path, _GHUNT_DEFAULT_CREDS)
+
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "ghunt.json"
         subprocess.run(
             ["ghunt", "email", email, "--json", str(out)],
-            capture_output=True, timeout=120, check=False, env=env,
+            capture_output=True, timeout=120, check=False,
         )
         if not out.exists():
             return {}
