@@ -75,6 +75,49 @@ not per-scan LLM. Add these as paid tiers unlock, not all at once:
   removal artifact we already generate. This is the most ethically loaded source —
   gate hard, frame strictly as removal.
 
+### Name-search providers (the #7 data source) — free test vs paid launch
+
+The name connector is provider-agnostic (`connectors/name.py` + `name_providers.py`); this is
+the provider menu. Prices ≈2025/early-2026, **verify** — most B2B ones are quote-based. Two
+product categories map onto our two tiers:
+
+- **Removal-oriented "exposure scan"** → our **normal tier** (listing existence + opt-out →
+  T1 removal). Cleanest fit for the self-audit hard rule: these exist to find+remove *your*
+  listings.
+- **People-search / enrichment** → our **extended/admin tier** (the dossier: address,
+  relatives, age). The capability we gate behind ownership.
+
+| Provider | Category | Returns | Self-serve API | Free tier | ≈ Price |
+|---|---|---|---|---|---|
+| **Optery** | removal | where you're listed across ~300+ brokers, screenshots, opt-out | Business API (apply) | free consumer scan | consumer $3.99–$25/mo; API quote |
+| **Onerep** | removal | ~200 broker listings + removal status | partner API | — | quote (B2B) |
+| **DeleteMe** | removal | broker listings + managed removal | business API | — | consumer ~$129/yr; API quote |
+| **People Data Labs** | enrichment | name→location/job/socials/contact | ✅ self-serve | ~100 matches/mo | ~$0.01–0.28/match |
+| **Endato** | people-search | addresses, phones, relatives, age | ✅ self-serve PAYG | trial credits | ~$0.10–0.50/lookup |
+| **Enformion** | people-search | addresses, relatives, associates | apply | — | quote, mid |
+| **Pipl** | investigative | deep identity dossier | enterprise | — | expensive, min commitments |
+| **Ekata (Mastercard)** | verification | name/address/phone/email correlation + risk | enterprise | — | quote |
+| **TLOxp / IDI (TransUnion)** | investigative | full dossier | **gated (permissible purpose)** | — | restricted — not for self-serve self-audit |
+
+**Constraints that decide it:**
+- *FCRA / permissible purpose* — TLOxp, Pipl, and the deeper Enformion/Endato data are built
+  for KYC/skip-tracing and gate access behind business vetting + a permissible purpose.
+  Auditing your *own* name is legitimate, but these are friction to self-serve and add
+  compliance overhead if shipped to end users.
+- *Self-audit hard rule* — the removal providers (Optery/Onerep/DeleteMe) match it verbatim;
+  the investigative people-search APIs are the dossier engine we keep behind the ownership gate.
+
+**Picks:**
+- **Free, for the test build now:** a local **mock shim** (a ~30-line endpoint answering the
+  adapter contract, exercises the whole pipeline) or **People Data Labs** free tier (map its
+  `data[]` into the listings contract).
+- **Normal tier + removal at launch:** **Optery** (free consumer scan to vet coverage first) or
+  Onerep — native "where you're listed" + opt-out.
+- **Extended/admin dossier at launch:** **Endato** (cheapest self-serve PAYG, easy to wire);
+  Pipl only if depth justifies the cost + commitment.
+
+Each maps into the existing adapter contract via a thin shim — no connector change.
+
 ### Tier C — deferred (heavy cost / breakage / ethics)
 
 - **PimEyes / reverse face search** (#9 photo) — paid, privacy-heavy. Defer.

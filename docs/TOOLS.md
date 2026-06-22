@@ -20,6 +20,34 @@ degrade gracefully — a missing key or a rate-limit logs a coverage gap, never 
 | **Censys** | ip | host/service exposure (#6) | API (free tier) | Complement to Shodan. |
 | **AbuseIPDB / IPinfo / GreyNoise** | ip | geo + reputation enrichment (#6) | Generous free tiers | Context, not findings on their own. |
 
+## Test build vs launch — free now / paid upgrade / best pick
+
+What the **current test build** actually runs (free or near-free, no real spend) versus the
+**paid upgrade for launch** and the **recommended best tool** per category. Prices are
+approximate (≈2025/early-2026) — verify on each provider's page; several B2B ones are
+quote-based. The LLM spend (Opus/Haiku) is separate — see `DISTRIBUTION.md`.
+
+| Input → category | Free tool (test build now) | Paid upgrade (launch) | Best pick |
+|---|---|---|---|
+| **email** → breach membership (#1,#3) | HIBP (key needed, but cheap: ~$3.95/mo "Pwned 1") | HIBP **+ Dehashed** (actual leaked passwords/hashes, ~$5/mo or PAYG) | HIBP baseline + Dehashed for credential depth |
+| **email** → infostealer (#2) | **Hudson Rock Cavalier** — free, no key | Hudson Rock paid tier (volume/SLA) | Hudson Rock (highest-signal "critical") |
+| **email** → account footprint (#4) | **Holehe** — free, self-hosted (~120 sites) | Epieos (hosted, deeper Google/linked accounts, free+paid) | Holehe + Epieos |
+| **email** → account metadata (#5) | GHunt — free, self-hosted (fragile; needs Google cookies) | Epieos (stable hosted) | Epieos |
+| **username** → site enumeration (#4,#8) | **Maigret** — free, self-hosted (~3000 sites) | — (Maigret stays the workhorse) | Maigret |
+| **username** → infostealer (#2) | **Hudson Rock** — free | Hudson Rock paid tier | Hudson Rock |
+| **ip** → services + CVEs (#6) | **Shodan** — free-tier API key (limited credits) | Shodan paid + Censys | Shodan (+ Censys cross-check) |
+| **ip** → geo / reputation (#6) | IPinfo / Shodan host_profile — free tiers | IPinfo paid tier | IPinfo |
+| **name** → data-broker listings (#7) | **local mock shim** (~30-line endpoint matching the adapter contract) or People Data Labs free tier (~100/mo, enrichment-shaped) | **Optery / Onerep** (removal-oriented, normal tier); **Endato / Pipl** (dossier, extended/admin tier) | Optery (normal + removal) + Endato (extended) — see `DEEP_SEARCH_PLAN.md` |
+| **photo** → face exposure (#9) | none (deferred) | PimEyes / FaceCheck.ID (paid, consent-gated) | deferred (Tier C) |
+
+Notes:
+- **Test build is genuinely runnable for free** on Hudson Rock + Holehe + Maigret + a Shodan
+  free key; HIBP needs its cheap key for breach coverage, and **name** needs the mock shim
+  (or a provider key) — without one it's an honest coverage gap, by design.
+- **Name is the only category with no free real source** (broker data is paid or scraped);
+  the self-audit-aligned launch pick is a *removal* provider (Optery/Onerep), not an
+  investigative one. Full rationale + pricing in `DEEP_SEARCH_PLAN.md`.
+
 ## Backbone option — SpiderFoot
 
 **SpiderFoot already is an aggregator** (200+ modules incl. HIBP/Shodan/breach/username,
