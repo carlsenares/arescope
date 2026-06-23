@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # PII encryption + retention (legal requirement from day one, ARCHITECTURE.md §4.4)
     encryption_key: str = ""
     retention_days: int = 30
+    # Where uploaded photos are saved (EXIF). Shared volume so the worker (separate
+    # container) can read what the api wrote. Local dev falls back to a temp dir.
+    upload_dir: str = "/data/uploads"
 
     # Web app + auth (self-hosted; no third-party identity provider — the product's
     # data-minimization promise extends to its own accounts).

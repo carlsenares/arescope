@@ -28,6 +28,8 @@ services:
     depends_on: [postgres, redis]
     ports:
       - "8000:8000"
+    volumes:
+      - arescope_uploads:/data/uploads
 
   celery_worker:
     build: .
@@ -37,6 +39,9 @@ services:
       ARESCOPE_DATABASE_URL: postgresql+psycopg://arescope:arescope@postgres:5432/arescope
       ARESCOPE_REDIS_URL: redis://redis:6379/0
     depends_on: [postgres, redis]
+    volumes:
+      - arescope_uploads:/data/uploads
 
 volumes:
   arescope_pg:
+  arescope_uploads:

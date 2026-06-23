@@ -12,14 +12,34 @@
       <div class="map-titlebar">
         {% if scope == 'scan' %}<a class="btn btn-ghost btn-sm" href="/app/scans/{{ scan }}">← Findings</a>
         {% else %}<a class="btn btn-ghost btn-sm" href="/app">← Dashboard</a>{% endif %}
-        <span class="map-title">{{ 'Your footprint' if scope == 'account' else 'Analysis map' }}</span>
+        <span class="map-title">{% if scope == 'map' %}{{ scan_name or 'Identity map' }}{% elif scope == 'account' %}Your footprint{% else %}Analysis map{% endif %}</span>
       </div>
       <div class="map-controls">
         <button id="cyFit" class="btn btn-ghost btn-sm" type="button">Fit</button>
         <button id="cyRelayout" class="btn btn-ghost btn-sm" type="button">Re-layout</button>
+        {% if scope == 'map' %}<button id="addIdentity" class="btn btn-ghost btn-sm" type="button">+ Add to identity</button>{% endif %}
         <span class="map-count">{{ elements.counts.nodes }} nodes · {{ elements.counts.edges }} links</span>
       </div>
     </div>
+
+    {% if scope == 'map' and scan_status not in ('complete', 'failed') %}
+    <div class="map-overlay map-building" id="mapBuilding" data-status-url="/app/map/scan/{{ scan }}/status">
+      <span class="spinner"></span><span>Building your map — new nodes appear as sources return…</span>
+    </div>
+    {% endif %}
+
+    {% if scope == 'map' %}
+    <div class="map-overlay map-add-panel" id="addPanel" hidden>
+      <form method="post" action="/app/map/scan/{{ scan }}/add" class="form" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <span class="fc-label">Add to this identity</span>
+        <input type="email" name="email" placeholder="another email" autocomplete="off" />
+        <input type="text" name="username" placeholder="another username" autocomplete="off" />
+        <input type="text" name="phone" placeholder="another phone" autocomplete="off" />
+        <button class="btn btn-primary btn-sm" type="submit">Add & re-map</button>
+      </form>
+    </div>
+    {% endif %}
 
     <!-- bottom-left overlay: severity legend -->
     <div class="map-overlay map-legend">
@@ -30,8 +50,9 @@
       <span><i class="sw sw-info"></i>Info</span>
     </div>
 
-    <div class="map-hint">Hover to trace a connection · click nodes to focus them for Opus</div>
+    <div class="map-hint">{% if scope == 'map' %}Hover to trace a connection · drag to pan · scroll to zoom{% else %}Hover to trace a connection · click nodes to focus them for Opus{% endif %}</div>
 
+    {% if scope != 'map' %}
     <div class="ask-opus ask-map" data-extra-id="map"
          data-history-url="/app/map/chat{% if scope == 'scan' %}?scan_id={{ scan }}{% endif %}"
          data-send-url="/app/map/chat">
@@ -53,6 +74,7 @@
         </form>
       </div>
     </div>
+    {% endif %}
   </div>
   {% else %}
   <div class="empty">
@@ -312,6 +334,24 @@
       cy.layout({ ...LAYOUT, animate: true, animationDuration: 500 }).run();
     });
   }
+
+  // --- map mode: add-to-identity toggle + build poll -------------------------
+  (function () {
+    const addBtn = document.getElementById('addIdentity');
+    const panel = document.getElementById('addPanel');
+    if (addBtn && panel) addBtn.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+
+    const building = document.getElementById('mapBuilding');
+    if (building) {
+      const url = building.dataset.statusUrl;
+      const tick = () => fetch(url, { headers: { accept: 'application/json' } })
+        .then(r => r.json())
+        .then(d => { if (d.status === 'complete' || d.status === 'failed') location.reload();
+                     else setTimeout(tick, 2500); })
+        .catch(() => setTimeout(tick, 4000));
+      setTimeout(tick, 2500);
+    }
+  })();
 </script>
 <script src="/app/static/chat.js?v={{ asset_v }}"></script>
 {% endblock %}

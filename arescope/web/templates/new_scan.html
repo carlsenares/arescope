@@ -2,67 +2,95 @@
 {% block title %}New analysis · Arescope{% endblock %}
 {% block content %}
 <section class="auth-card wide">
-  <span class="eyebrow">New analysis</span>
+  <span class="eyebrow">Self-audit · search</span>
   <h1>What should we audit?</h1>
   <p class="muted">
-    Enter one identifier per field — a single email, username, name, or IP.
-    {% if not user.is_admin %}Arescope only audits you, never anyone else.{% endif %}
+    Pick one thing to audit. Each runs its own focused analysis.
+    {% if not user.is_admin %} Arescope only audits you, never anyone else.{% endif %}
   </p>
   {% if error %}<p class="formerror">{{ error }}</p>{% endif %}
-  <form method="post" action="/app/new" class="form">
-    <input type="hidden" name="csrf" value="{{ csrf }}" />
-    <label>Name this analysis <small class="hint">optional</small>
-      <input type="text" name="name" placeholder="e.g. My main email" maxlength="80" value="{{ values.name or '' }}" />
-    </label>
-    {% for itype, key, label, ph in fields %}
-    <label>{{ label }}
-      <input type="text" name="{{ key }}"{% if key == 'username' %} id="usernameField"{% endif %} placeholder="{{ ph }}" value="{{ values[key] or '' }}" />
-    </label>
-    {% endfor %}
 
-    <!-- Username deep-scan (Maigret) is slow; reveal a choice only when one is entered. -->
-    <div class="maigret-note" id="maigretNote" hidden>
-      <div class="mn-head">
-        <span class="mn-i" aria-hidden="true">i</span>
-        <span>Username searches check hundreds of sites — a full pass takes a few minutes.</span>
+  <div class="tabbar" role="tablist" aria-label="What to audit">
+    {% for t in tabs %}
+    <button type="button" class="tab-btn{% if t.kind == active %} is-active{% endif %}"
+            role="tab" data-kind="{{ t.kind }}">{{ t.label }}</button>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="/app/new" class="form" enctype="multipart/form-data" id="searchForm">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <input type="hidden" name="kind" id="kindField" value="{{ active }}" />
+
+    <label>Name this analysis <small class="hint">optional</small>
+      <input type="text" name="scan_name" placeholder="e.g. My main email" maxlength="80" />
+    </label>
+
+    {% for t in tabs %}
+    <div class="tab-panel{% if t.kind != active %} is-hidden{% endif %}" data-panel="{{ t.kind }}">
+      <p class="tab-blurb">{{ t.blurb }}</p>
+      {% if t.kind == 'photo' %}
+      <label>Photo to check
+        <input type="file" name="photo" accept="image/*" />
+      </label>
+      <p class="hint">We read only the EXIF embedded in the file (GPS, camera). It isn't published anywhere.</p>
+      {% else %}
+      <label>{{ t.label }}
+        <input type="text" name="{{ t.kind }}"{% if t.kind == 'username' %} id="usernameField"{% endif %}
+               placeholder="{{ t.ph }}" value="{{ values[t.kind] or '' }}" autocomplete="off" />
+      </label>
+      {% endif %}
+
+      {% if t.kind == 'username' %}
+      <label class="dim">Email for this account <small class="hint">optional · used for verification later</small>
+        <input type="email" name="username_email" placeholder="you@example.com" disabled />
+      </label>
+      <div class="maigret-note" id="maigretNote" hidden>
+        <div class="mn-head">
+          <span class="mn-i" aria-hidden="true">i</span>
+          <span>Username searches check hundreds of sites — a full pass takes a few minutes.</span>
+        </div>
+        <div class="mn-opts">
+          <label class="radio"><input type="radio" name="maigret_scope" value="full" checked />
+            <span>Full scan <small>~4 min · every site</small></span></label>
+          <label class="radio"><input type="radio" name="maigret_scope" value="top" />
+            <span>Top sites only <small>~30 sec · ~6× faster</small></span></label>
+        </div>
       </div>
-      <div class="mn-opts">
-        <label class="radio">
-          <input type="radio" name="maigret_scope" value="full" checked />
-          <span>Full scan <small>~4 min · every site</small></span>
-        </label>
-        <label class="radio">
-          <input type="radio" name="maigret_scope" value="top" />
-          <span>Top sites only <small>~30 sec · ~6× faster</small></span>
-        </label>
-      </div>
+      {% endif %}
     </div>
+    {% endfor %}
 
     {% if user.is_admin %}
     <p class="admin-note"><span class="chip chip-admin">admin</span> Ownership checks are off — you can audit any identifier.</p>
     {% else %}
-    <label class="check">
-      <input type="checkbox" name="own" value="1" />
-      <span>I confirm every identifier above is mine.</span>
-    </label>
+    <label class="check"><input type="checkbox" name="own" value="1" />
+      <span>I confirm this is mine.</span></label>
     {% endif %}
     <button class="btn btn-primary" type="submit">Start analysis</button>
   </form>
+
+  <p class="muted alt-mode">Want the whole picture instead of one finding at a time?
+    <a href="/app/map/new">Build an identity map →</a></p>
 </section>
 
 <script>
-  // Reveal the username deep-scan choice only when a username is actually entered.
-  (function () {
-    var u = document.getElementById('usernameField');
-    var note = document.getElementById('maigretNote');
-    if (!u || !note) return;
-    function sync() {
-      var has = u.value.trim().length > 0;
-      note.hidden = !has;
-      if (has) note.classList.add('pulse-once');
-    }
-    u.addEventListener('input', sync);
-    sync();
-  })();
+(function () {
+  var kindField = document.getElementById('kindField');
+  var btns = document.querySelectorAll('.tab-btn');
+  var panels = document.querySelectorAll('.tab-panel');
+  function activate(kind) {
+    kindField.value = kind;
+    btns.forEach(function (b) { b.classList.toggle('is-active', b.dataset.kind === kind); });
+    panels.forEach(function (p) { p.classList.toggle('is-hidden', p.dataset.panel !== kind); });
+  }
+  btns.forEach(function (b) { b.addEventListener('click', function () { activate(b.dataset.kind); }); });
+
+  var u = document.getElementById('usernameField');
+  var note = document.getElementById('maigretNote');
+  if (u && note) {
+    var sync = function () { note.hidden = u.value.trim().length === 0; };
+    u.addEventListener('input', sync); sync();
+  }
+})();
 </script>
 {% endblock %}

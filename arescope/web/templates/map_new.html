@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Build identity map · Arescope{% endblock %}
+{% block content %}
+<section class="auth-card wide">
+  <span class="eyebrow">Online identity mapping</span>
+  <h1>Map your footprint</h1>
+  <p class="muted">
+    Add anything you own — it doesn't have to be complete. We connect every input to
+    where it surfaces and draw the whole web in one view.
+    {% if not user.is_admin %} Self-audit only: map yourself, not anyone else.{% endif %}
+  </p>
+  {% if error %}<p class="formerror">{{ error }}</p>{% endif %}
+
+  <form method="post" action="/app/map/new" class="form" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <label>Name this map <small class="hint">optional</small>
+      <input type="text" name="scan_name" placeholder="e.g. Everything that's me" maxlength="80" />
+    </label>
+
+    {% for kind in multi %}
+    <div class="map-field" data-kind="{{ kind }}" data-cap="{{ cap }}">
+      <span class="fc-label">{{ kind|capitalize }}{{ 's' if kind != 'ip' else '' }} <small class="hint">up to {{ cap }}</small></span>
+      <div class="map-rows">
+        <input type="{{ 'email' if kind == 'email' else 'text' }}" name="{{ kind }}"
+               placeholder="{{ 'you@example.com' if kind == 'email' else ('yourhandle' if kind == 'username' else '+1 555 010 0000') }}" autocomplete="off" />
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm map-add">+ add another</button>
+    </div>
+    {% endfor %}
+
+    {% for kind in single %}
+    <label>{{ 'Full name' if kind == 'name' else 'IP address' }} <small class="hint">optional</small>
+      <input type="text" name="{{ kind }}" placeholder="{{ 'Jane Doe' if kind == 'name' else '203.0.113.4' }}" autocomplete="off" />
+    </label>
+    {% endfor %}
+
+    <label>Photo <small class="hint">optional · reads embedded GPS/camera only</small>
+      <input type="file" name="photo" accept="image/*" />
+    </label>
+
+    {% if user.is_admin %}
+    <p class="admin-note"><span class="chip chip-admin">admin</span> Ownership checks are off.</p>
+    {% else %}
+    <label class="check"><input type="checkbox" name="own" value="1" />
+      <span>I confirm every input above is mine.</span></label>
+    {% endif %}
+    <button class="btn btn-primary" type="submit">Build the map</button>
+  </form>
+</section>
+
+<script>
+(function () {
+  document.querySelectorAll('.map-field').forEach(function (field) {
+    var cap = parseInt(field.dataset.cap, 10) || 3;
+    var rows = field.querySelector('.map-rows');
+    var add = field.querySelector('.map-add');
+    add.addEventListener('click', function () {
+      if (rows.children.length >= cap) return;
+      var first = rows.children[0];
+      var clone = first.cloneNode(true);
+      clone.value = '';
+      rows.appendChild(clone);
+      if (rows.children.length >= cap) add.disabled = true;
+    });
+  });
+})();
+</script>
+{% endblock %}

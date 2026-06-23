@@ -9,10 +9,16 @@
       <h1>Welcome back, {{ user.username }}</h1>
       <p class="muted">Your exposure, judged and ranked — run an audit and track every scan.</p>
     </div>
-    <a class="btn btn-primary" href="/app/new">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      New analysis
-    </a>
+    <div class="dash-actions">
+      <a class="btn btn-ghost" href="/app/map/new">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6.5 7.5 11 16m7-8.5L13 16"/></svg>
+        Build identity map
+      </a>
+      <a class="btn btn-primary" href="/app/new">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        New analysis
+      </a>
+    </div>
   </header>
 
   <div class="stat-grid">
@@ -47,10 +53,11 @@
     <ul class="scan-list">
       {% for sc in scans %}
       <li class="scan-item" data-scan="{{ sc.id }}">
-        <a class="scan-row" href="/app/scans/{{ sc.id }}">
-          <span class="scan-name">{{ sc.name or 'Analysis ' ~ sc.id[:8] }}</span>
+        <a class="scan-row" href="{{ '/app/map/scan/' ~ sc.id if sc.mode == 'map' else '/app/scans/' ~ sc.id }}">
+          <span class="scan-name">{{ sc.name or ('Map ' if sc.mode == 'map' else 'Analysis ') ~ sc.id[:8] }}</span>
           <span class="scan-chips">
-            <span class="chip chip-muted js-offmap" title="Hidden from your exposure map" {% if sc.in_map %}hidden{% endif %}>off map</span>
+            {% if sc.mode == 'map' %}<span class="chip chip-map" title="Identity map">map</span>{% endif %}
+            <span class="chip chip-muted js-offmap" title="Hidden from your exposure map" {% if sc.in_map or sc.mode == 'map' %}hidden{% endif %}>off map</span>
             <span class="chip chip-{{ sc.status }}">{{ sc.status }}</span>
           </span>
           <span class="scan-date muted">{{ sc.started_at.strftime('%b %d, %Y · %H:%M') if sc.started_at else '—' }}</span>

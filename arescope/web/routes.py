@@ -29,9 +29,10 @@ from arescope.auth import (
     login_session,
     logout_session,
 )
+from arescope.config import get_settings
 from arescope.db import models
 from arescope.db.session import session_scope
-from arescope.graph import build_account_graph, build_scan_graph
+from arescope.graph import build_account_graph, build_map_graph, build_scan_graph
 from arescope.magic import consume_token, send_magic_login, send_verification
 from arescope.schemas import SEVERITY_ORDER, Category, Identifier, InputType, Severity
 from arescope.service import (
@@ -45,7 +46,7 @@ from arescope.service import (
     send_map_chat,
 )
 from arescope.taxonomy import TAXONOMY
-from arescope.worker.tasks import run_scan_task
+from arescope.worker.tasks import run_map_task, run_scan_task
 
 _HERE = os.path.dirname(__file__)
 TEMPLATES_DIR = os.path.join(_HERE, "templates")
@@ -70,16 +71,60 @@ def _asset_version() -> str:
 
 templates.env.globals["asset_v"] = _asset_version()
 
-# Which identifier types the form collects (photo upload comes with a later pass).
-_INPUT_FIELDS: list[tuple[InputType, str, str, str]] = [
-    (InputType.EMAIL, "email", "Email address", "you@example.com"),
-    (InputType.USERNAME, "username", "Username / handle", "yourhandle"),
-    (InputType.NAME, "name", "Full name", "Jane Doe"),
-    (InputType.IP, "ip", "IP address you own", "203.0.113.4"),
+# Search mode = one focused analysis per input type, presented as tabs (each type
+# has its own connectors + its own future ownership gate, so they're distinct scans
+# — not one bulk run). `kind` is the InputType; `field` is the form key.
+_SEARCH_TABS: list[dict] = [
+    {"kind": "email", "label": "Email", "ph": "you@example.com",
+     "blurb": "Breaches, infostealer logs, leaked passwords, and where it's registered."},
+    {"kind": "username", "label": "Username", "ph": "yourhandle",
+     "blurb": "Accounts across hundreds of sites, plus public web mentions."},
+    {"kind": "phone", "label": "Phone", "ph": "+1 555 010 0000",
+     "blurb": "Breach exposure, spam/fraud reputation, registered apps, and carrier."},
+    {"kind": "name", "label": "Name", "ph": "Jane Doe",
+     "blurb": "Data-broker / people-search listings and public web mentions."},
+    {"kind": "ip", "label": "IP address", "ph": "203.0.113.4",
+     "blurb": "Exposed services, geolocation, network, and abuse reputation."},
+    {"kind": "photo", "label": "Photo", "ph": "",
+     "blurb": "GPS location and camera metadata embedded in a photo you've shared."},
 ]
+_SEARCH_KINDS = {t["kind"] for t in _SEARCH_TABS}
+# Input types map mode collects (all optional; fill any subset). email/username/phone
+# accept multiple (most people have more than one); name/ip/photo are single.
+_MAP_MULTI = ["email", "username", "phone"]
+_MAP_SINGLE = ["name", "ip"]
+_MAP_PER_TYPE_CAP = 3  # bound connector/rate-limit load per map build
+
+_PHOTO_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".heic", ".heif"}
+_PHOTO_MAX_BYTES = 25 * 1024 * 1024
 
 # "Top sites only" Maigret choice → cap to the N most popular sites (much faster).
 _MAIGRET_TOP_N = 50
+
+
+async def _save_photo(upload) -> str:
+    """Persist an uploaded image to the shared uploads dir; return its path (the
+    `photo` identifier value the EXIF connector reads in the worker)."""
+    if upload is None or not getattr(upload, "filename", ""):
+        raise ValueError("Choose a photo to analyse.")
+    ext = os.path.splitext(upload.filename)[1].lower()
+    if ext not in _PHOTO_EXTS:
+        raise ValueError("Unsupported image type — use JPG, PNG, TIFF, WebP or HEIC.")
+    data = await upload.read()
+    if not data:
+        raise ValueError("That file was empty.")
+    if len(data) > _PHOTO_MAX_BYTES:
+        raise ValueError("Image is too large (max 25 MB).")
+    updir = get_settings().upload_dir
+    try:
+        os.makedirs(updir, exist_ok=True)
+    except OSError:
+        updir = os.path.join("/tmp", "arescope-uploads")  # local-dev fallback
+        os.makedirs(updir, exist_ok=True)
+    path = os.path.join(updir, secrets.token_hex(16) + ext)
+    with open(path, "wb") as fh:
+        fh.write(data)
+    return path
 
 
 # --- CSRF --------------------------------------------------------------------
@@ -295,6 +340,7 @@ def app_home(request: Request):
                 "status": sc.status,
                 "started_at": sc.started_at,
                 "in_map": not (sc.options or {}).get("exclude_from_map"),
+                "mode": (sc.options or {}).get("mode", "audit"),
             }
             for sc in scans
         ]
@@ -308,7 +354,13 @@ def new_scan_form(request: Request):
         return user
     if not can_run_scan(user):
         return _render(request, "locked.html")
-    return _render(request, "new_scan.html", fields=_INPUT_FIELDS, error=None, values={})
+    return _render(request, "new_scan.html", tabs=_SEARCH_TABS, active="email",
+                   error=None, values={})
+
+
+def _search_error(request, active, values, msg):
+    return _render(request, "new_scan.html", tabs=_SEARCH_TABS, active=active,
+                   error=msg, values=values)
 
 
 @router.post("/app/new", response_class=HTMLResponse)
@@ -323,43 +375,34 @@ async def new_scan_submit(request: Request):
     form = await request.form()
     _check_csrf(request, form.get("csrf"))
 
-    # One value per identifier type (audit a single email / username / name / IP
-    # per run — not bulk lists).
-    identifiers: list[Identifier] = []
-    values: dict[str, str] = {}
-    for itype, key, _label, _ph in _INPUT_FIELDS:
-        raw = str(form.get(key, "")).strip()
-        values[key] = raw
-        if raw:
-            identifiers.append(Identifier(type=itype, value=raw, ownership_verified=True))
+    kind = str(form.get("kind", "")).strip()
+    if kind not in _SEARCH_KINDS:
+        kind = "email"
+    values = {kind: str(form.get(kind, "")).strip()}
 
-    if not identifiers:
-        return _render(
-            request,
-            "new_scan.html",
-            fields=_INPUT_FIELDS,
-            error="Add at least one identifier.",
-            values=values,
-        )
-    # Self-audit confirmation. Admins bypass it (and, when the P2 per-input
-    # ownership gate lands, that gate must skip admins too — they can audit anything).
+    # Build the single identifier for this tab.
+    if kind == "photo":
+        try:
+            value = await _save_photo(form.get("photo"))
+        except ValueError as e:
+            return _search_error(request, kind, {}, str(e))
+        identifier = Identifier(type=InputType.PHOTO, value=value, ownership_verified=True)
+    else:
+        raw = values[kind]
+        if not raw:
+            return _search_error(request, kind, values, f"Enter a {kind} to audit.")
+        identifier = Identifier(type=InputType(kind), value=raw, ownership_verified=True)
+
     if not user.is_admin and not form.get("own"):
-        return _render(
-            request,
-            "new_scan.html",
-            fields=_INPUT_FIELDS,
-            error="Please confirm these identifiers are yours — Arescope is self-audit only.",
-            values=values,
-        )
+        return _search_error(request, kind, values,
+                             "Please confirm this is yours — Arescope is self-audit only.")
 
-    # Per-run options: the "top sites only" Maigret choice (only bites when a
-    # username was entered; harmless otherwise).
     options: dict = {}
-    if str(form.get("maigret_scope", "")) == "top":
+    if kind == "username" and str(form.get("maigret_scope", "")) == "top":
         options["maigret_top_sites"] = _MAIGRET_TOP_N
-    name = str(form.get("name", "")).strip()[:80] or None
+    name = str(form.get("scan_name", "")).strip()[:80] or None
 
-    subject_id = create_subject(identifiers, user_id=user.id)
+    subject_id = create_subject([identifier], user_id=user.id)
     scan_id = create_scan(subject_id, options=options, name=name)
     try:
         run_scan_task.delay(scan_id)  # hand off to the worker
@@ -368,6 +411,140 @@ async def new_scan_submit(request: Request):
         # fail the submission over infra — the record is already persisted.
         pass
     return RedirectResponse(f"/app/scans/{scan_id}", status_code=303)
+
+
+# --- Map mode: Online Identity Mapping (no Opus; build the graph from signals) ---
+
+
+@router.get("/app/map/new", response_class=HTMLResponse)
+def map_new_form(request: Request):
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not can_run_scan(user):
+        return _render(request, "locked.html")
+    return _render(request, "map_new.html", multi=_MAP_MULTI, single=_MAP_SINGLE,
+                   cap=_MAP_PER_TYPE_CAP, error=None)
+
+
+@router.post("/app/map/new", response_class=HTMLResponse)
+async def map_new_submit(request: Request):
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not can_run_scan(user):
+        return _render(request, "locked.html")
+
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+
+    identifiers: list[Identifier] = []
+    # Multi-value types: any number of fields named e.g. "email" (capped).
+    for kind in _MAP_MULTI:
+        seen = 0
+        for raw in form.getlist(kind):
+            v = str(raw).strip()
+            if v and seen < _MAP_PER_TYPE_CAP:
+                identifiers.append(Identifier(type=InputType(kind), value=v,
+                                              ownership_verified=True))
+                seen += 1
+    for kind in _MAP_SINGLE:
+        v = str(form.get(kind, "")).strip()
+        if v:
+            identifiers.append(Identifier(type=InputType(kind), value=v,
+                                          ownership_verified=True))
+    photo = form.get("photo")
+    if photo is not None and getattr(photo, "filename", ""):
+        try:
+            identifiers.append(Identifier(type=InputType.PHOTO, value=await _save_photo(photo),
+                                          ownership_verified=True))
+        except ValueError:
+            pass  # a bad photo never blocks the rest of the map
+
+    if not identifiers:
+        return _render(request, "map_new.html", multi=_MAP_MULTI, single=_MAP_SINGLE,
+                       cap=_MAP_PER_TYPE_CAP, error="Add at least one input to map.")
+    if not user.is_admin and not form.get("own"):
+        return _render(request, "map_new.html", multi=_MAP_MULTI, single=_MAP_SINGLE,
+                       cap=_MAP_PER_TYPE_CAP,
+                       error="Please confirm these are yours — Arescope is self-audit only.")
+
+    name = str(form.get("scan_name", "")).strip()[:80] or None
+    subject_id = create_subject(identifiers, user_id=user.id)
+    scan_id = create_scan(subject_id, options={"mode": "map"}, name=name)
+    try:
+        run_map_task.delay(scan_id)
+    except Exception:
+        pass
+    return RedirectResponse(f"/app/map/scan/{scan_id}", status_code=303)
+
+
+@router.get("/app/map/scan/{scan_id}", response_class=HTMLResponse)
+def map_scan_view(request: Request, scan_id: str):
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    info = _load_owned_scan(user, scan_id)
+    if info is None:
+        raise HTTPException(404, "map not found")
+    elements = build_map_graph(scan_id, label="you")
+    return _render(request, "map.html", elements=elements, scope="map",
+                   scan=scan_id, scan_status=info["status"], scan_name=info.get("name"))
+
+
+@router.get("/app/map/scan/{scan_id}/status")
+def map_scan_status(request: Request, scan_id: str) -> dict:
+    user = current_user(request)
+    if user is None:
+        return {"status": "unknown"}
+    info = _load_owned_scan(user, scan_id)
+    if info is None:
+        return {"status": "unknown"}
+    return {"status": info["status"], "phase": info.get("phase")}
+
+
+@router.post("/app/map/scan/{scan_id}/add", response_class=HTMLResponse)
+async def map_scan_add(request: Request, scan_id: str):
+    """Append more inputs to an existing identity map and re-run it (the graph's
+    'Add to identity' action), so one map grows instead of spawning new ones."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+
+    new: list[Identifier] = []
+    for kind in _MAP_MULTI + _MAP_SINGLE:
+        for raw in form.getlist(kind):
+            v = str(raw).strip()
+            if v:
+                new.append(Identifier(type=InputType(kind), value=v, ownership_verified=True))
+    photo = form.get("photo")
+    if photo is not None and getattr(photo, "filename", ""):
+        try:
+            new.append(Identifier(type=InputType.PHOTO, value=await _save_photo(photo),
+                                  ownership_verified=True))
+        except ValueError:
+            pass
+
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is None:
+            raise HTTPException(404, "map not found")
+        subject = s.get(models.Subject, scan.subject_id)
+        if subject is None or (subject.user_id != user.id and not user.is_admin):
+            raise HTTPException(404, "map not found")
+        for ident in new:
+            s.add(models.Identifier(subject_id=subject.id, type=ident.type.value,
+                                    value=ident.value, ownership_verified=True))
+        # Re-run from scratch over the now-larger identity (cheap: no Opus).
+        s.query(models.Signal).filter(models.Signal.scan_id == scan_id).delete()
+        scan.status = "queued"
+    try:
+        run_map_task.delay(scan_id)
+    except Exception:
+        pass
+    return RedirectResponse(f"/app/map/scan/{scan_id}", status_code=303)
 
 
 # --- admin: real-time run-access control ------------------------------------

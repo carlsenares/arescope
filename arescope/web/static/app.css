@@ -1531,3 +1531,61 @@ td.right,
   background: oklch(0.12 0 0 / 0.97);
   backdrop-filter: blur(10px);
 }
+
+/* ============================================================
+   Search tabs + map-mode UI (restructuring)
+   ============================================================ */
+.tabbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 1.1rem;
+  border-bottom: 1px solid var(--hairline);
+}
+.tab-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.tab-btn:hover { color: var(--ink); }
+.tab-btn.is-active { color: var(--ink); border-bottom-color: var(--accent); }
+.tab-panel.is-hidden { display: none; }
+.tab-blurb { margin: 0 0 0.8rem; color: var(--muted); font-size: 0.9rem; }
+label.dim { color: var(--faint); }
+.alt-mode { margin-top: 1.3rem; font-size: 0.9rem; }
+.alt-mode a { color: var(--accent-bright); }
+
+.dash-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.chip-map {
+  background: oklch(0.78 0.12 250 / 0.16);
+  color: oklch(0.82 0.1 250);
+  border: 1px solid oklch(0.78 0.12 250 / 0.4);
+}
+
+/* map input: repeatable rows */
+.map-field { margin: 0 0 1rem; display: grid; gap: 0.4rem; }
+.map-rows { display: grid; gap: 0.4rem; }
+.map-add { justify-self: start; }
+
+/* map view: building banner + add-to-identity panel (float as overlays) */
+.map-building {
+  top: 0.85rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.map-add-panel { top: 5rem; left: 0.85rem; max-width: 260px; }
+.map-add-panel .form { gap: 0.5rem; }
+.map-add-panel input { font-size: 0.85rem; }
