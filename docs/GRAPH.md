@@ -170,3 +170,52 @@ data-driven and rebuilt on every view, so it adapts as analyses accumulate:
 - Whether per-account aggregation needs its own cache (rebuild on each scan complete).
 - Post-level scraping is a **new collection capability** and re-opens the ownership
   question (only the user's own posts) — gate before building §8.4.
+
+## 11. Shipped 2026-06-23 — full-wall canvas + profile photos
+- **Full-wall map.** The canvas now breaks out of the centred 920px column *and*
+  cancels the `appmain` padding (`mapwrap`: `100vw × calc(100vh - 64px)`), so the
+  graph owns the whole viewport below the 64px appbar. Title, view controls, node
+  count and the severity legend float as frosted-glass overlays (top-left +
+  bottom-left) instead of stacking above the canvas. (`map.html`, `app.css`.)
+- **Real profile photos, default-aware.** Connectors now carry a photo's
+  `is_default` flag (`identity_signal(meta=…)`); GHunt reads Google's structured
+  `{url, isDefault}` (`_profile_photo`) to tell a real uploaded face from the
+  letter-monogram default. A **real** image becomes a map node rendered with the
+  face as its fill and shows in the finding card; a **default** avatar stays a
+  plain node / a "no real picture is public" note. The judge prompt rates
+  `is_default=true` info/low and a real face medium+.
+- **Image proxy** `/app/photo?u=` — auth-gated, host-allow-listed
+  (lh3.googleusercontent.com / avatars.githubusercontent.com / gravatar.com),
+  cached by URL hash. The browser never hotlinks Google/Gravatar (no third-party
+  leak, no open proxy / SSRF). Mirrors the existing `/app/logo` proxy.
+
+## 12. Planned restructuring (agreed 2026-06-23, not yet built)
+Direction set with the user; **deferred** behind the master-plan "max collection
+power first" directive (see [aresis-build-strategy] memory + MASTER_PLAN.md). These
+are presentation-layer reshapes — they do not touch the collection engine, so
+building collection depth now costs nothing when we re-surface later.
+
+1. **Decouple the graph into its own product surface: "Online Identity Mapping."**
+   The privacy audit keeps answering *"what's wrong / how do I fix it"* (findings as
+   they are now). A separate Mapping function answers *"what's connected / what's my
+   reach."* The audit may still build a graph, but Mapping is the dedicated map.
+   - **Real-time / streaming map.** Build the live map from **Signals (pre-judge)**,
+     not Findings (post-judge), so nodes pop in the instant a connector returns and
+     severity colour fills in as the judge catches up. The wave-based
+     `run_and_store_scan` + per-cluster persist already gives us the streaming spine;
+     add an SSE/websocket delta feed of node/edge additions.
+   - Mapping input = **everything at once** (it's about reach, not organisation).
+
+2. **Tabbed audit inputs by type: email / username / IP / name** — replace the one
+   big multi-field form. Each tab maps 1:1 onto the per-input ownership gate
+   (OWNERSHIP_VERIFICATION.md: email=magic-link, username=OAuth, ip=source-match,
+   name=filter-only) and can state what it searches + its verification requirement.
+
+3. **"Where it came from" web (the structural map change).** Today edges go
+   `input → attribute` directly (`graph.py` `put_edge(in_id, node_id, …)`) and
+   `name/bio/company/links` are finding-only (`graph.py` `_classify` returns None for
+   them). To show reach: chain `input → site → attribute` and promote name / company /
+   location / school / address to nodes hung off the **site that leaked them**
+   (e.g. GitHub → real name), so the map shows the full picture of where each fact
+   surfaced. Per-post / bio nodes still need a content connector (a new collection
+   capability — re-opens the ownership question; gate before building, see §10).

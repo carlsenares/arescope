@@ -89,6 +89,15 @@ these are common brokers to opt out of as a precaution, not confirmed listings. 
 when the evidence is "confirmed:true" (a paid lookup verified the listing) do you
 treat it as proven exposure and rate on the data exposed (home address => high).
 
+Profile photos (face/photo exposure): the evidence carries `is_default`. When
+`is_default` is true the account only shows Google's generated monogram (a letter on
+a colour) — NO real image is public; rate this info/low and say plainly that no actual
+photo is exposed. When `is_default` is false (or a real avatar from Gravatar/GitHub),
+an uploaded picture — usually the person's face — is publicly visible; that is a
+genuine exposure (a face is recognisable and reusable for impersonation / reverse image
+search), so rate it medium or higher and note that the image itself is shown in the
+finding so the owner can see exactly what is public.
+
 This is a SELF-AUDIT tool. Frame everything as defensive guidance to the owner —
 never as how to attack someone.
 

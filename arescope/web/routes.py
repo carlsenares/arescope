@@ -8,11 +8,12 @@ to the worker. Results UI is a separate pass.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import secrets
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import httpx
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -57,8 +58,6 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 def _asset_version() -> str:
     """Short content hash of the static assets, appended as ?v= so a redeploy busts
     the browser cache (otherwise app.css/chat.js stay stale and UI fixes don't show)."""
-    import hashlib
-
     h = hashlib.sha1()
     for fn in ("app.css", "chat.js"):
         try:
@@ -516,6 +515,25 @@ def _humanize_signal(sig: models.Signal) -> dict:
     }
 
 
+def _finding_photo(f: models.Finding, signals_by_id: dict) -> dict | None:
+    """If this finding has a profile-photo signal, hand the template a proxied image URL
+    + whether it's a default monogram (vs a real uploaded picture), so the card can show
+    the actual image instead of just saying 'a photo is public'."""
+    for sid in f.signal_ids or []:
+        sig = signals_by_id.get(sid)
+        raw = (sig.raw or {}) if sig else {}
+        if sig and sig.kind == "identity_attribute" and raw.get("attribute") == "photo":
+            ref = raw.get("url") or raw.get("value")
+            if not ref:
+                continue
+            return {
+                "is_default": bool(raw.get("is_default")),
+                "platform": raw.get("platform") or "the web",
+                "proxy_url": "/app/photo?u=" + quote(str(ref), safe=""),
+            }
+    return None
+
+
 def _finding_view(f: models.Finding, signals_by_id: dict | None = None) -> dict:
     """Flatten a Finding row into everything the results template needs."""
     rem = f.remediation
@@ -547,6 +565,7 @@ def _finding_view(f: models.Finding, signals_by_id: dict | None = None) -> dict:
         "confidence": round((f.confidence or 0) * 100),
         "fix_difficulty": f.fix_difficulty,
         "easy_fix": f.easy_fix,
+        "photo": _finding_photo(f, signals_by_id),
         "members": f.member_locators or [],
         "evidence": evidence,
         "show_questions": f.action == "depends" and bool(questions),
@@ -899,3 +918,44 @@ def logo_proxy(slug: str):
         with open(path, "wb") as fh:
             fh.write(r.content)
     return FileResponse(path, media_type="image/svg+xml")
+
+
+_PHOTO_CACHE = os.path.join(APP_STATIC_DIR, "photocache")
+# Only proxy images from the hosts our connectors surface photos from. Fixed allow-list
+# => no open proxy / SSRF, and the user's browser never calls these third parties directly.
+_PHOTO_HOSTS = {
+    "lh3.googleusercontent.com",            # Google account photo (GHunt)
+    "avatars.githubusercontent.com",         # GitHub avatar
+    "gravatar.com", "www.gravatar.com", "secure.gravatar.com",  # Gravatar
+}
+
+
+@router.get("/app/photo")
+def photo_proxy(request: Request, u: str):
+    """Serve a public profile photo through our own origin (cached), so a real face we
+    found is visible in the finding/map WITHOUT the browser hitting Google/Gravatar
+    directly. Auth-gated; host is allow-listed (no SSRF); cached by URL hash."""
+    user = current_user(request)
+    if user is None:
+        raise HTTPException(403)
+    host = (urlparse(u).hostname or "").lower()
+    if host not in _PHOTO_HOSTS:
+        raise HTTPException(404)
+    os.makedirs(_PHOTO_CACHE, exist_ok=True)
+    key = hashlib.sha1(u.encode()).hexdigest()[:24]  # noqa: S324 (cache key, not security)
+    for ext, mt in ((".jpg", "image/jpeg"), (".png", "image/png")):
+        cached = os.path.join(_PHOTO_CACHE, key + ext)
+        if os.path.exists(cached):
+            return FileResponse(cached, media_type=mt)
+    try:
+        r = httpx.get(u, timeout=10, follow_redirects=True)
+    except httpx.HTTPError:
+        raise HTTPException(404)
+    ct = r.headers.get("content-type", "")
+    if r.status_code != 200 or not ct.startswith("image/"):
+        raise HTTPException(404)
+    ext, mt = (".png", "image/png") if "png" in ct else (".jpg", "image/jpeg")
+    path = os.path.join(_PHOTO_CACHE, key + ext)
+    with open(path, "wb") as fh:
+        fh.write(r.content)
+    return FileResponse(path, media_type=mt)

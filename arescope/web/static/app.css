@@ -996,6 +996,34 @@ td.right,
   margin-right: 0.5rem;
 }
 
+/* profile-photo block: show the actual public image (or note the default avatar). */
+.fc-photo {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 0.8rem;
+}
+.fc-photo-img {
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--hairline-strong);
+  flex: none;
+  background: var(--surface-2);
+}
+.fc-photo-default {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  border: 1px dashed var(--hairline-strong);
+  color: var(--faint);
+  flex: none;
+}
+.fc-photo-cap { margin: 0; font-size: 0.86rem; }
+
 /* structured body: Problem / What it means */
 .fc-block {
   margin: 0 0 0.85rem;
@@ -1195,19 +1223,54 @@ td.right,
    Exposure map (graph)
    ============================================================ */
 .mapscreen {
-  display: grid;
-  gap: 1rem;
+  display: block;
 }
 .map-actions {
   display: flex;
   gap: 0.5rem;
 }
+/* floating glass panel base for the on-canvas overlays (title, controls, legend). */
+.map-overlay {
+  position: absolute;
+  z-index: 7;
+  background: oklch(0.12 0 0 / 0.88);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+}
+.map-tl {
+  top: 0.85rem;
+  left: 0.85rem;
+  display: grid;
+  gap: 0.55rem;
+}
+.map-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.map-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+.map-count {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--faint);
+  align-self: center;
+}
 .map-legend {
+  bottom: 0.85rem;
+  left: 0.85rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  font-size: 0.8rem;
+  gap: 0.8rem;
+  font-size: 0.78rem;
   color: var(--muted);
+  max-width: min(440px, 60vw);
 }
 .map-legend span {
   display: inline-flex;
@@ -1226,36 +1289,34 @@ td.right,
 .sw-low { background: var(--matrix); }
 .sw-info { background: var(--faint); }
 
-/* Full-bleed: the map breaks out of the centred 920px column onto the whole
-   width of the page — it deserves the room (feedback #8). */
+/* Full-page: the map breaks out of the centred 920px column AND cancels the appmain
+   top/bottom padding (same clamp) so it fills the whole viewport below the 64px
+   appbar — no border, no chrome above it. The title/controls/legend float on top as
+   overlays. (feedback: give the graph the whole wall.) */
 .mapwrap {
   position: relative;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  margin: calc(-1 * clamp(2rem, 1rem + 4vw, 3.5rem)) calc(50% - 50vw);
   width: 100vw;
-  border-block: 1px solid var(--hairline);
+  height: calc(100vh - 64px);
   background: radial-gradient(circle at 50% 42%, oklch(0.11 0 0), var(--bg));
   overflow: hidden;
 }
 #cy {
   width: 100%;
-  height: calc(100vh - 148px);
-  min-height: 620px;
+  height: 100%;
 }
-/* Controls live top-LEFT so the Ask-Opus icon owns the top-right corner. */
+/* Controls sit inside the top-left overlay (in normal flow there). */
 .map-controls {
-  position: absolute;
-  z-index: 6;
-  top: 0.85rem;
-  left: 0.85rem;
   display: flex;
+  align-items: center;
   gap: 0.4rem;
 }
 .map-hint {
   position: absolute;
   z-index: 4;
-  left: 0.95rem;
-  bottom: 0.85rem;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0.7rem;
   font-size: 0.78rem;
   color: var(--faint);
   pointer-events: none;

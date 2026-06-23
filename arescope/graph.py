@@ -131,11 +131,14 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
         value = raw.get("value") or ""
         if attribute == "photo":
             ref = raw.get("url") or value
+            is_default = bool(raw.get("is_default"))
             return f"photo:{_slug_hash(ref)}", {
                 "type": "photo",
-                "label": "Profile photo",
-                "url": ref,
-                "meta": {"platform": raw.get("platform")},
+                "label": "Default avatar" if is_default else "Profile photo",
+                # only a REAL image is worth rendering as a thumbnail on the map;
+                # a default monogram stays a plain node.
+                "url": None if is_default else ref,
+                "meta": {"platform": raw.get("platform"), "is_default": is_default},
             }
         if attribute == "location":
             return f"location:{value.lower()}", {

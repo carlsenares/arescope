@@ -66,12 +66,15 @@ class GHuntConnector(Connector):
             )
         ]
 
-        photo = _find_first(data, _looks_like_photo)
+        photo, is_default = _profile_photo(data)
         if photo:
             signals.append(identity_signal(
                 source=self.name, attribute=PHOTO, value=photo,
                 subject_value=value, subject_type=InputType.EMAIL,
                 platform="google.com", url=photo,
+                # is_default=True => Google's generated monogram (no real image public);
+                # False => a real uploaded photo (likely the person's face).
+                meta={"is_default": is_default},
             ))
         name = _first_str(data, ("name", "profileName", "fullName"))
         if name:
@@ -121,6 +124,22 @@ def _walk(obj: Any):
         for item in obj:
             yield None, item
             yield from _walk(item)
+
+
+def _profile_photo(data: dict) -> tuple[str | None, bool]:
+    """The profile photo URL + whether it's Google's default monogram avatar.
+
+    GHunt's people JSON gives each photo as `{ "url": ..., "isDefault": bool }`
+    (profilePhotos.PROFILE). We read that structured pair so we can tell a real
+    uploaded picture from the letter-monogram default. Falls back to the first
+    photo-shaped URL (default unknown => treated as real) if the shape drifts.
+    """
+    for _k, v in _walk(data):
+        if isinstance(v, dict) and "isDefault" in v:
+            url = v.get("url")
+            if isinstance(url, str) and url.startswith("http"):
+                return url, bool(v.get("isDefault"))
+    return _find_first(data, _looks_like_photo), False
 
 
 def _looks_like_photo(value: Any) -> bool:

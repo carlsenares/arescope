@@ -48,8 +48,22 @@ def identity_signal(
     subject_type: InputType,
     platform: str,
     url: str | None = None,
+    meta: Mapping[str, object] | None = None,
 ) -> Signal:
-    """One normalized identity fact. `platform` is where it was found (e.g. github.com)."""
+    """One normalized identity fact. `platform` is where it was found (e.g. github.com).
+
+    `meta` adds attribute-specific facts to the raw payload — e.g. a photo carries
+    `is_default` (Google's monogram avatar vs a real uploaded image) so the judge and
+    the UI can tell "no real picture is public" from "the person's face is public".
+    """
+    raw: dict[str, object] = {
+        "attribute": attribute,
+        "value": value,
+        "platform": platform,
+        "url": url,
+    }
+    if meta:
+        raw.update(meta)
     return Signal(
         source=source,
         kind=IDENTITY_KIND,
@@ -57,12 +71,7 @@ def identity_signal(
         locator=f"{platform}:{attribute}",
         subject_value=subject_value,
         subject_type=subject_type,
-        raw={
-            "attribute": attribute,
-            "value": value,
-            "platform": platform,
-            "url": url,
-        },
+        raw=raw,
     )
 
 

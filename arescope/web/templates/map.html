@@ -2,34 +2,34 @@
 {% block title %}Exposure map · Arescope{% endblock %}
 {% block content %}
 <section class="mapscreen">
-  <header class="results-head">
-    <div>
-      <span class="eyebrow">Exposure map</span>
-      <h1>{{ 'Your footprint' if scope == 'account' else 'Analysis map' }}</h1>
-      <p class="muted">{{ elements.counts.nodes }} nodes · {{ elements.counts.edges }} connections · drag to pan, scroll to zoom, hover to trace a connection</p>
-    </div>
-    <div class="map-actions">
-      {% if scope == 'scan' %}<a class="btn btn-ghost btn-sm" href="/app/scans/{{ scan }}">← Findings</a>{% endif %}
-      <a class="btn btn-ghost btn-sm" href="/app">Dashboard</a>
-    </div>
-  </header>
-
-  <div class="map-legend">
-    <span><i class="sw sw-critical"></i>Critical</span>
-    <span><i class="sw sw-high"></i>High</span>
-    <span><i class="sw sw-medium"></i>Medium</span>
-    <span><i class="sw sw-low"></i>Low</span>
-    <span><i class="sw sw-info"></i>Info</span>
-  </div>
-
   {% if elements.counts.nodes > 1 %}
   <div class="mapwrap">
-    <div class="map-controls">
-      <button id="cyFit" class="btn btn-ghost btn-sm" type="button">Fit</button>
-      <button id="cyRelayout" class="btn btn-ghost btn-sm" type="button">Re-layout</button>
-    </div>
     <div id="cy"></div>
     <div id="cyTip" class="cy-tip" hidden></div>
+
+    <!-- top-left overlay: back + title + view controls -->
+    <div class="map-overlay map-tl">
+      <div class="map-titlebar">
+        {% if scope == 'scan' %}<a class="btn btn-ghost btn-sm" href="/app/scans/{{ scan }}">← Findings</a>
+        {% else %}<a class="btn btn-ghost btn-sm" href="/app">← Dashboard</a>{% endif %}
+        <span class="map-title">{{ 'Your footprint' if scope == 'account' else 'Analysis map' }}</span>
+      </div>
+      <div class="map-controls">
+        <button id="cyFit" class="btn btn-ghost btn-sm" type="button">Fit</button>
+        <button id="cyRelayout" class="btn btn-ghost btn-sm" type="button">Re-layout</button>
+        <span class="map-count">{{ elements.counts.nodes }} nodes · {{ elements.counts.edges }} links</span>
+      </div>
+    </div>
+
+    <!-- bottom-left overlay: severity legend -->
+    <div class="map-overlay map-legend">
+      <span><i class="sw sw-critical"></i>Critical</span>
+      <span><i class="sw sw-high"></i>High</span>
+      <span><i class="sw sw-medium"></i>Medium</span>
+      <span><i class="sw sw-low"></i>Low</span>
+      <span><i class="sw sw-info"></i>Info</span>
+    </div>
+
     <div class="map-hint">Hover to trace a connection · click nodes to focus them for Opus</div>
 
     <div class="ask-opus ask-map" data-extra-id="map"
@@ -87,9 +87,11 @@
   if (document.getElementById('cy') && window.cytoscape && window.cytoscapeFcose) {
     cytoscape.use(window.cytoscapeFcose);
 
-    // Self-hosted logo for site nodes (monogram shows if it 404s).
+    // Self-hosted logo for site nodes (monogram shows if it 404s); real profile photos
+    // come through our own proxy too (never hotlink Google/Gravatar from the browser).
     ELEMENTS.nodes.forEach(n => {
       if (n.data.type === 'site' && n.data.slug) n.data.logoUrl = '/app/logo/' + n.data.slug;
+      if (n.data.type === 'photo' && n.data.url) n.data.imgUrl = '/app/photo?u=' + encodeURIComponent(n.data.url);
     });
 
     // --- arm layout (feedback: grouping was random — some nodes far, some stacked).
@@ -226,6 +228,11 @@
             'background-width': '62%', 'background-height': '62%',
             'background-position-x': '50%', 'background-position-y': '50%',
             'background-clip': 'node' } },
+        // real profile photo: show the actual face as the node fill (cover-cropped).
+        { selector: 'node[type="photo"][imgUrl]', style: {
+            'width': 58, 'height': 58, 'background-color': '#fff',
+            'background-image': 'data(imgUrl)', 'background-fit': 'cover',
+            'background-clip': 'node', 'border-width': 3, 'border-color': sev } },
         { selector: 'edge', style: {
             'width': 1.6, 'line-color': sev, 'opacity': 0.4,
             'curve-style': 'bezier', 'target-arrow-shape': 'none' } },

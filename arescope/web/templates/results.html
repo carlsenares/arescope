@@ -64,6 +64,20 @@
       <p class="fc-members"><span class="fc-label">Where</span> {{ f.members|join(' · ') }}</p>
       {% endif %}
 
+      {% if f.photo %}
+      <div class="fc-photo">
+        {% if f.photo.is_default %}
+        <div class="fc-photo-default" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        </div>
+        <p class="fc-photo-cap muted">No real picture is public — the account only shows Google's default monogram avatar, so your actual face isn't exposed here.</p>
+        {% else %}
+        <img class="fc-photo-img" src="{{ f.photo.proxy_url }}" alt="Your publicly visible profile photo" loading="lazy" referrerpolicy="no-referrer" />
+        <p class="fc-photo-cap muted">This is the actual image publicly visible on {{ f.photo.platform }} — a real photo (likely your face), not a default avatar.</p>
+        {% endif %}
+      </div>
+      {% endif %}
+
       {% if f.evidence %}
       <details class="fc-evidence">
         <summary>See the exact data we found ({{ f.evidence|length }})</summary>
