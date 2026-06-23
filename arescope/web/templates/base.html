@@ -14,7 +14,7 @@
       <nav class="appbar-right">
         {% if user %}
         <a href="/app" class="navlink">Dashboard</a>
-        <a href="/app/map" class="navlink">Map</a>
+        <a href="/app/map/new" class="navlink">Identity map</a>
         <a href="/app/password" class="navlink">Password check</a>
         {% if user.is_admin %}<a href="/app/admin" class="navlink">Admin</a>{% endif %}
         <span class="who">{{ user.username }}{% if user.is_admin %} · admin{% endif %}</span>

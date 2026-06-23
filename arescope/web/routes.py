@@ -32,7 +32,7 @@ from arescope.auth import (
 from arescope.config import get_settings
 from arescope.db import models
 from arescope.db.session import session_scope
-from arescope.graph import build_account_graph, build_map_graph, build_scan_graph
+from arescope.graph import build_map_graph
 from arescope.magic import consume_token, send_magic_login, send_verification
 from arescope.schemas import SEVERITY_ORDER, Category, Identifier, InputType, Severity
 from arescope.service import (
@@ -1053,26 +1053,11 @@ def password_check(request: Request):
     return _render(request, "password.html")
 
 
-@router.get("/app/map", response_class=HTMLResponse)
-def account_map(request: Request):
-    """The whole-account exposure map — every scan the user owns, merged."""
-    user = _require_verified(request)
-    if isinstance(user, RedirectResponse):
-        return user
-    elements = build_account_graph(user.id, label=user.username)
-    return _render(request, "map.html", elements=elements, scope="account", scan=None)
-
-
-@router.get("/app/scans/{scan_id}/map", response_class=HTMLResponse)
-def scan_map(request: Request, scan_id: str):
-    """The exposure map for a single analysis."""
-    user = _require_verified(request)
-    if isinstance(user, RedirectResponse):
-        return user
-    if _load_owned_scan(user, scan_id) is None:
-        raise HTTPException(404, "scan not found")
-    elements = build_scan_graph(scan_id)
-    return _render(request, "map.html", elements=elements, scope="scan", scan=scan_id)
+@router.get("/app/map")
+def map_home(request: Request):
+    """The graph is its own surface now (map mode) — analysis no longer feeds it.
+    Send the old account/scan-map entry points to the identity-map builder."""
+    return RedirectResponse("/app/map/new", status_code=303)
 
 
 @router.get("/app/logo/{slug}")

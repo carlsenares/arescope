@@ -90,3 +90,46 @@ Powerful but ToS- or privacy-sensitive; keep `admin_only=True` (self-audit hard 
 - [ ] AbuseIPDB API key (free tier) — abuseipdb.com
 - [ ] *(optional)* LeakCheck or Snusbase (paid) — second leak corpus
 - [ ] *(photo/social, later)* FaceCheck.ID, TinEye, Apify
+
+---
+
+## Extended search v2 — research (2026-06-23)
+
+Goal: deepen the **graph/map** beyond GitHub. Constraint unchanged — obtainable by a
+solo student, free / cheap / PAYG / useful-lifetime, **no expensive monthly subs**.
+Prices ~2026, verify live before buying. (Sources below are from current knowledge;
+do a live pricing/ToS check next session before wiring the paid/gray ones.)
+
+### Tier A — get these (free/PAYG, self-serve, high value)
+| Tool | Brings | Access / price | Notes |
+|---|---|---|---|
+| **Tavily** | AI web search for a **name**, results pre-cleaned for an LLM — feeds the map "Evaluate" path far better than Brave's raw SERP. | free 1,000 credits/mo, then PAYG | The pick for name→web. Self-serve key. |
+| **Bluesky (AT Protocol)** | username → public profile + posts + bio (real content, not just presence). | **free, open API** | No key. Resolve handle → feed. Clean win. |
+| **Mastodon** | username → public profile/posts across instances. | free, open | Optional, lower reach than Bluesky. |
+| **Apify** | **One integration, many platforms**: LinkedIn, Instagram, TikTok, X/Twitter, Google Maps reviews — via per-platform "actors". | PAYG per run, ~$5 free credits/mo | Already have `apify_token` config slot. **admin-only** (ToS-gray scraping). The single best way to reach the walled platforms cheaply. |
+
+### Tier B — already have / free paths
+- **GHunt** (have) — the only realistic path to a **person's Google Maps reviews**
+  (the home-city / food / repeat-customer deductions depend on this). Fragile; free.
+- **Gravatar / GitHub / Reddit** (have) — profile + content where the user is present.
+
+### Parked — not viable for a solo student
+- **LinkedIn official API** — partner-only, no profile access. Proxycurl (the popular
+  LinkedIn data API) hit LinkedIn legal action and is unreliable/defunct — don't build
+  on it. LinkedIn only reachable via an **Apify actor** (Tier A, admin-only, gray).
+- **X/Twitter API** — paid (~$100/mo basic). Too expensive; use an Apify actor instead.
+- **Instagram/Facebook/TikTok official** — no profile API; Apify actors only.
+- **People Data Labs / Endato / Pipl** — US-business-entity-walled (parked already).
+
+### Recommended sequence (when we build extended-search v2)
+1. **Tavily** (name web search) — powers the map Evaluate verdict + deductions.
+2. **Bluesky** (free) — real post/bio content for usernames.
+3. **Apify** (admin-only) — backbone for LinkedIn / IG / TikTok / X / Google reviews;
+   wire 1–2 actors first (LinkedIn + Google Maps reviews are highest value).
+4. Keep **GHunt** for Google reviews until/unless an Apify Google-reviews actor proves
+   it can pull a *person's* contributions (not just a place's).
+
+### Keys to get (next session, all self-serve)
+- [ ] **Tavily** API key (free tier) — tavily.com
+- [ ] **Apify** token (free $5/mo credits) — apify.com  ← unlocks the walled platforms
+- [ ] Bluesky needs no key (open API).

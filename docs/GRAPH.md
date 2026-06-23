@@ -219,3 +219,34 @@ building collection depth now costs nothing when we re-surface later.
    (e.g. GitHub → real name), so the map shows the full picture of where each fact
    surfaced. Per-post / bio nodes still need a content connector (a new collection
    capability — re-opens the ownership question; gate before building, see §10).
+
+## 13. Decision 2026-06-23 — analysis and the graph are SEPARATE surfaces
+The analysis (search) graph is **removed**. There is now exactly one graph, fed only
+by **map mode**. Rationale: the two answer different questions and conflating them
+confused the search effort.
+
+- **Analysis / search** = *exposure findings*: gross registries, breaches, leaks,
+  infostealer, broker listings. Opus judges each finding + severity. (unchanged)
+- **Graph / map (Online Identity Mapping)** = *reach + extended search*: account
+  registrations, profile pictures, posts, and any information derivable from those.
+  No per-finding Opus.
+- Removed: `build_scan_graph` / `build_account_graph` route entry points
+  (`/app/scans/{id}/map`, `/app/map` → now redirects to `/app/map/new`); the "View
+  map" link on results; nav "Map" → "Identity map" (the builder). The builder funcs
+  stay in graph.py for now but are unwired. `exclude_from_map` toggle is now moot.
+
+### 13a. "Evaluate" — Opus over the graph (the map's intelligence layer, planned)
+Instead of judging individual findings, map mode gets an **Evaluate** action: Opus
+navigates the assembled graph and returns a verdict — is this online identity normal,
+or over-exposed, and **which exact parts** drive that. This is also where
+**reasonable deductions** live: e.g. all Google reviews in Cologne ⇒ infer home city;
+restaurant categories ⇒ food preferences; a review edited several times ⇒ repeat
+customer. Opus only runs here on demand (cost-bounded), not per node.
+
+### 13b. Location is recorded EVERY time, separately (graph change, planned)
+Today location nodes are content-addressed by value, so "Cologne" from an IP, from
+photo EXIF, from a phone prefix, and from review clustering would collapse into ONE
+node. **Change this:** key location (and similar derivable facts) by *(source/
+endpoint, value)* so each exposure stays its own node/edge. The point is to show *how
+many different endpoints leak the same fact* — that multiplicity is itself the
+finding. Convergence still applies to genuine same-account nodes (sites/breaches).
