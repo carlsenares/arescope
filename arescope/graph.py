@@ -243,3 +243,90 @@ def build_account_graph(user_id: str, label: str = "you") -> dict:
             if not (opts or {}).get("exclude_from_map")
         ]
     return _build(scan_ids, label)
+
+
+# --- Map mode: project raw Signals (no LLM judge) into the same graph ---------
+#
+# Map mode skips the Opus pipeline — it's about reach, not severity-rated findings.
+# So we build straight from the persisted Signals (each carries its subject under
+# reserved raw keys, since the Signal table has no subject columns) plus the
+# subject's Identifiers as the input nodes. Colour comes from a cheap deterministic
+# heuristic on the signal kind, not the judge — "advanced mapping, no Opus".
+
+# kind -> map colour band (purely visual; no LLM). Reuses the severity palette.
+_MAP_SEV_BY_KIND = {
+    "stealer_log": "critical",
+    "breach": "high",
+    "exposed_service": "high",
+    "host_profile": "low",
+    "phone_risk": "medium",
+    "phone_meta": "info",
+    "account": "low",
+    "web_mention": "info",
+    "identity_attribute": "info",
+    "broker_listing": "low",
+}
+
+
+def _map_sev(sig: models.Signal) -> str:
+    raw = sig.raw or {}
+    if sig.kind == "breach" and not raw.get("password_exposed") and not raw.get("data_classes"):
+        return "low"
+    if sig.kind == "host_profile" and (raw.get("vulns") or raw.get("abuse_score") or
+                                       raw.get("malicious_engines")):
+        return "high"
+    if sig.kind == "phone_risk" and (raw.get("recent_abuse") or raw.get("leaked") or
+                                     raw.get("spammer")):
+        return "high"
+    return _MAP_SEV_BY_KIND.get(sig.kind, "info")
+
+
+def build_map_graph(scan_id: str, label: str = "you") -> dict:
+    nodes: dict[str, dict] = {}
+    edges: dict[str, dict] = {}
+
+    def put_node(node_id: str, severity: str | None = None, **data) -> None:
+        n = nodes.get(node_id)
+        if n is None:
+            nodes[node_id] = {"data": {"id": node_id, **data}, "sev": severity}
+        else:
+            n["data"].update({k: v for k, v in data.items() if v is not None})
+            n["sev"] = _worse(n["sev"], severity) if severity else n["sev"]
+
+    def put_edge(src: str, dst: str, severity: str, info: str) -> None:
+        eid = f"{src}->{dst}"
+        if eid in edges:
+            edges[eid]["data"]["severity"] = _worse(edges[eid]["data"]["severity"], severity)
+        else:
+            edges[eid] = {"data": {"id": eid, "source": src, "target": dst,
+                                   "severity": severity, "info": info}}
+
+    put_node("self", type="identity", label=label)
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        subject = s.get(models.Subject, scan.subject_id) if scan else None
+        in_ids: dict[tuple[str, str], str] = {}
+        for ident in (subject.identifiers if subject else []):
+            in_id = f"in:{ident.type}:{ident.value}"
+            in_ids[(ident.type, ident.value)] = in_id
+            put_node(in_id, type="input", kind=ident.type, label=_mask(ident.value, ident.type))
+            put_edge("self", in_id, "info", "owns")
+
+        sigs = s.query(models.Signal).filter(models.Signal.scan_id == scan_id).all()
+        for sig in sigs:
+            classified = _classify(sig)
+            if classified is None:
+                continue
+            node_id, ndata = classified
+            sev = _map_sev(sig)
+            put_node(node_id, severity=sev, **ndata)
+            raw = sig.raw or {}
+            in_id = in_ids.get((raw.get("__subject_type"), raw.get("__subject_value")), "self")
+            put_edge(in_id, node_id, sev, sig.source)
+
+    out_nodes = []
+    for n in nodes.values():
+        n["data"]["severity"] = n["sev"] or "info"
+        out_nodes.append({"data": n["data"]})
+    return {"nodes": out_nodes, "edges": list(edges.values()),
+            "counts": {"nodes": len(out_nodes), "edges": len(edges)}}

@@ -60,3 +60,17 @@ def test_worse_picks_higher_severity():
     assert _worse("low", "critical") == "critical"
     assert _worse("high", "low") == "high"
     assert _worse(None, "medium") == "medium"
+
+
+def test_map_severity_heuristic():
+    # Map mode colours nodes without the LLM: kind-based, with a few raw refinements.
+    from arescope.graph import _map_sev
+    assert _map_sev(_sig("hudsonrock", "stealer_log", "x", {})) == "critical"
+    assert _map_sev(_sig("leakcheck", "breach", "X", {"password_exposed": True})) == "high"
+    # a bare membership (no password, no classes) softens to low
+    assert _map_sev(_sig("leakcheck", "breach", "X", {})) == "low"
+    assert _map_sev(_sig("ipinfo", "host_profile", "1.1.1.1", {})) == "low"
+    # an abused IP escalates
+    assert _map_sev(_sig("abuseipdb", "host_profile", "1.1.1.1", {"abuse_score": 80})) == "high"
+    assert _map_sev(_sig("ipqs", "phone_risk", "x", {"recent_abuse": True})) == "high"
+    assert _map_sev(_sig("urlscan", "web_mention", "x", {})) == "info"

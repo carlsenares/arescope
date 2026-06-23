@@ -6,13 +6,18 @@ from datetime import datetime, timezone
 
 from arescope.db import models
 from arescope.db.session import session_scope
-from arescope.service import run_and_store_scan
+from arescope.service import run_and_store_map, run_and_store_scan
 from arescope.worker.celery_app import celery_app
 
 
 @celery_app.task(name="arescope.run_scan")
 def run_scan_task(scan_id: str) -> str:
     return run_and_store_scan(scan_id)
+
+
+@celery_app.task(name="arescope.run_map")
+def run_map_task(scan_id: str) -> str:
+    return run_and_store_map(scan_id)
 
 
 @celery_app.task(name="arescope.prune_expired")

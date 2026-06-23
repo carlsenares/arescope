@@ -167,6 +167,57 @@ def run_and_store_scan(scan_id: str) -> str:
     return scan_id
 
 
+def run_and_store_map(scan_id: str) -> str:
+    """Map mode (no Opus): run every available connector across ALL the subject's
+    identifiers, persist the raw Signals, and let graph.build_map_graph project them.
+
+    Skips clustering/triage/judge entirely — map mode is about reach, not severity-
+    rated findings, so it's just collection + projection. Each Signal stashes its
+    subject under reserved raw keys (the Signal table has no subject columns) so the
+    graph can wire it to the right input node.
+    """
+    cfg = get_settings()
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is None:
+            raise ValueError(f"scan {scan_id} not found")
+        subject = s.get(models.Subject, scan.subject_id)
+        identifiers = [
+            IdentifierSchema(type=InputType(i.type), value=i.value,
+                             ownership_verified=i.ownership_verified)
+            for i in subject.identifiers
+        ]
+        owner = s.get(models.User, subject.user_id) if subject.user_id else None
+        owner_is_admin = bool(owner and owner.is_admin)
+        scan.status = "running"
+
+    # Map mode caps Maigret to the popular sites by default — a multi-input map can't
+    # wait minutes per username (full Maigret is the audit-mode opt-in).
+    cfg = cfg.model_copy(update={"maigret_top_sites": cfg.maigret_top_sites or 50})
+
+    try:
+        available = available_connectors(cfg)
+        if not owner_is_admin:
+            available = [c for c in available if not c.admin_only]
+        covered = set().union(*(c.consumes for c in available)) if available else set()
+        searched = sorted({i.type.value for i in identifiers if i.type in covered})
+
+        signals, gaps = run_connectors(identifiers, cfg, available)
+        gaps += unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
+        with session_scope() as s:
+            for sig in signals:
+                raw = dict(sig.raw or {})
+                raw["__subject_value"] = sig.subject_value
+                raw["__subject_type"] = sig.subject_type.value
+                s.add(models.Signal(scan_id=scan_id, source=sig.source, kind=sig.kind,
+                                    locator=sig.locator, raw=raw))
+        _finalize_scan(scan_id, gaps, searched)
+    except Exception:
+        _fail_scan(scan_id)
+        raise
+    return scan_id
+
+
 def _persist_one_finding(scan_id: str, jf: JudgedFinding) -> None:
     """Write a single judged finding (+ its signals) in its own transaction."""
     with session_scope() as s:
