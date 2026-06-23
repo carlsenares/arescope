@@ -21,6 +21,7 @@ class InputType(str, enum.Enum):
     EMAIL = "email"
     PHOTO = "photo"
     IP = "ip"
+    PHONE = "phone"
 
 
 class Severity(str, enum.Enum):

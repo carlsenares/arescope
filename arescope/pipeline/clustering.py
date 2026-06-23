@@ -141,6 +141,14 @@ def _classify(ev: Evidence) -> tuple[str, Category, bool, str | None]:
         # not a vulnerability — its own cluster; the judge rates it (usually low).
         return f"hostprofile|{ev.subject_value}", Category.EXPOSED_INFRASTRUCTURE, False, None
 
+    if ev.kind in ("phone_risk", "phone_meta"):
+        # What a phone number reveals / how exposed it is (carrier, line type, spam/
+        # fraud reputation). One "your phone number" story per subject.
+        raw = ev.signals[0].raw if ev.signals else {}
+        force = bool(raw.get("recent_abuse") or raw.get("leaked") or raw.get("spammer"))
+        reason = "phone number flagged for abuse / found in leaks" if force else None
+        return (f"phone|{ev.subject_value}", Category.ACCOUNT_METADATA, force, reason)
+
     # Unknown kind: own cluster, let the triage net decide.
     return f"{ev.kind}|{ev.subject_value}|{ev.locator}", Category.BREACH_MEMBERSHIP, False, None
 

@@ -117,6 +117,21 @@ class Settings(BaseSettings):
     # (the extended dossier tier). Default off — name-only stays listing-existence.
     name_extended: bool = False
 
+    # --- Expansion batch (2026-06-23): individually-obtainable sources ---------
+    # All key-gated and graceful (absent => coverage gap, never a failure).
+    # See docs/CONNECTOR_EXPANSION_PLAN.md.
+    leakcheck_api_key: str = ""    # email/username/phone breach exposure (credential depth)
+    ipinfo_token: str = ""         # IP geo / ASN / hosting-vs-residential
+    abuseipdb_api_key: str = ""    # IP abuse/blocklist reputation
+    censys_token: str = ""         # IP host/service exposure (Censys Platform PAT)
+    # VirusTotal is NON-COMMERCIAL-USE-ONLY per its free-tier licence -> admin-only,
+    # must never run in a commercial product build.
+    virustotal_api_key: str = ""   # IP/domain reputation (admin-only)
+    urlscan_api_key: str = ""      # where an identifier appears in scanned pages
+    ipqs_api_key: str = ""         # phone fraud/spam reputation + line type
+    numverify_api_key: str = ""    # phone validation: carrier / geo / line type
+    wayback_enabled: bool = True   # historical web mentions (open API, no key)
+
 
 @lru_cache
 def get_settings() -> Settings:

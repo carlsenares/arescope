@@ -11,23 +11,40 @@ from arescope.connectors.gravatar import GravatarConnector
 from arescope.connectors.hibp import HIBPConnector
 from arescope.connectors.holehe import HoleheConnector
 from arescope.connectors.hudsonrock import HudsonRockConnector
+from arescope.connectors.ip_sources import (
+    AbuseIPDBConnector,
+    CensysIPConnector,
+    IPinfoConnector,
+    VirusTotalIPConnector,
+)
+from arescope.connectors.leakcheck import LeakCheckConnector
 from arescope.connectors.maigret import MaigretConnector
 from arescope.connectors.name import NameConnector
+from arescope.connectors.phone_sources import IPQSPhoneConnector, NumVerifyConnector
 from arescope.connectors.reddit import RedditConnector
 from arescope.connectors.shodan import ShodanConnector
+from arescope.connectors.urlscan import UrlscanConnector
 
 REGISTRY: list[Connector] = [
     HIBPConnector(),
+    LeakCheckConnector(),
     HudsonRockConnector(),
     HoleheConnector(),
     MaigretConnector(),
     ShodanConnector(),
+    IPinfoConnector(),
+    AbuseIPDBConnector(),
+    CensysIPConnector(),
+    VirusTotalIPConnector(),
     NameConnector(),
     GitHubConnector(),
     GravatarConnector(),
     RedditConnector(),
     GHuntConnector(),
     BraveConnector(),
+    UrlscanConnector(),
+    IPQSPhoneConnector(),
+    NumVerifyConnector(),
 ]
 
 
