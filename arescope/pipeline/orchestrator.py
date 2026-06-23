@@ -99,6 +99,24 @@ def run_connectors(
     return signals, gaps
 
 
+def stream_connectors(identifiers: list[Identifier], cfg: Settings, connectors: list):
+    """Like run_connectors but a GENERATOR: yields (connector_name, signals, gap)
+    per connector×identifier run, so map mode can persist each batch the moment it
+    lands and the graph streams in node-by-node."""
+    for connector in connectors:
+        for ident in identifiers:
+            if ident.type not in connector.consumes:
+                continue
+            try:
+                yield connector.name, connector.run(ident.value, ident.type, cfg), None
+            except (ConnectorGap, ConnectorUnavailable) as e:
+                yield connector.name, [], CoverageGap(source=connector.name, reason=str(e))
+            except Exception as e:
+                log.exception("connector %s crashed", connector.name)
+                yield connector.name, [], CoverageGap(
+                    source=connector.name, reason=f"unexpected error: {e}")
+
+
 def judge_signals(signals: list[Signal]) -> Iterator[JudgedFinding]:
     """Cluster a batch of signals and yield one JudgedFinding per cluster.
 

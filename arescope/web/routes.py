@@ -503,6 +503,20 @@ def map_scan_status(request: Request, scan_id: str) -> dict:
     return {"status": info["status"], "phase": info.get("phase")}
 
 
+@router.get("/app/map/scan/{scan_id}/graph")
+def map_scan_graph(request: Request, scan_id: str) -> dict:
+    """Live graph snapshot — polled while the map builds so the client can add the
+    new nodes/edges that have landed since the last poll (streaming)."""
+    user = current_user(request)
+    if user is None:
+        raise HTTPException(403)
+    info = _load_owned_scan(user, scan_id)
+    if info is None:
+        raise HTTPException(404)
+    return {"status": info["status"], "phase": info.get("phase"),
+            "elements": build_map_graph(scan_id, label="you")}
+
+
 @router.post("/app/map/scan/{scan_id}/add", response_class=HTMLResponse)
 async def map_scan_add(request: Request, scan_id: str):
     """Append more inputs to an existing identity map and re-run it (the graph's

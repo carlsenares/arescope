@@ -24,7 +24,7 @@
 
     {% if scope == 'map' and scan_status not in ('complete', 'failed') %}
     <div class="map-overlay map-building" id="mapBuilding" data-status-url="/app/map/scan/{{ scan }}/status">
-      <span class="spinner"></span><span>Building your map — new nodes appear as sources return…</span>
+      <span class="spinner"></span><span class="phase">Building your map — new nodes appear as sources return…</span>
     </div>
     {% endif %}
 
@@ -333,24 +333,63 @@
     document.getElementById('cyRelayout').addEventListener('click', () => {
       cy.layout({ ...LAYOUT, animate: true, animationDuration: 500 }).run();
     });
+
+    // --- streaming: poll while the map builds, adding new nodes/edges live -----
+    const building = document.getElementById('mapBuilding');
+    if (building && SCAN_ID) {
+      const seenN = new Set(cy.nodes().map(n => n.id()));
+      const seenE = new Set(cy.edges().map(e => e.id()));
+      const countEl = document.querySelector('.map-count');
+      const decorate = d => {
+        if (d.type === 'site' && d.slug) d.logoUrl = '/app/logo/' + d.slug;
+        if (d.type === 'photo' && d.url) d.imgUrl = '/app/photo?u=' + encodeURIComponent(d.url);
+        return d;
+      };
+      let stop = false;
+      const poll = async () => {
+        if (stop) return;
+        let data;
+        try { data = await (await fetch('/app/map/scan/' + SCAN_ID + '/graph',
+          { headers: { accept: 'application/json' } })).json(); }
+        catch (e) { setTimeout(poll, 3500); return; }
+        const els = data.elements || { nodes: [], edges: [] };
+        let added = 0;
+        els.nodes.forEach(n => {
+          if (seenN.has(n.data.id)) return;
+          seenN.add(n.data.id); added++;
+          // seed near the node that links to it so it grows OUT, not from origin
+          let pos = { x: (Math.random() * 80 - 40), y: (Math.random() * 80 - 40) };
+          const e = els.edges.find(e => e.data.target === n.data.id);
+          if (e) { const src = cy.getElementById(e.data.source);
+            if (src.nonempty()) { const p = src.position();
+              pos = { x: p.x + (Math.random() * 140 - 70), y: p.y + (Math.random() * 140 - 70) }; } }
+          cy.add({ group: 'nodes', data: decorate({ ...n.data }), position: pos })
+            .style('opacity', 0).animate({ style: { opacity: 1 } }, { duration: 450 });
+        });
+        els.edges.forEach(ed => {
+          if (seenE.has(ed.data.id)) return;
+          if (cy.getElementById(ed.data.source).empty() || cy.getElementById(ed.data.target).empty()) return;
+          seenE.add(ed.data.id); cy.add({ group: 'edges', data: ed.data });
+        });
+        if (countEl) countEl.textContent = cy.nodes().length + ' nodes · ' + cy.edges().length + ' links';
+        if (building.querySelector('.phase') && data.phase) building.querySelector('.phase').textContent = data.phase;
+        if (added > 0) cy.layout({ ...LAYOUT, randomize: false, animate: true, animationDuration: 600, fit: false }).run();
+        if (data.status === 'complete' || data.status === 'failed') {
+          stop = true; building.remove();
+          cy.layout({ ...LAYOUT, randomize: false, animate: true, animationDuration: 700, fit: true }).run();
+          return;
+        }
+        setTimeout(poll, 2200);
+      };
+      setTimeout(poll, 1500);
+    }
   }
 
-  // --- map mode: add-to-identity toggle + build poll -------------------------
+  // --- map mode: add-to-identity toggle --------------------------------------
   (function () {
     const addBtn = document.getElementById('addIdentity');
     const panel = document.getElementById('addPanel');
     if (addBtn && panel) addBtn.addEventListener('click', () => { panel.hidden = !panel.hidden; });
-
-    const building = document.getElementById('mapBuilding');
-    if (building) {
-      const url = building.dataset.statusUrl;
-      const tick = () => fetch(url, { headers: { accept: 'application/json' } })
-        .then(r => r.json())
-        .then(d => { if (d.status === 'complete' || d.status === 'failed') location.reload();
-                     else setTimeout(tick, 2500); })
-        .catch(() => setTimeout(tick, 4000));
-      setTimeout(tick, 2500);
-    }
   })();
 </script>
 <script src="/app/static/chat.js?v={{ asset_v }}"></script>

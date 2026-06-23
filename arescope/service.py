@@ -20,6 +20,7 @@ from arescope.pipeline.chat import answer as chat_answer
 from arescope.pipeline.orchestrator import (
     judge_signals,
     run_connectors,
+    stream_connectors,
     uncovered_input_gaps,
     unavailable_gaps,
 )
@@ -201,21 +202,36 @@ def run_and_store_map(scan_id: str) -> str:
             available = [c for c in available if not c.admin_only]
         covered = set().union(*(c.consumes for c in available)) if available else set()
         searched = sorted({i.type.value for i in identifiers if i.type in covered})
+        # Fast sources first so the graph fills immediately; slow scrapers/enumerators
+        # (Maigret/Sherlock/Apify/Ignorant/PhoneInfoga) stream in after.
+        available.sort(key=lambda c: c.name in _SLOW_SOURCES)
 
-        signals, gaps = run_connectors(identifiers, cfg, available)
-        gaps += unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
-        with session_scope() as s:
-            for sig in signals:
-                raw = dict(sig.raw or {})
-                raw["__subject_value"] = sig.subject_value
-                raw["__subject_type"] = sig.subject_type.value
-                s.add(models.Signal(scan_id=scan_id, source=sig.source, kind=sig.kind,
-                                    locator=sig.locator, raw=raw))
+        gaps = unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
+        total = 0
+        for cname, sigs, gap in stream_connectors(identifiers, cfg, available):
+            if gap is not None:
+                gaps.append(gap)
+            if sigs:
+                # Persist this connector's batch in its own txn — the moment it commits,
+                # the next /graph poll picks the new nodes up and streams them in.
+                with session_scope() as s:
+                    for sig in sigs:
+                        raw = dict(sig.raw or {})
+                        raw["__subject_value"] = sig.subject_value
+                        raw["__subject_type"] = sig.subject_type.value
+                        s.add(models.Signal(scan_id=scan_id, source=sig.source,
+                                            kind=sig.kind, locator=sig.locator, raw=raw))
+                total += len(sigs)
+            _set_phase(scan_id, f"Mapping — {cname} ({total} signals so far)…")
         _finalize_scan(scan_id, gaps, searched)
     except Exception:
         _fail_scan(scan_id)
         raise
     return scan_id
+
+
+# Connectors whose latency warrants running last in a streaming map build.
+_SLOW_SOURCES = {"maigret", "sherlock", "apify", "ignorant", "phoneinfoga"}
 
 
 def _persist_one_finding(scan_id: str, jf: JudgedFinding) -> None:
