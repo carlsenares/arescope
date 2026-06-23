@@ -31,6 +31,10 @@ dependencies = [
 connectors = [
     "holehe==1.61",
     "maigret==0.6.1",
+    "sherlock-project",   # username presence cross-check (CLI)
+    "ignorant",           # phone -> site registration (Holehe-for-phone)
+    "phonenumbers",       # parse phone -> (national number, country code) for ignorant
+    "Pillow",             # EXIF/GPS read from photo files
 ]
 # GHunt is NOT here on purpose: it pins httpx==0.27.2 which conflicts with our
 # httpx>=0.28. The connector shells out to the `ghunt` binary (subprocess), so it

@@ -105,6 +105,9 @@ def test_available_connectors_respects_toggles():
         # expansion-batch keys are also in the ambient .env — pin off for hermeticity
         leakcheck_api_key="", ipinfo_token="", abuseipdb_api_key="", censys_token="",
         virustotal_api_key="", urlscan_api_key="", ipqs_api_key="", numverify_api_key="",
+        # self-hosted tools are default-on + key-less (available when the lib/CLI is
+        # present); pin off so the test doesn't depend on what's pip-installed.
+        exif_enabled=False, sherlock_enabled=False, ignorant_enabled=False,
     )
     names = {c.name for c in available_connectors(cfg)}
     assert names == {"holehe"}

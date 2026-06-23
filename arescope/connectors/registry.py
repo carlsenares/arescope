@@ -7,6 +7,7 @@ from arescope.connectors.base import Connector
 from arescope.connectors.brave import BraveConnector
 from arescope.connectors.ghunt import GHuntConnector
 from arescope.connectors.github import GitHubConnector
+from arescope.connectors.exif import ExifConnector
 from arescope.connectors.gravatar import GravatarConnector
 from arescope.connectors.hibp import HIBPConnector
 from arescope.connectors.holehe import HoleheConnector
@@ -21,7 +22,9 @@ from arescope.connectors.leakcheck import LeakCheckConnector
 from arescope.connectors.maigret import MaigretConnector
 from arescope.connectors.name import NameConnector
 from arescope.connectors.phone_sources import IPQSPhoneConnector, NumVerifyConnector
+from arescope.connectors.phone_tools import IgnorantConnector, PhoneInfogaConnector
 from arescope.connectors.reddit import RedditConnector
+from arescope.connectors.sherlock import SherlockConnector
 from arescope.connectors.shodan import ShodanConnector
 from arescope.connectors.urlscan import UrlscanConnector
 
@@ -31,6 +34,8 @@ REGISTRY: list[Connector] = [
     HudsonRockConnector(),
     HoleheConnector(),
     MaigretConnector(),
+    SherlockConnector(),
+    ExifConnector(),
     ShodanConnector(),
     IPinfoConnector(),
     AbuseIPDBConnector(),
@@ -45,6 +50,8 @@ REGISTRY: list[Connector] = [
     UrlscanConnector(),
     IPQSPhoneConnector(),
     NumVerifyConnector(),
+    IgnorantConnector(),
+    PhoneInfogaConnector(),
 ]
 
 

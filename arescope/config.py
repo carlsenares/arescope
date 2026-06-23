@@ -132,6 +132,12 @@ class Settings(BaseSettings):
     numverify_api_key: str = ""    # phone validation: carrier / geo / line type
     wayback_enabled: bool = True   # historical web mentions (open API, no key)
 
+    # Self-hosted tools (no key; gated on the lib/CLI being installed -> else simply
+    # unavailable, no coverage-gap noise). Install via the [connectors] extra / image.
+    exif_enabled: bool = True      # photo: read embedded GPS/camera from an image file
+    sherlock_enabled: bool = True  # username: account presence cross-check (Maigret backup)
+    ignorant_enabled: bool = True  # phone: which sites a number is registered on
+
 
 @lru_cache
 def get_settings() -> Settings:
