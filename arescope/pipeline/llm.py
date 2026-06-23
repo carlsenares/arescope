@@ -17,8 +17,12 @@ from arescope.taxonomy import taxonomy_prompt_block
 
 @lru_cache
 def client() -> anthropic.Anthropic:
-    # Reads ANTHROPIC_API_KEY from the environment.
-    return anthropic.Anthropic()
+    # Reads ANTHROPIC_API_KEY from the environment. max_retries is bumped above the
+    # SDK default (2) so a transient 529 overloaded_error — common during demand
+    # spikes — is ridden out by the SDK's exponential backoff (which honours
+    # retry-after) instead of surfacing. Persistent overload still raises, and the
+    # orchestrator degrades that one cluster gracefully (see judge_signals).
+    return anthropic.Anthropic(max_retries=6)
 
 
 _SEVERITY = """Severity levels:

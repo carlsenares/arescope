@@ -111,52 +111,59 @@ def run_and_store_scan(scan_id: str) -> str:
         owner_is_admin = bool(owner and owner.is_admin)
         scan.status = "running"
 
-    top = options.get("maigret_top_sites")
-    if top:
-        cfg = cfg.model_copy(update={"maigret_top_sites": int(top)})
+    # From here on the scan is marked "running"; any unhandled error must flip it to
+    # "failed" (with finished_at) — otherwise the task dies, the row stays "running"
+    # forever, and the results page polls /status indefinitely (looks like a hang).
+    try:
+        top = options.get("maigret_top_sites")
+        if top:
+            cfg = cfg.model_copy(update={"maigret_top_sites": int(top)})
 
-    # Extended (dossier) name tier — "name + verified email => extended results".
-    # For regular users it's gated on verified ownership of a linked email (the P2
-    # gate, docs/OWNERSHIP_VERIFICATION.md), which isn't built yet, so it stays OFF:
-    # a name-only scan returns broker-listing existence + the removal track, never a
-    # dossier. ADMINS bypass the gate and always get extended. When the gate lands,
-    # OR the admin check in here with the verified-ownership check for regular users.
-    if owner_is_admin:
-        cfg = cfg.model_copy(update={"name_extended": True})
+        # Extended (dossier) name tier — "name + verified email => extended results".
+        # For regular users it's gated on verified ownership of a linked email (the P2
+        # gate, docs/OWNERSHIP_VERIFICATION.md), which isn't built yet, so it stays OFF:
+        # a name-only scan returns broker-listing existence + the removal track, never a
+        # dossier. ADMINS bypass the gate and always get extended. When the gate lands,
+        # OR the admin check in here with the verified-ownership check for regular users.
+        if owner_is_admin:
+            cfg = cfg.model_copy(update={"name_extended": True})
 
-    available = available_connectors(cfg)
-    # Admin-only sources (broad web search / scraping / reverse face) never run for
-    # regular users — the self-audit hard rule (EXTENDED_SEARCH_SCOPE.md). Until the
-    # per-input ownership gate lands this is the line that keeps the heavy connectors
-    # admin-bound. They're simply absent for non-admins (not even a coverage gap —
-    # a regular user was never entitled to them, so it's not "missing coverage").
-    if not owner_is_admin:
-        available = [c for c in available if not c.admin_only]
-    gaps = unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
-    # Which of the inputs the user gave actually have a source that searches them.
-    # If this ends up empty (e.g. a name-only scan), a clean report must NOT read as
-    # "Nothing exposed" — we searched nothing. The results page uses this to be honest.
-    covered_types = set().union(*(c.consumes for c in available)) if available else set()
-    searched_types = sorted({i.type.value for i in identifiers if i.type in covered_types})
-    fast = [c for c in available if c.name != "maigret"]
-    slow = [c for c in available if c.name == "maigret"]
-    has_username = any(i.type is InputType.USERNAME for i in identifiers)
+        available = available_connectors(cfg)
+        # Admin-only sources (broad web search / scraping / reverse face) never run for
+        # regular users — the self-audit hard rule (EXTENDED_SEARCH_SCOPE.md). Until the
+        # per-input ownership gate lands this is the line that keeps the heavy connectors
+        # admin-bound. They're simply absent for non-admins (not even a coverage gap —
+        # a regular user was never entitled to them, so it's not "missing coverage").
+        if not owner_is_admin:
+            available = [c for c in available if not c.admin_only]
+        gaps = unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
+        # Which of the inputs the user gave actually have a source that searches them.
+        # If this ends up empty (e.g. a name-only scan), a clean report must NOT read as
+        # "Nothing exposed" — we searched nothing. The results page uses this to be honest.
+        covered_types = set().union(*(c.consumes for c in available)) if available else set()
+        searched_types = sorted({i.type.value for i in identifiers if i.type in covered_types})
+        fast = [c for c in available if c.name != "maigret"]
+        slow = [c for c in available if c.name == "maigret"]
+        has_username = any(i.type is InputType.USERNAME for i in identifiers)
 
-    # Wave 1 — fast sources, streamed.
-    signals, run_gaps = run_connectors(identifiers, cfg, fast)
-    gaps += run_gaps
-    for jf in judge_signals(signals):
-        _persist_one_finding(scan_id, jf)
-
-    # Wave 2 — the slow username search (only does work when a username is present).
-    if slow and has_username:
-        _set_phase(scan_id, "Searching your username across sites…")
-        sig2, gap2 = run_connectors(identifiers, cfg, slow)
-        gaps += gap2
-        for jf in judge_signals(sig2):
+        # Wave 1 — fast sources, streamed.
+        signals, run_gaps = run_connectors(identifiers, cfg, fast)
+        gaps += run_gaps
+        for jf in judge_signals(signals):
             _persist_one_finding(scan_id, jf)
 
-    _finalize_scan(scan_id, gaps, searched_types)
+        # Wave 2 — the slow username search (only does work when a username is present).
+        if slow and has_username:
+            _set_phase(scan_id, "Searching your username across sites…")
+            sig2, gap2 = run_connectors(identifiers, cfg, slow)
+            gaps += gap2
+            for jf in judge_signals(sig2):
+                _persist_one_finding(scan_id, jf)
+
+        _finalize_scan(scan_id, gaps, searched_types)
+    except Exception:
+        _fail_scan(scan_id)
+        raise
     return scan_id
 
 
@@ -231,6 +238,17 @@ def _finalize_scan(scan_id: str, gaps: list, searched_types: list[str] | None = 
             "searched_types": searched_types or [],
         }
         scan.status = "complete"
+        scan.finished_at = datetime.now(timezone.utc)
+
+
+def _fail_scan(scan_id: str) -> None:
+    """Mark a scan failed so the results page stops polling. Findings already
+    persisted before the failure are kept — the user still sees partial results."""
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is None:
+            return
+        scan.status = "failed"
         scan.finished_at = datetime.now(timezone.utc)
 
 

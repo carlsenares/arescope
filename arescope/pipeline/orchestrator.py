@@ -111,7 +111,16 @@ def judge_signals(signals: list[Signal]) -> Iterator[JudgedFinding]:
     for i, cluster in enumerate(clusters):
         item = triage[i]
         if _should_escalate(cluster, item):
-            verdict = judge_cluster(cluster)
+            try:
+                verdict = judge_cluster(cluster)
+            except Exception:
+                # The Opus judge failed even after the client's retries (e.g. a
+                # sustained 529 overload). Degrade THIS cluster to the deterministic
+                # triage label rather than sinking the whole scan — every other
+                # cluster, judged or already persisted, survives. Same philosophy as
+                # a connector gap: never fail the scan, just note reduced depth.
+                log.exception("judge failed for cluster %s; using triage label", cluster.signature)
+                verdict = _label_verdict(cluster, item)
         else:
             verdict = _label_verdict(cluster, item)
         yield JudgedFinding(verdict=verdict, cluster=cluster)

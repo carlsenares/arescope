@@ -31,6 +31,14 @@
   </div>
   {% endif %}
 
+  {% if scan.status == 'failed' %}
+  <div class="scan-failed" role="alert">
+    <strong>This scan didn't finish.</strong>
+    <p class="muted">Something went wrong while running it{% if scan.findings %} — any findings below are partial{% endif %}.
+      Start a new analysis to try again.</p>
+  </div>
+  {% endif %}
+
   {% if scan.findings %}
 
   <div class="results-summary">
@@ -182,6 +190,9 @@
     {% endfor %}
   </div>
 
+  {% elif scan.status == 'failed' %}
+  {# Failed with no findings: the banner above already explains it. Show nothing
+     here — a "Nothing exposed" / "clean" message on an errored scan would be a lie. #}
   {% elif not running and scan.searched_anything %}
   <div class="empty">
     <div class="empty-mark ok" aria-hidden="true">

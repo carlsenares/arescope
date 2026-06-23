@@ -924,6 +924,19 @@ td.right,
   font-size: 0.9rem;
 }
 
+/* a scan that errored out before finishing — same red palette as .formerror,
+   sized as a block banner so it reads as a state, not an inline field error. */
+.scan-failed {
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.25rem;
+  border-radius: var(--radius);
+  background: oklch(0.64 0.2 18 / 0.1);
+  border: 1px solid oklch(0.64 0.2 18 / 0.4);
+  color: oklch(0.88 0.06 18);
+}
+.scan-failed strong { font-size: 0.98rem; }
+.scan-failed p { margin: 0.3rem 0 0; font-size: 0.88rem; }
+
 /* findings feed */
 .findings-feed {
   display: grid;
