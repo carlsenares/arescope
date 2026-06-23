@@ -22,7 +22,8 @@ def test_name_input_reported_as_uncovered_gap():
     # name-only scan has no source and must surface an honest coverage gap rather
     # than reading as "nothing exposed".
     cfg = Settings(name_search_api_url="", name_search_api_key="", broker_registry_enabled=False,
-                   brave_api_key="", urlscan_api_key="")  # Brave + urlscan also consume NAME
+                   brave_api_key="", urlscan_api_key="",  # Brave + urlscan also consume NAME
+                   tavily_api_key="")  # Tavily consumes NAME too
     gaps = uncovered_input_gaps([Identifier(type=InputType.NAME, value="Jane Doe")], cfg)
     assert any(g.source == "name lookup" for g in gaps)
 
@@ -108,6 +109,8 @@ def test_available_connectors_respects_toggles():
         # self-hosted tools are default-on + key-less (available when the lib/CLI is
         # present); pin off so the test doesn't depend on what's pip-installed.
         exif_enabled=False, sherlock_enabled=False, ignorant_enabled=False,
+        # extended-search v2 keys/flags also in ambient .env
+        tavily_api_key="", pdl_api_key="", apify_token="", bluesky_enabled=False,
     )
     names = {c.name for c in available_connectors(cfg)}
     assert names == {"holehe"}

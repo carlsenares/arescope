@@ -97,6 +97,15 @@ class Settings(BaseSettings):
     intelx_api_key: str = ""
     facecheck_api_key: str = ""
 
+    # Extended search v2 (map depth) — see docs/EXTENDED_SEARCH_PLAN.md.
+    tavily_api_key: str = ""       # name -> AI web search (web mentions)
+    pdl_api_key: str = ""          # email -> person enrichment (name/location/job/profiles)
+    bluesky_enabled: bool = True   # username -> Bluesky profile + posts (free open API)
+    # Apify actors run for the admin social/LinkedIn backbone. Defaults are popular
+    # public actors; override per deployment. Empty actor id => that platform skipped.
+    apify_linkedin_actor: str = "dev_fusion/linkedin-profile-scraper"
+    apify_instagram_actor: str = "apify/instagram-profile-scraper"
+
     # Name → data-broker / people-search listings (root input: name). Provider-agnostic
     # and config-gated: point NAME_SEARCH_API_URL at your chosen people-search/broker API
     # (or a thin shim you host) and set the key. Absent => connector unavailable =>
