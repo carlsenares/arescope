@@ -43,3 +43,6 @@ dist/
 .astro/
 docker-compose.override.yml
 arescope/web/static/logocache/
+
+# Local secrets / credentials (GHunt creds.m, etc.) — NEVER commit
+secrets/
