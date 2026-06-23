@@ -147,11 +147,16 @@
       {% endif %}
 
       <div class="ask-opus" data-history-url="/app/findings/{{ f.id }}/chat" data-send-url="/app/findings/{{ f.id }}/chat">
-        <button type="button" class="ask-btn">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Ask Opus about this
+        <button type="button" class="ask-btn ask-btn-icon" aria-label="Ask Opus about this" title="Ask Opus about this">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </button>
         <div class="ask-panel" hidden>
+          <div class="ask-head">
+            <span class="ask-head-title">Ask Opus</span>
+            <button type="button" class="ask-close" aria-label="Close chat" title="Close">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
           <div class="ask-log"></div>
           <form class="ask-form">
             <input type="text" class="ask-input" placeholder="e.g. Why is this High if it isn't my device?" autocomplete="off" />
@@ -251,5 +256,5 @@
     }, 3000);
   })();
 </script>
-<script src="/app/static/chat.js"></script>
+<script src="/app/static/chat.js?v={{ asset_v }}"></script>
 {% endblock %}

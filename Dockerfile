@@ -10,4 +10,18 @@ COPY arescope ./arescope
 # and those tools never actually run.
 RUN pip install --no-cache-dir ".[connectors]"
 
+# GHunt (email -> Google photo / Maps locations, #5) in its OWN venv: it pins
+# httpx==0.27.2, which conflicts with arescope's httpx>=0.28. The connector only shells
+# out to the `ghunt` binary, so an isolated env + a PATH symlink is all it needs — no
+# shared-dependency fight. Absent/expired Google cookie still degrades to a coverage gap.
+COPY scripts/patch_ghunt_people.py /tmp/patch_ghunt_people.py
+RUN python -m venv /opt/ghunt-venv \
+    && /opt/ghunt-venv/bin/pip install --no-cache-dir "ghunt==2.3.4" \
+    && ln -s /opt/ghunt-venv/bin/ghunt /usr/local/bin/ghunt \
+    # ghunt 2.3.4 (last release, unmaintained) crashes on Google's current people API
+    # (KeyError: 'container') before returning anything. Guard the photo lookups so the
+    # email lookup completes and the profile photo / Maps data land. Fail-soft.
+    && /opt/ghunt-venv/bin/python /tmp/patch_ghunt_people.py \
+        /opt/ghunt-venv/lib/python3.12/site-packages/ghunt
+
 ENV PYTHONUNBUFFERED=1

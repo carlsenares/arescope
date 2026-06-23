@@ -77,6 +77,18 @@ it must still be rotated and its sessions revoked, even though their current
 hardware needn't be reimaged. Only go below high if the data looks like a
 mislabeled combolist rather than a genuine stealer log.
 
+Data-broker / people-search listings: when the cluster is the FREE enumeration
+catalog (the evidence says "confirmed:false" / "enumeration, NOT confirmed for this
+person"), you have NOT verified the person is actually listed — these are the major
+brokers anyone is statistically likely to appear on. Do NOT set action=depends and do
+NOT ask the user to go search each broker and report back — nobody will check 12+
+sites for you, and the severity does not hinge on it. Instead treat it as a single
+worth_fixing finding with fix_difficulty=involved: the value is the opt-out/removal
+checklist (generated later), not proof of exposure. State plainly in the problem that
+these are common brokers to opt out of as a precaution, not confirmed listings. Only
+when the evidence is "confirmed:true" (a paid lookup verified the listing) do you
+treat it as proven exposure and rate on the data exposed (home address => high).
+
 This is a SELF-AUDIT tool. Frame everything as defensive guidance to the owner —
 never as how to attack someone.
 

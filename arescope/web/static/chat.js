@@ -28,6 +28,7 @@
   function mount(root) {
     var btn = root.querySelector('.ask-btn');
     var panel = root.querySelector('.ask-panel');
+    var close = root.querySelector('.ask-close');
     var log = root.querySelector('.ask-log');
     var form = root.querySelector('.ask-form');
     var input = root.querySelector('.ask-input');
@@ -49,6 +50,9 @@
         } catch (_) {}
       }
     });
+
+    // X closes the panel (the icon/button alone remains); clicking the button again reopens.
+    if (close) close.addEventListener('click', function () { panel.hidden = true; });
 
     form.addEventListener('submit', async function (e) {
       e.preventDefault();

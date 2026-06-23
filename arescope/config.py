@@ -108,6 +108,11 @@ class Settings(BaseSettings):
     # default — it's a bundled catalog, not a paid source. Results are listing-existence-
     # AGNOSTIC (we don't confirm the name is listed); the connector marks them confirmed:false.
     broker_registry_enabled: bool = True
+    # How many brokers the free enumeration catalog returns, most-prominent first. The
+    # catalog has ~30; dumping all of them produced an unrealistic "go check these 30
+    # sites and report back" finding. Cap it to the brokers a person is most likely on so
+    # the removal checklist stays actionable. 0/None => no cap (return the whole catalog).
+    broker_top_n: int = 12
     # Flipped on per-scan only when the name's ownership is verified via a linked email
     # (the extended dossier tier). Default off — name-only stays listing-existence.
     name_extended: bool = False

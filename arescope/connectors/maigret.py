@@ -17,6 +17,15 @@ from arescope.connectors._identity import from_profile_fields
 from arescope.connectors.base import Connector, ConnectorGap
 from arescope.schemas import InputType, Signal
 
+# Sites whose Maigret absence-detection is broken and report EVERY username as
+# "Claimed" (soft-404: they serve HTTP 200 + a profile-shaped page for handles that
+# don't exist, and their `absenceStrs` marker has gone stale upstream). Left in, they
+# produce a false "you have an account here" finding on every single scan. Match is
+# case-insensitive on the Maigret site name. Verified live for Odysee (2026-06-23).
+_FALSE_POSITIVE_SITES = frozenset({
+    "odysee",
+})
+
 
 class MaigretConnector(Connector):
     name = "maigret"
@@ -102,12 +111,17 @@ def _run_maigret(username: str, top_sites: int | None = None) -> dict[str, dict]
     for site, info in data.items():
         if not isinstance(info, dict):
             continue
+        if site.strip().lower() in _FALSE_POSITIVE_SITES:
+            continue  # known soft-404 site — its "Claimed" is meaningless
         status = info.get("status")
-        # "simple" format nests status; be generous about shape across versions.
+        # Require an EXPLICIT "Claimed" status. The "simple" format nests it under
+        # status.status; tolerate a bare string for older releases. We deliberately do
+        # NOT treat the mere presence of url_user as claimed — Maigret builds that
+        # candidate URL for every site it checks, claimed or not, so trusting it turned
+        # every probed site into a false positive.
         is_claimed = (
             (isinstance(status, dict) and status.get("status") == "Claimed")
             or status == "Claimed"
-            or info.get("url_user")
         )
         if is_claimed:
             claimed[site] = info

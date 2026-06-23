@@ -53,6 +53,24 @@ APP_STATIC_DIR = os.path.join(_HERE, "static")
 router = APIRouter()
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
+
+def _asset_version() -> str:
+    """Short content hash of the static assets, appended as ?v= so a redeploy busts
+    the browser cache (otherwise app.css/chat.js stay stale and UI fixes don't show)."""
+    import hashlib
+
+    h = hashlib.sha1()
+    for fn in ("app.css", "chat.js"):
+        try:
+            with open(os.path.join(APP_STATIC_DIR, fn), "rb") as f:
+                h.update(f.read())
+        except OSError:
+            pass
+    return h.hexdigest()[:10]
+
+
+templates.env.globals["asset_v"] = _asset_version()
+
 # Which identifier types the form collects (photo upload comes with a later pass).
 _INPUT_FIELDS: list[tuple[InputType, str, str, str]] = [
     (InputType.EMAIL, "email", "Email address", "you@example.com"),

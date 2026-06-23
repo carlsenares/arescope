@@ -531,13 +531,16 @@ td.right,
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* status + "off map" sit together in their own column so the badges keep a fixed
-   position whether or not "off map" is present, and the date stays right-aligned. */
+/* status + "off map" each get their OWN fixed slot so neither moves when the other
+   appears: a reserved column for the optional "off map" chip (left), then the status
+   chip (right). The status badge therefore sits at one fixed position normally and a
+   second fixed position when "off map" shows — never floating. Date stays right. */
 .scan-chips {
-  display: flex;
+  display: grid;
+  grid-template-columns: 4.6rem auto;
   align-items: center;
   gap: 0.4rem;
-  justify-content: flex-end;
+  justify-items: end;
 }
 .scan-row:last-child {
   border-bottom: 0;
@@ -1236,14 +1239,15 @@ td.right,
 }
 #cy {
   width: 100%;
-  height: calc(100vh - 210px);
-  min-height: 540px;
+  height: calc(100vh - 148px);
+  min-height: 620px;
 }
+/* Controls live top-LEFT so the Ask-Opus icon owns the top-right corner. */
 .map-controls {
   position: absolute;
   z-index: 6;
   top: 0.85rem;
-  right: 0.85rem;
+  left: 0.85rem;
   display: flex;
   gap: 0.4rem;
 }
@@ -1359,6 +1363,31 @@ td.right,
   display: grid;
   gap: 0.6rem;
 }
+/* The class above sets display:grid, which (equal specificity, later rule) beats the
+   UA `[hidden]{display:none}` — so without this the panel showed ALL the time and the
+   JS toggle did nothing. Restore the collapse. */
+.ask-panel[hidden] { display: none; }
+.ask-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.ask-head-title { font-size: 0.78rem; color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; }
+.ask-close {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+.ask-close:hover { color: var(--ink); border-color: var(--ink); }
 .ask-log {
   display: grid;
   gap: 0.5rem;
@@ -1405,13 +1434,13 @@ td.right,
   border-radius: 50%;
 }
 
-/* map: float the widget over the canvas, bottom-right. The closed widget is just
-   the round icon button; the panel pops up ABOVE it so the button never moves. */
+/* map: float the widget over the canvas, TOP-right. The closed widget is just the
+   round icon button; the panel drops DOWN from it so the button never moves. */
 .ask-map {
   position: absolute;
   z-index: 7;
   right: 0.85rem;
-  bottom: 0.85rem;
+  top: 0.85rem;
   margin: 0;
 }
 .ask-map .ask-btn {
@@ -1422,7 +1451,7 @@ td.right,
 .ask-map .ask-panel {
   position: absolute;
   right: 0;
-  bottom: calc(100% + 0.6rem);
+  top: calc(100% + 0.6rem);
   width: min(360px, calc(100vw - 1.7rem));
   margin: 0;
   background: oklch(0.12 0 0 / 0.97);

@@ -160,7 +160,11 @@ class PeopleSearchRegistryProvider:
 
     def search(self, full_name: str, cfg: Settings, *, extended: bool = False) -> list[BrokerListing]:
         # Enumeration is name-independent: same catalog of removal targets for any name.
-        return list(_load_curated_brokers())
+        # Cap to the most-prominent N (catalog is ordered by prevalence) so the removal
+        # checklist stays realistic instead of a 30-site homework assignment.
+        catalog = _load_curated_brokers()
+        top_n = getattr(cfg, "broker_top_n", 0) or 0
+        return catalog[:top_n] if top_n > 0 else list(catalog)
 
 
 # Registered providers, in precedence order: a configured paid lookup (confirms the

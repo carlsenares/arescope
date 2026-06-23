@@ -39,6 +39,12 @@
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       </button>
       <div class="ask-panel" hidden>
+        <div class="ask-head">
+          <span class="ask-head-title">Ask Opus</span>
+          <button type="button" class="ask-close" aria-label="Close chat" title="Close">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
         <div class="ask-focus" id="askFocus"></div>
         <div class="ask-log"></div>
         <form class="ask-form">
@@ -109,7 +115,13 @@
       return ((h >>> 0) % 1000) / 1000;
     };
 
-    const ARM_R = 250, LEAF_R = 420;
+    // Scale the whole layout with node count so a big footprint claims more canvas
+    // instead of cramming into the same radius (feedback: graph too crowded). This is
+    // the "re-check the build on every addition" — the spacing is a function of N, so
+    // adding nodes widens the wheel rather than stacking onto it.
+    const N = ELEMENTS.nodes.length;
+    const spread = Math.min(2.4, 1 + N / 40);
+    const ARM_R = 250 * spread, LEAF_R = 440 * spread;
     const armAngle = {};
     const fixed = [];
     if (identityId) fixed.push({ nodeId: identityId, position: { x: 0, y: 0 } });
@@ -130,26 +142,52 @@
       if (inputIds.has(source) && !inputIds.has(target)) (leafArms[target] ||= []).push(source);
       if (inputIds.has(target) && !inputIds.has(source)) (leafArms[source] ||= []).push(target);
     });
+    // Group leaves by the set of arms they hang off (a node reached by two inputs forms
+    // its own group seeded BETWEEN those arms — convergence stays visible). Then fan each
+    // group across an angular spread and stagger it across radial "rings", so leaves that
+    // share an arm no longer stack on one point. Wider groups get a wider fan and more
+    // rings — that's what kills the crowding and most of the edge crossings.
+    const groups = {};
     ELEMENTS.nodes.forEach(n => {
       if (n.data.type === 'identity' || n.data.type === 'input') return;
-      const arms = leafArms[n.data.id];
-      let a;
-      if (arms && arms.length) {
+      const arms = (leafArms[n.data.id] || []).slice().sort();
+      const key = arms.length ? arms.join('+') : ('free:' + (Math.floor(hash01(n.data.id) * 6)));
+      (groups[key] = groups[key] || { arms, leaves: [] }).leaves.push(n);
+    });
+    Object.values(groups).forEach(g => {
+      let baseA;
+      if (g.arms.length) {
         let sx = 0, sy = 0;
-        arms.forEach(id => { const ang = armAngle[id] ?? 0; sx += Math.cos(ang); sy += Math.sin(ang); });
-        a = Math.atan2(sy, sx);
+        g.arms.forEach(id => { const ang = armAngle[id] ?? 0; sx += Math.cos(ang); sy += Math.sin(ang); });
+        baseA = Math.atan2(sy, sx);
       } else {
-        a = hash01(n.data.id) * 2 * Math.PI;  // not on any arm (rare) — let fcose place it
+        baseA = hash01(g.leaves[0].data.id) * 2 * Math.PI;  // off-arm orphans
       }
-      const jitter = (hash01(n.data.id) - 0.5) * 0.7;
-      const r = LEAF_R + hash01(n.data.id + 'r') * 90;
-      n.position = { x: Math.cos(a + jitter) * r, y: Math.sin(a + jitter) * r };
+      const count = g.leaves.length;
+      const PER_RING = 7;
+      const fan = Math.min(Math.PI * 0.62, 0.16 * Math.min(count, PER_RING));
+      g.leaves.forEach((n, i) => {
+        const ring = Math.floor(i / PER_RING);
+        const inRing = i % PER_RING;
+        const ringCount = Math.min(count - ring * PER_RING, PER_RING);
+        const t = ringCount > 1 ? (inRing / (ringCount - 1) - 0.5) : 0;  // -0.5..0.5 across the fan
+        const a = baseA + t * fan + (hash01(n.data.id) - 0.5) * 0.1;
+        const r = LEAF_R + ring * 165 + hash01(n.data.id + 'r') * 55;
+        n.position = { x: Math.cos(a) * r, y: Math.sin(a) * r };
+      });
     });
 
+    // fcose params also scale with N: denser graphs get stronger repulsion, longer
+    // ideal edges and more node separation so they relax into a readable spread rather
+    // than a hairball. 'proof' quality runs the crossing-minimising pass.
     const LAYOUT = {
       name: 'fcose', quality: 'proof', randomize: false, animate: false,
-      fit: true, padding: 60, nodeSeparation: 130, idealEdgeLength: 110,
-      nodeRepulsion: 9000, gravity: 0.04, gravityCompound: 0.3,
+      fit: true, padding: 70,
+      nodeSeparation: 130 * spread,
+      idealEdgeLength: e => 110 * spread,
+      nodeRepulsion: () => 9000 * spread,
+      gravity: 0.03, gravityCompound: 0.25, gravityRangeCompound: 1.5,
+      numIter: 3000, tile: true,
       fixedNodeConstraint: fixed,
     };
 
@@ -268,5 +306,5 @@
     });
   }
 </script>
-<script src="/app/static/chat.js"></script>
+<script src="/app/static/chat.js?v={{ asset_v }}"></script>
 {% endblock %}

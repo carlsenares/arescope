@@ -50,8 +50,8 @@
         <a class="scan-row" href="/app/scans/{{ sc.id }}">
           <span class="scan-name">{{ sc.name or 'Analysis ' ~ sc.id[:8] }}</span>
           <span class="scan-chips">
-            <span class="chip chip-{{ sc.status }}">{{ sc.status }}</span>
             <span class="chip chip-muted js-offmap" title="Hidden from your exposure map" {% if sc.in_map %}hidden{% endif %}>off map</span>
+            <span class="chip chip-{{ sc.status }}">{{ sc.status }}</span>
           </span>
           <span class="scan-date muted">{{ sc.started_at.strftime('%b %d, %Y · %H:%M') if sc.started_at else '—' }}</span>
         </a>
