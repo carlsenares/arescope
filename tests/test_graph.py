@@ -52,6 +52,7 @@ def test_classify_web_mention_node():
     assert m[0].startswith("mention:") and m[1]["type"] == "mention"
     assert m[1]["label"] == "Jane in the news"
     assert m[1]["meta"]["domain"] == "news.site"
+    assert m[1]["meta"]["source"] == "Web search"  # derived from sig.source=tavily
     # same URL from another source converges to one node
     again = _classify(_sig("brave", "web_mention", "https://news.site/jane",
                            {"url": "https://news.site/jane", "domain": "news.site"}))
