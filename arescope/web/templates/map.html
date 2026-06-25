@@ -17,7 +17,11 @@
       <div class="map-controls">
         <button id="cyFit" class="btn btn-ghost btn-sm" type="button">Fit</button>
         <button id="cyRelayout" class="btn btn-ghost btn-sm" type="button">Re-layout</button>
-        {% if scope == 'map' %}<button id="addIdentity" class="btn btn-ghost btn-sm" type="button">+ Add to identity</button>{% endif %}
+        {% if scope == 'map' %}<button id="addIdentity" class="btn btn-ghost btn-sm" type="button">+ Add to identity</button>
+        <form method="post" action="/app/map/scan/{{ scan }}/rerun" class="inline" title="Re-run with the same inputs (keeps this map to compare)">
+          <input type="hidden" name="csrf" value="{{ csrf }}" />
+          <button class="btn btn-ghost btn-sm" type="submit">↻ Rerun</button>
+        </form>{% endif %}
         <span class="map-count">{{ elements.counts.nodes }} nodes · {{ elements.counts.edges }} links</span>
       </div>
     </div>

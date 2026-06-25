@@ -27,6 +27,17 @@ photo) and is meant to be *shocked* at how much the open internet infers about t
   photos) → inference (Opus Evaluate). The browser agent gets the *logged-in view*
   but only scales for the founder's own check / the demo (shared creds rate-limit).
 
+### 0a. Map persistence & rerun (locked 2026-06-25)
+- **Maps are never deleted.** Every "Build identity map" is a separate persisted Scan
+  (mode=map); old ones stay reachable (they list on the dashboard with a mode marker).
+- **Rerun** (`POST /app/map/scan/{id}/rerun`) creates a *new* scan over the *same
+  subject* (identical inputs, fresh collection) so the user can check whether a change
+  they made — deleting a profile, a broker opt-out — actually shrank their footprint.
+  The old map is preserved for comparison; nothing is overwritten.
+- **Still TODO:** a dedicated "your maps" list/switcher (today they're mixed into the
+  dashboard scan list), and **multiple named identities** (e.g. a parent mapping a
+  child) — that one must still flow each input through the ownership gate, not bypass it.
+
 ## 1. What it actually is
 
 Not a chart — a **node-link map of the user's footprint**, centered on them, that

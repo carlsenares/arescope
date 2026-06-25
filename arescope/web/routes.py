@@ -561,6 +561,38 @@ async def map_scan_add(request: Request, scan_id: str):
     return RedirectResponse(f"/app/map/scan/{scan_id}", status_code=303)
 
 
+@router.post("/app/map/scan/{scan_id}/rerun", response_class=HTMLResponse)
+async def map_scan_rerun(request: Request, scan_id: str):
+    """Re-run a map over the SAME inputs to see whether changes the user made (e.g.
+    deleting a profile, opting out of a broker) actually shrank their footprint. A
+    fresh scan is created over the existing subject, so the old map is preserved and
+    the two can be compared — nothing is overwritten."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not can_run_scan(user):
+        return _render(request, "locked.html")
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is None:
+            raise HTTPException(404, "map not found")
+        subject = s.get(models.Subject, scan.subject_id)
+        if subject is None or (subject.user_id != user.id and not user.is_admin):
+            raise HTTPException(404, "map not found")
+        subject_id = subject.id
+        name = scan.name
+
+    new_scan_id = create_scan(subject_id, options={"mode": "map"}, name=name)
+    try:
+        run_map_task.delay(new_scan_id)
+    except Exception:
+        pass
+    return RedirectResponse(f"/app/map/scan/{new_scan_id}", status_code=303)
+
+
 # --- admin: real-time run-access control ------------------------------------
 
 
