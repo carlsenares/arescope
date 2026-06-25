@@ -58,16 +58,25 @@ class GitHubConnector(Connector):
     def _repo_summary(self, username: str, headers: dict) -> dict:
         """Fetch the user's public repos and summarize. Best-effort: any failure returns
         {} so the profile signal still lands (repos are a bonus, not a gap)."""
-        try:
-            resp = httpx.get(f"{_API}{username}/repos", headers=headers, timeout=20,
-                             params={"sort": "pushed", "direction": "desc",
-                                     "per_page": 100, "type": "owner"})
-        except httpx.HTTPError:
-            return {}
-        if resp.status_code != 200:
-            return {}
-        repos = resp.json()
-        return _summarize_repos(repos) if isinstance(repos, list) else {}
+        # Paginate (bounded to 3 pages / 300 repos) so star totals + top-by-stars aren't
+        # skewed by only seeing the first page — without unbounded calls for a power user.
+        repos: list[dict] = []
+        for page in range(1, 4):
+            try:
+                resp = httpx.get(f"{_API}{username}/repos", headers=headers, timeout=20,
+                                 params={"sort": "pushed", "direction": "desc",
+                                         "per_page": 100, "type": "owner", "page": page})
+            except httpx.HTTPError:
+                break
+            if resp.status_code != 200:
+                break
+            batch = resp.json()
+            if not isinstance(batch, list) or not batch:
+                break
+            repos.extend(batch)
+            if len(batch) < 100:
+                break
+        return _summarize_repos(repos) if repos else {}
 
     def run(self, value: str, input_type: InputType, cfg: Settings) -> list[Signal]:
         headers = {"accept": "application/vnd.github+json", "user-agent": "arescope-self-audit"}
@@ -130,9 +139,11 @@ class GitHubConnector(Connector):
         # default identicon" flag, so we surface it as a photo (real uploads dominate
         # among real accounts) and let the proxy/monogram fallback handle a miss.
         if data.get("avatar_url"):
+            avatar = str(data["avatar_url"])
             signals.append(identity_signal(
-                source=self.name, attribute=PHOTO, value=str(data["avatar_url"]),
-                subject_value=value, subject_type=InputType.USERNAME, platform="github.com"))
+                source=self.name, attribute=PHOTO, value=avatar,
+                subject_value=value, subject_type=InputType.USERNAME,
+                platform="github.com", url=avatar))
 
         # A public email or a linked handle is a direct pivot to other identities.
         if data.get("email"):
