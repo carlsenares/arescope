@@ -16,7 +16,8 @@ import secrets
 from urllib.parse import quote, urlparse
 
 import httpx
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request
+from kombu.exceptions import OperationalError as BrokerError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -596,7 +597,8 @@ async def map_scan_rerun(request: Request, scan_id: str):
 
 
 @router.post("/app/map/scan/{scan_id}/evaluate")
-async def map_scan_evaluate(request: Request, scan_id: str) -> dict:
+async def map_scan_evaluate(request: Request, scan_id: str,
+                            background_tasks: BackgroundTasks) -> dict:
     """Kick off Opus Evaluate (inference over the whole footprint). Gated — it's an LLM
     cost. Runs in the worker; the client polls /analysis for the result."""
     user = _require_verified(request)
@@ -610,8 +612,10 @@ async def map_scan_evaluate(request: Request, scan_id: str) -> dict:
         raise HTTPException(404)
     try:
         evaluate_map_task.delay(scan_id)
-    except Exception:
-        evaluate_and_store_map(scan_id)  # no broker (e.g. tests/CLI) → run inline
+    except BrokerError:
+        # No broker (e.g. tests / single-process dev): run it as a background task so the
+        # slow Opus call doesn't block the event loop. FastAPI runs it in a threadpool.
+        background_tasks.add_task(evaluate_and_store_map, scan_id)
     return {"status": "running"}
 
 

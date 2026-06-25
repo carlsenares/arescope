@@ -260,7 +260,12 @@ def evaluate_and_store_map(scan_id: str) -> dict:
         rows = s.query(models.Signal).filter(models.Signal.scan_id == scan_id).all()
         sigs = [SimpleNamespace(source=r.source, kind=r.kind, locator=r.locator, raw=r.raw)
                 for r in rows]
-    payload = evaluate_map(sigs, label="this person").model_dump()
+    # Always write a TERMINAL state — a failure marker on error, so the polling client
+    # can stop waiting and show "failed" instead of spinning forever.
+    try:
+        payload = evaluate_map(sigs, label="this person").model_dump()
+    except Exception as e:  # noqa: BLE001 — record the failure, don't hang the poller
+        payload = {"failed": True, "error": str(e)[:200]}
     with session_scope() as s:
         scan = s.get(models.Scan, scan_id)
         if scan is not None:

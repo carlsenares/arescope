@@ -466,6 +466,10 @@
 
     function render(a) {
       if (!a) return;
+      if (a.failed) {
+        body.innerHTML = '<p class="muted">Analysis couldn\'t complete — try again.</p>';
+        panel.hidden = false; return;
+      }
       let h = '';
       if (a.headline) h += '<p class="report-headline">' + esc(a.headline) + '</p>';
       if (a.exposure_level) h += '<p class="report-exposure">Exposure: <b>' + esc(a.exposure_level) + '</b></p>';
