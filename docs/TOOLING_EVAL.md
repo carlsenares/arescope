@@ -33,6 +33,8 @@ infers about them. So:
 | **Apify** (already wired) | PAYG actors scraping public IG/LinkedIn/TikTok/X/Maps by profile URL | **Keep, central** | The scalable public-content backbone. Needs profile URLs → fed from PDL/Tavily/Gravatar/Maigret discovery. |
 | **GHunt** (already wired) | email → Google account: photo + Maps reviews | **Keep** | Maps reviews = prime inference fuel. Needs a valid Google cookie. |
 
+| **Camoufox** (daijro/camoufox) | Anti-detect Firefox: C++-level fingerprint spoofing, proxy-aware geo/timezone, sandboxed Playwright (undetectable) | **Adopt as the stealth engine** (admin/demo first) | The hard part of the map. It's what lets the browser agent / scrapers pull IG/LinkedIn/Google public content without being blocked. Pairs with browser-use; the cheaper-than-Apify path for our own scraping. |
+
 **Map pipeline shape:** seeds → **discovery** (PDL, Gravatar, Maigret, Sherlock, Tavily
 → candidate profile URLs) → **extraction** (Apify / browser-agent / GHunt / Crawl4AI
 → posts, reviews, employment, photos) → **inference** (Opus Evaluate → the "we can tell
@@ -54,6 +56,12 @@ you live in X, work at Y, eat Z" verdict). See GRAPH.md §13/§12.
 | **PostHog** | OSS product analytics, session replay, feature flags | **Adopt at launch (park now)** | Session replay shows where users drop in the input flow; feature flags = clean paywall rollout. Generous free tier, self-hostable (open-core fit). No value pre-users. |
 | **Remotion** | Programmatic video in React | **Low priority / marketing** | Per-user animated "your footprint" recap or landing demo. Differentiator, not core. |
 | **Openscreen** | Dynamic/trackable QR-code API | **Skip** | No clear fit for a privacy self-audit tool. |
+
+## Repos checked 2026-06-25 (batch 2)
+- **Camoufox** — see content-extraction table above. The standout: directly solves the map's anti-bot problem. Adopt.
+- **HyperFrames** (heygen) — HTML→MP4 video framework for AI agents (GSAP/Anime.js/Three.js). Same niche as Remotion but HTML-based (fits our stack better) — the better pick *if* we ever do the "animated your-footprint recap / demo" video. **Marketing-only, low priority.**
+- **Open Generative AI** (anil-matcha) — self-hosted image/video gen studio (Flux/Sora/Veo, 200+ models). **Skip** — no fit for a privacy self-audit tool (at most marketing imagery, which we don't need).
+- **LibreChat** — OSS multi-LLM chat UI (self-hosted ChatGPT clone). **Skip** — we already have an embedded "Ask Opus" chat and are single-provider by design.
 
 ## Design
 
