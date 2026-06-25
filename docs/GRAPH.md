@@ -36,6 +36,14 @@ stealth-browser foundation; `connectors/instagram_web.py` is the first connector
 (admin-only, `[browser]` extra, logged-in view via a stored session). Next: per-post
 location/image richness, LinkedIn/Maps via the same engine, then Opus Evaluate (§13).
 
+**LinkedIn enrichment — SHIPPED 2026-06-25.** LinkedIn can't be reached from a handle,
+so it runs as a **post-discovery enrichment pass** (`service._enrich_linkedin`): PDL
+surfaces the `linkedin_url`, then the URL is fetched once via two paths — **Jina Reader**
+(`r.jina.ai`, free/no-key/no-cookie, **all tiers**) and the **Apify LinkedIn actor**
+(deep, **admin-only**, credit-metered). Distinct sources (`linkedin_jina` vs
+`linkedin_apify`) so `eval-coverage` shows them side by side. This is the general
+"discovery → extraction" shape (GRAPH.md §0) — other URL-fed platforms follow it.
+
 **Web mentions on the map — SHIPPED 2026-06-25.** `web_mention` signals (Tavily/Brave
 name search, urlscan, IntelX leaks/pastes) now render as `mention` nodes (content-
 addressed by URL→domain), so searched-up references actually appear instead of being
