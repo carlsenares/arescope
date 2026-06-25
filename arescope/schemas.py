@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -175,6 +176,50 @@ class CoverageGap(BaseModel):
 
     source: str
     reason: str                          # e.g. "no API key", "rate-limited (429)"
+
+
+class DerivedFact(BaseModel):
+    """One thing Opus infers about the owner from the assembled footprint.
+
+    `map_node` lets Opus decide whether the fact is concrete enough to sit on the graph
+    as its own node (e.g. "Home city: Cologne") or belongs only in the prose profile
+    (e.g. "comfortable sharing their life publicly")."""
+
+    statement: str = Field(description="The inferred fact, e.g. 'Lives in Cologne'.")
+    category: Literal[
+        "location", "occupation", "interests", "routine",
+        "relationships", "demographics", "financial", "other",
+    ]
+    confidence: Literal["low", "medium", "high"]
+    evidence: list[str] = Field(
+        default_factory=list,
+        description="Which sources/platforms support this (e.g. 'Google Maps reviews').",
+    )
+    map_node: bool = Field(description="True if this belongs on the map as its own node.")
+
+
+class ProfileSection(BaseModel):
+    """One section of the prose 'who is this person' analysis."""
+
+    heading: str
+    points: list[str] = Field(description="Bullet points; each a complete, plain-language line.")
+
+
+class MapEvaluation(BaseModel):
+    """Opus's read of the whole footprint — the inference layer over the map.
+
+    Split intentionally: `derived_facts` (some become map nodes) vs `profile` (the
+    narrative the user reads). Self-audit framing: this is what someone could infer
+    about the OWNER, shown to the owner."""
+
+    headline: str = Field(description="One-line gut-punch summary of what's inferable.")
+    exposure_level: Literal["minimal", "moderate", "significant", "extensive"]
+    derived_facts: list[DerivedFact] = Field(default_factory=list)
+    profile: list[ProfileSection] = Field(default_factory=list)
+    most_revealing: list[str] = Field(
+        default_factory=list,
+        description="The few data points/sources that give away the most.",
+    )
 
 
 SEVERITY_ORDER: dict[Severity, int] = {
