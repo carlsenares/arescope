@@ -22,10 +22,13 @@ Design rules, consistent with the rest of the connector layer:
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 
 from arescope.connectors.base import ConnectorGap
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -71,7 +74,15 @@ def fetch(
     except Exception as e:  # pragma: no cover - exercised only when extra present
         raise ConnectorGap(f"camoufox import failed: {e}") from e
 
-    state = storage_state_path if storage_state_path and os.path.exists(storage_state_path) else None
+    # Warn (don't fail) when a session path is set but missing — otherwise an admin who
+    # expected the logged-in view silently gets the logged-out one (CodeRabbit #1).
+    state = None
+    if storage_state_path:
+        if os.path.exists(storage_state_path):
+            state = storage_state_path
+        else:
+            _log.warning("storage_state_path %s not found; using logged-out view",
+                         storage_state_path)
     try:
         with Camoufox(headless=True) as browser:
             context = browser.new_context(storage_state=state) if state else browser.new_context()
