@@ -261,6 +261,12 @@
             'background-width': '60%', 'background-height': '60%',
             'background-position-x': '50%', 'background-position-y': '50%',
             'background-clip': 'node', 'border-width': 2, 'border-color': sev } },
+        // public code repo: a small labelled node off the GitHub account (tech/interests).
+        { selector: 'node[type="repo"]', style: {
+            'width': 24, 'height': 24, 'shape': 'round-tag',
+            'background-color': '#1b2a1b', 'border-width': 1.5,
+            'border-color': '#2f5132', 'font-size': 11, 'color': '#bfe3c2',
+            'text-max-width': 150 } },
         { selector: 'node[type="broker"]', style: {
             'width': 46, 'height': 46, 'shape': 'round-hexagon', 'font-size': 13,
             'background-color': nodeBg, 'border-color': sev } },
@@ -324,6 +330,7 @@
       if (d.type === 'site' && d.url) extra = '<div class="t-sub">' + esc(d.url) + '</div>';
       if (d.type === 'post' && m.text) extra = '<div class="t-sub">' + esc(m.text) + '</div>';
       if (d.type === 'mention') extra = '<div class="t-sub">' + [esc(m.source), esc(d.url || m.domain)].filter(Boolean).join(' · ') + '</div>';
+      if (d.type === 'repo') extra = '<div class="t-sub">' + [esc(m.language), m.stars ? '★ ' + esc(m.stars) : '', esc(m.description)].filter(Boolean).join(' · ') + '</div>';
       if (d.type === 'broker') extra = '<div class="t-sub">' + esc(m.domain || '') + (m.opt_out_url ? ' · opt-out available' : '') + '</div>';
       if (d.type === 'service' && m.vulns && m.vulns.length) extra = '<div class="t-sub">' + esc(m.vulns.join(', ')) + '</div>';
       showTip('<strong>' + esc(d.label || d.id) + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>' + extra, e.renderedPosition);

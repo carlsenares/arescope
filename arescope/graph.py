@@ -335,6 +335,25 @@ def _post_nodes(sig: models.Signal) -> list[tuple[str, dict]]:
     return out
 
 
+def _repo_nodes(sig: models.Signal) -> list[tuple[str, dict]]:
+    """Project a GitHub account signal's `top_repos` into `repo` nodes — the public
+    projects a dev handle exposes (tech, interests, sometimes employer). Content-
+    addressed by repo URL so the same repo dedups."""
+    out: list[tuple[str, dict]] = []
+    for r in ((sig.raw or {}).get("top_repos") or []):
+        if not isinstance(r, dict) or not r.get("name"):
+            continue
+        ref = r.get("url") or r["name"]
+        out.append((f"repo:{_slug_hash(ref)}", {
+            "type": "repo",
+            "label": r["name"],
+            "url": r.get("url"),
+            "meta": {"description": r.get("description"), "stars": r.get("stars"),
+                     "language": r.get("language")},
+        }))
+    return out
+
+
 def build_map_graph(scan_id: str, label: str = "you") -> dict:
     nodes: dict[str, dict] = {}
     edges: dict[str, dict] = {}
@@ -380,11 +399,15 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
             raw = sig.raw or {}
             in_id = in_ids.get((raw.get("__subject_type"), raw.get("__subject_value")), "self")
             put_edge(in_id, node_id, sev, sig.source)
-            # Hang each collected post off its platform node so the content shows.
+            # Hang each collected post / public repo off its platform node so the
+            # content shows (the inference fuel the map is for).
             if sig.kind == "account":
                 for post_id, pdata in _post_nodes(sig):
                     put_node(post_id, severity="info", **pdata)
                     put_edge(node_id, post_id, "info", "posted")
+                for repo_id, rdata in _repo_nodes(sig):
+                    put_node(repo_id, severity="info", **rdata)
+                    put_edge(node_id, repo_id, "info", "repo")
 
     out_nodes = []
     for n in nodes.values():

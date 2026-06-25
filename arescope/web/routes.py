@@ -1157,6 +1157,7 @@ _PHOTO_HOSTS = {
     "lh3.googleusercontent.com",            # Google account photo (GHunt)
     "avatars.githubusercontent.com",         # GitHub avatar
     "gravatar.com", "www.gravatar.com", "secure.gravatar.com",  # Gravatar
+    "media.licdn.com",                       # LinkedIn profile photo (Apify enrichment)
 }
 
 
