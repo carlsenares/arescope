@@ -14,6 +14,7 @@ from arescope.connectors.gravatar import GravatarConnector
 from arescope.connectors.hibp import HIBPConnector
 from arescope.connectors.holehe import HoleheConnector
 from arescope.connectors.hudsonrock import HudsonRockConnector
+from arescope.connectors.instagram_web import InstagramWebConnector
 from arescope.connectors.intelx import IntelXConnector
 from arescope.connectors.ip_sources import (
     AbuseIPDBConnector,
@@ -56,6 +57,7 @@ REGISTRY: list[Connector] = [
     BraveConnector(),
     TavilyConnector(),
     ApifyConnector(),
+    InstagramWebConnector(),
     UrlscanConnector(),
     IntelXConnector(),
     IPQSPhoneConnector(),

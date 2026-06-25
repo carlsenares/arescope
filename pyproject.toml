@@ -36,6 +36,13 @@ connectors = [
     "phonenumbers",       # parse phone -> (national number, country code) for ignorant
     "Pillow",             # EXIF/GPS read from photo files
 ]
+# Stealth browser for public-content extraction (Camoufox = anti-detect Firefox).
+# Separate extra: it pulls Playwright + downloads a Firefox binary (`camoufox fetch`),
+# heavy and only needed for the admin/demo social-scraping connectors. Absent => those
+# connectors report a coverage gap, never fail (connectors/browser.py).
+browser = [
+    "camoufox[geoip]>=0.4",
+]
 # GHunt is NOT here on purpose: it pins httpx==0.27.2 which conflicts with our
 # httpx>=0.28. The connector shells out to the `ghunt` binary (subprocess), so it
 # only needs the CLI on PATH — the Dockerfile installs it in an isolated venv.

@@ -45,6 +45,7 @@ Account correlation across the web + breach exposure keyed on the handle.
 | **GitHub** | Public profile: real name, company, location, bio, public email, repos. | free | free (token lifts 60→5000/hr) | ✅ live |
 | **Reddit** | Public Reddit profile + activity. | free | free (optional app creds for OAuth) | ✅ live |
 | **urlscan** | Pages in urlscan's scan index that mention the handle (#8). | key | free tier | ✅ have |
+| **Instagram (Camoufox)** | Public IG profile via stealth browser: name, bio, follower count, profile photo, recent post captions + tagged locations (#8). Logged-in view with a stored session. | self-hosted (Camoufox) | free | ⚠ admin-only, unvalidated |
 
 ### PHONE → `leakcheck · ipqs · numverify · ignorant · phoneinfoga`
 Breach exposure + reputation + which apps the number is registered on.

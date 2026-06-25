@@ -106,6 +106,13 @@ class Settings(BaseSettings):
     apify_linkedin_actor: str = "dev_fusion/linkedin-profile-scraper"
     apify_instagram_actor: str = "apify/instagram-profile-scraper"
 
+    # Camoufox stealth-browser extraction (free Apify alternative; admin-only connectors).
+    # Gated on the [browser] extra being installed; flag lets a deploy disable it outright.
+    # instagram_session_path = a Playwright storage-state JSON (exported once) for the
+    # logged-in view — admin/demo only (shared creds rate-limit; see GRAPH.md §0).
+    browser_scraping_enabled: bool = True
+    instagram_session_path: str = ""
+
     # Name → data-broker / people-search listings (root input: name). Provider-agnostic
     # and config-gated: point NAME_SEARCH_API_URL at your chosen people-search/broker API
     # (or a thin shim you host) and set the key. Absent => connector unavailable =>

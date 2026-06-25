@@ -27,6 +27,15 @@ photo) and is meant to be *shocked* at how much the open internet infers about t
   photos) → inference (Opus Evaluate). The browser agent gets the *logged-in view*
   but only scales for the founder's own check / the demo (shared creds rate-limit).
 
+### 0b. Post/content nodes — SHIPPED 2026-06-25
+Captions we already collect (Apify, Bluesky, the new Camoufox Instagram connector) now
+render as small `post` nodes hanging off their platform node, content-addressed so the
+same caption dedups (`graph._post_nodes`). This is the first slice of the §12 content
+graph — the inference fuel finally shows. **Camoufox** (`connectors/browser.py`) is the
+stealth-browser foundation; `connectors/instagram_web.py` is the first connector on it
+(admin-only, `[browser]` extra, logged-in view via a stored session). Next: per-post
+location/image richness, LinkedIn/Maps via the same engine, then Opus Evaluate (§13).
+
 ### 0a. Map persistence & rerun (locked 2026-06-25)
 - **Maps are never deleted.** Every "Build identity map" is a separate persisted Scan
   (mode=map); old ones stay reachable (they list on the dashboard with a mode marker).
