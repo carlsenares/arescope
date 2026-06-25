@@ -245,6 +245,13 @@
         { selector: 'node[type="iploc"]', style: {
             'width': 50, 'height': 50, 'background-color': '#143', 'font-size': 13,
             'shape': 'round-diamond', 'border-color': sev } },
+        // content posts/captions: small, quiet, text-led — they're context that hangs
+        // off a platform node, not a severity finding (the map's inference fuel).
+        { selector: 'node[type="post"]', style: {
+            'width': 22, 'height': 22, 'shape': 'round-rectangle',
+            'background-color': '#202020', 'border-width': 1.5,
+            'border-color': '#3a3a3a', 'font-size': 11, 'color': '#bdbdbd',
+            'text-max-width': 150 } },
         { selector: 'node[type="broker"]', style: {
             'width': 46, 'height': 46, 'shape': 'round-hexagon', 'font-size': 13,
             'background-color': nodeBg, 'border-color': sev } },
@@ -277,6 +284,12 @@
     });
 
     // --- hover: highlight the path, gently de-emphasise the rest -------------
+    // Escape EVERY dynamic value before it goes into tooltip innerHTML — node labels,
+    // breach classes, infostealer machine names, scraped post captions and broker
+    // domains are all externally-sourced, so an HTML/script payload in any of them
+    // would otherwise execute in the viewer's browser (XSS).
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+      c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const tip = document.getElementById('cyTip');
     function showTip(html, rpos) {
       tip.innerHTML = html;
@@ -296,18 +309,19 @@
     cy.on('mouseover', 'node', e => {
       const d = e.target.data(); const m = d.meta || {};
       let extra = '';
-      if (d.type === 'breach' && m.data) extra = '<div class="t-sub">Leaked: ' + (m.data.join(', ') || '—') + '</div>';
-      if (d.type === 'stealer' && m.machine) extra = '<div class="t-sub">Machine: ' + m.machine + '</div>';
-      if (d.type === 'iploc') extra = '<div class="t-sub">' + [m.location, m.isp, (m.open_ports || []).length + ' open ports'].filter(Boolean).join(' · ') + '</div>';
-      if (d.type === 'site' && d.url) extra = '<div class="t-sub">' + d.url + '</div>';
-      if (d.type === 'broker') extra = '<div class="t-sub">' + (m.domain || '') + (m.opt_out_url ? ' · opt-out available' : '') + '</div>';
-      if (d.type === 'service' && m.vulns && m.vulns.length) extra = '<div class="t-sub">' + m.vulns.join(', ') + '</div>';
-      showTip('<strong>' + (d.label || d.id) + '</strong><div class="t-sev t-' + d.severity + '">' + d.severity + '</div>' + extra, e.renderedPosition);
+      if (d.type === 'breach' && m.data) extra = '<div class="t-sub">Leaked: ' + (esc(m.data.join(', ')) || '—') + '</div>';
+      if (d.type === 'stealer' && m.machine) extra = '<div class="t-sub">Machine: ' + esc(m.machine) + '</div>';
+      if (d.type === 'iploc') extra = '<div class="t-sub">' + [m.location, m.isp, (m.open_ports || []).length + ' open ports'].filter(Boolean).map(esc).join(' · ') + '</div>';
+      if (d.type === 'site' && d.url) extra = '<div class="t-sub">' + esc(d.url) + '</div>';
+      if (d.type === 'post' && m.text) extra = '<div class="t-sub">' + esc(m.text) + '</div>';
+      if (d.type === 'broker') extra = '<div class="t-sub">' + esc(m.domain || '') + (m.opt_out_url ? ' · opt-out available' : '') + '</div>';
+      if (d.type === 'service' && m.vulns && m.vulns.length) extra = '<div class="t-sub">' + esc(m.vulns.join(', ')) + '</div>';
+      showTip('<strong>' + esc(d.label || d.id) + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>' + extra, e.renderedPosition);
       trace(e.target);
     });
     cy.on('mouseover', 'edge', e => {
       const d = e.target.data();
-      showTip('<strong>' + (d.info || 'connection') + '</strong><div class="t-sev t-' + d.severity + '">' + d.severity + '</div>', e.renderedPosition);
+      showTip('<strong>' + esc(d.info || 'connection') + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>', e.renderedPosition);
       trace(e.target);
     });
     cy.on('mouseout', clear);

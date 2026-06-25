@@ -286,6 +286,29 @@ def _map_sev(sig: models.Signal) -> str:
     return _MAP_SEV_BY_KIND.get(sig.kind, "info")
 
 
+def _post_nodes(sig: models.Signal) -> list[tuple[str, dict]]:
+    """Project an account signal's `recent_posts` into content nodes (GRAPH.md §12).
+
+    Posts/captions we already collect (Apify, Bluesky, Instagram) but never showed —
+    they're the inference fuel the map is *for* (GRAPH.md §0). Each post becomes a
+    content-addressed `post` node so the same caption across sources collapses to one.
+    """
+    raw = sig.raw or {}
+    platform = (raw.get("domain") or "post").lower()
+    out: list[tuple[str, dict]] = []
+    for text in (raw.get("recent_posts") or []):
+        text = str(text).strip()
+        if not text:
+            continue
+        node_id = f"post:{_slug_hash(platform + ':' + text)}"
+        out.append((node_id, {
+            "type": "post",
+            "label": text if len(text) <= 48 else text[:47] + "…",
+            "meta": {"platform": platform, "text": text},
+        }))
+    return out
+
+
 def build_map_graph(scan_id: str, label: str = "you") -> dict:
     nodes: dict[str, dict] = {}
     edges: dict[str, dict] = {}
@@ -331,6 +354,11 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
             raw = sig.raw or {}
             in_id = in_ids.get((raw.get("__subject_type"), raw.get("__subject_value")), "self")
             put_edge(in_id, node_id, sev, sig.source)
+            # Hang each collected post off its platform node so the content shows.
+            if sig.kind == "account":
+                for post_id, pdata in _post_nodes(sig):
+                    put_node(post_id, severity="info", **pdata)
+                    put_edge(node_id, post_id, "info", "posted")
 
     out_nodes = []
     for n in nodes.values():
