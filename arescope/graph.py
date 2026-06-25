@@ -98,7 +98,12 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
             "label": "Infostealer log",
             "meta": {"date": raw.get("date_compromised"), "machine": raw.get("computer_name")},
         }
-    if sig.source == "shodan" and sig.kind == "host_profile":
+    # Any host_profile signal becomes the IP-location node — Shodan AND the IP
+    # enrichers (IPinfo/AbuseIPDB/VirusTotal/Censys) all emit kind="host_profile"
+    # keyed on the IP, so gating on source dropped IPinfo's location on the floor
+    # (the "IP → location never showed on the map" bug). Same iploc:{ip} id => they
+    # still merge into one node.
+    if sig.kind == "host_profile":
         return f"iploc:{sig.locator}", {
             "type": "iploc",
             "label": raw.get("location") or "IP location",
@@ -309,7 +314,10 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
         for ident in (subject.identifiers if subject else []):
             in_id = f"in:{ident.type}:{ident.value}"
             in_ids[(ident.type, ident.value)] = in_id
-            put_node(in_id, type="input", kind=ident.type, label=_mask(ident.value, ident.type))
+            # The map is the owner auditing THEIR OWN footprint — masking their own
+            # inputs just made the labels unreadable ("ad•••"). Show them in full.
+            # (_mask stays for build_scan_graph / future shared-service views.)
+            put_node(in_id, type="input", kind=ident.type, label=ident.value)
             put_edge("self", in_id, "info", "owns")
 
         sigs = s.query(models.Signal).filter(models.Signal.scan_id == scan_id).all()

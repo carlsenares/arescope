@@ -244,9 +244,12 @@
         { selector: 'node[type="broker"]', style: {
             'width': 46, 'height': 46, 'shape': 'round-hexagon', 'font-size': 13,
             'background-color': nodeBg, 'border-color': sev } },
+        // Centered logo with padding: size the image to 62% and center it EXPLICITLY.
+        // Don't also set background-fit — combining 'contain' with background-width/
+        // height/position is the bug that pinned every logo to the top-left (NW drift).
         { selector: 'node[type="site"]', style: {
             'width': 46, 'height': 46, 'background-color': '#fff',
-            'background-image': 'data(logoUrl)', 'background-fit': 'contain',
+            'background-image': 'data(logoUrl)',
             'background-width': '62%', 'background-height': '62%',
             'background-position-x': '50%', 'background-position-y': '50%',
             'background-clip': 'node' } },

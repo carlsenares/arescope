@@ -487,7 +487,7 @@ def map_scan_view(request: Request, scan_id: str):
     info = _load_owned_scan(user, scan_id)
     if info is None:
         raise HTTPException(404, "map not found")
-    elements = build_map_graph(scan_id, label="you")
+    elements = build_map_graph(scan_id, label=user.username or "you")
     return _render(request, "map.html", elements=elements, scope="map",
                    scan=scan_id, scan_status=info["status"], scan_name=info.get("name"))
 
@@ -514,7 +514,7 @@ def map_scan_graph(request: Request, scan_id: str) -> dict:
     if info is None:
         raise HTTPException(404)
     return {"status": info["status"], "phase": info.get("phase"),
-            "elements": build_map_graph(scan_id, label="you")}
+            "elements": build_map_graph(scan_id, label=user.username or "you")}
 
 
 @router.post("/app/map/scan/{scan_id}/add", response_class=HTMLResponse)
@@ -1067,10 +1067,32 @@ def password_check(request: Request):
     return _render(request, "password.html")
 
 
+def _latest_map_scan_id(user: models.User) -> str | None:
+    """Most recent map-mode scan the user owns (powers the 'Identity map' nav link)."""
+    with session_scope() as s:
+        rows = (
+            s.query(models.Scan.id, models.Scan.options)
+            .join(models.Subject, models.Scan.subject_id == models.Subject.id)
+            .filter(models.Subject.user_id == user.id)
+            .order_by(models.Scan.started_at.desc())
+            .all()
+        )
+    for sid, opts in rows:
+        if (opts or {}).get("mode") == "map":
+            return sid
+    return None
+
+
 @router.get("/app/map")
 def map_home(request: Request):
-    """The graph is its own surface now (map mode) — analysis no longer feeds it.
-    Send the old account/scan-map entry points to the identity-map builder."""
+    """Identity-map entry point: open the user's most recent map. Only fall through to
+    the builder when they have none yet (feedback: the nav link dead-ended on the
+    'build new' form instead of showing the map you already made)."""
+    user = current_user(request)
+    if user is not None:
+        latest = _latest_map_scan_id(user)
+        if latest:
+            return RedirectResponse(f"/app/map/scan/{latest}", status_code=303)
     return RedirectResponse("/app/map/new", status_code=303)
 
 

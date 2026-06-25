@@ -4,6 +4,29 @@
 > for the interactive "mapping" of a user's exposure. Read alongside
 > `AI_PIPELINE.md` (where the data comes from) and `ARCHITECTURE.md` (data model).
 
+## 0. North star (the point of the whole map) — locked 2026-06-25
+
+> **"This is how much I can find out about you without any hard-to-get information."**
+
+The user types only **easy public seeds** (email, phone, name, username, maybe a
+photo) and is meant to be *shocked* at how much the open internet infers about them
+"just by knowing where to look." Design consequences (do not relitigate):
+
+- **No user uploads / data-export files in the map.** A "check what Instagram's
+  export knows about you" feature is a *different, more boring* product — parked as
+  its own future thing, explicitly NOT this map.
+- The payoff is **public content that supports inference**, not "you have an account
+  here": Instagram posts, LinkedIn employment/history, Google Maps reviews, tweets,
+  public photos. Reviews in one city ⇒ home city; gym check-ins ⇒ routine; cuisine ⇒
+  tastes. The Opus **Evaluate** step (§13) turns content into those inferences — that
+  inference is the effect, not the node count.
+- So the hard engineering is **extracting public content off walled/JS platforms**
+  (IG/LinkedIn/Google) that have no clean API — see `TOOLING_EVAL.md`. Pipeline:
+  seeds → discovery (PDL/Gravatar/Maigret/Sherlock/Tavily → candidate profile URLs)
+  → extraction (Apify / browser-agent / GHunt / Crawl4AI → posts/reviews/employment/
+  photos) → inference (Opus Evaluate). The browser agent gets the *logged-in view*
+  but only scales for the founder's own check / the demo (shared creds rate-limit).
+
 ## 1. What it actually is
 
 Not a chart — a **node-link map of the user's footprint**, centered on them, that
