@@ -13,9 +13,10 @@ to ACCOUNT_METADATA), carrying the item name, bucket, media type and date. We do
 download item contents — only the catalog metadata, so this stays a "where you appear"
 signal, not a data warehouse.
 
-UNVALIDATED end-to-end (no live key tested). Free-tier accounts use a different API host
-(`https://free.intelx.io`); if the configured key is free-tier, flip _BASE accordingly —
-a wrong host/tier surfaces as a clean 401 coverage gap, never a crash.
+Free-tier accounts use host `https://free.intelx.io` and are credit-capped (e.g. 50
+`/intelligent/search`), so the host is config-driven (`ARESCOPE_INTELX_BASE_URL`) and the
+connector is admin_only to conserve the budget. A wrong host/tier surfaces as a clean
+401 coverage gap, never a crash.
 """
 
 from __future__ import annotations
@@ -28,8 +29,6 @@ from arescope.config import Settings
 from arescope.connectors.base import Connector, ConnectorGap
 from arescope.schemas import InputType, Signal
 
-# Paid/standard API host. Free-tier keys use https://free.intelx.io instead.
-_BASE = "https://2.intelx.io"
 _MAX_RESULTS = 50
 # How long to wait for the async search to populate (status 3 = "no results yet").
 _POLL_TRIES = 4
@@ -55,10 +54,11 @@ class IntelXConnector(Connector):
 
     def run(self, value: str, input_type: InputType, cfg: Settings) -> list[Signal]:
         headers = {"x-key": cfg.intelx_api_key, "User-Agent": "arescope"}
+        base = (cfg.intelx_base_url or "https://2.intelx.io").rstrip("/")
         # Phase 1: open a search, get its id.
         try:
             resp = httpx.post(
-                f"{_BASE}/intelligent/search",
+                f"{base}/intelligent/search",
                 headers=headers,
                 json={
                     "term": value, "buckets": [], "lookuplevel": 0,
@@ -85,7 +85,7 @@ class IntelXConnector(Connector):
         for _ in range(_POLL_TRIES):
             try:
                 r = httpx.get(
-                    f"{_BASE}/intelligent/search/result",
+                    f"{base}/intelligent/search/result",
                     headers=headers,
                     params={"id": search_id, "limit": _MAX_RESULTS, "previewlines": 0},
                     timeout=20,

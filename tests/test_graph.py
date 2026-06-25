@@ -45,6 +45,28 @@ def test_classify_broker_listing_node():
     assert b[1]["meta"]["opt_out_url"] == "https://spokeo.com/optout"
 
 
+def test_classify_web_mention_node():
+    m = _classify(_sig("tavily", "web_mention", "https://news.site/jane",
+                       {"title": "Jane in the news", "url": "https://news.site/jane",
+                        "domain": "news.site"}))
+    assert m[0].startswith("mention:") and m[1]["type"] == "mention"
+    assert m[1]["label"] == "Jane in the news"
+    assert m[1]["meta"]["domain"] == "news.site"
+    assert m[1]["meta"]["source"] == "Web search"  # derived from sig.source=tavily
+    # same URL from another source converges to one node
+    again = _classify(_sig("brave", "web_mention", "https://news.site/jane",
+                           {"url": "https://news.site/jane", "domain": "news.site"}))
+    assert again[0] == m[0]
+
+
+def test_classify_iploc_from_any_host_profile_source():
+    # IPinfo (not just Shodan) host_profile must produce the IP-location node.
+    n = _classify(_sig("ipinfo", "host_profile", "8.8.8.8",
+                       {"location": "Cologne, DE", "isp": "Example ISP"}))
+    assert n[0] == "iploc:8.8.8.8" and n[1]["type"] == "iploc"
+    assert n[1]["label"] == "Cologne, DE"
+
+
 def test_slug_override():
     assert _slug("twitter.com") == "x"
     assert _slug("github.com") == "github"

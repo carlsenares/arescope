@@ -42,6 +42,15 @@ _SLUG_OVERRIDE = {
 }
 
 
+# Friendly source label for a web_mention node, keyed on the connector's sig.source.
+_MENTION_SOURCE = {
+    "tavily": "Web search",
+    "brave": "Web search",
+    "urlscan": "urlscan.io",
+    "intelx": "Intelligence X",
+}
+
+
 def _worse(a: str | None, b: str) -> str:
     """Return the higher-severity of two severity strings."""
     if a is None:
@@ -152,6 +161,23 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
                 "meta": {"platform": raw.get("platform")},
             }
         return None  # name/bio/company/link: surfaced in the finding, not the map
+
+    if sig.kind == "web_mention":
+        # Where the person is *mentioned* on the web (Tavily/Brave name search, urlscan,
+        # IntelX leaks/pastes). Content-addressed by URL (else domain) so the same page
+        # from two sources collapses to one node. The source label is derived from
+        # sig.source (always present) rather than a per-connector raw field, so every
+        # emitter renders consistently without each having to set it.
+        url = raw.get("url") or ""
+        domain = (raw.get("domain") or _domain(url) or "web").lower()
+        return f"mention:{_slug_hash(url or domain)}", {
+            "type": "mention",
+            "label": (raw.get("title") or domain)[:60],
+            "slug": _slug(domain),
+            "url": url or None,
+            "meta": {"domain": domain, "source": _MENTION_SOURCE.get(sig.source, sig.source),
+                     "description": raw.get("description")},
+        }
 
     if sig.kind == "account":
         platform = _platform_key(sig)

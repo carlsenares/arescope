@@ -95,6 +95,10 @@ class Settings(BaseSettings):
     apify_token: str = ""
     dehashed_api_key: str = ""
     intelx_api_key: str = ""
+    # IntelX API host. Paid keys use 2.intelx.io; FREE-tier keys use free.intelx.io
+    # (the exact URL is shown on the account's Developer tab). Free tier is credit-capped
+    # (e.g. 50 /intelligent/search), so the connector stays admin_only to conserve it.
+    intelx_base_url: str = "https://2.intelx.io"
     facecheck_api_key: str = ""
 
     # Extended search v2 (map depth) — see docs/EXTENDED_SEARCH_PLAN.md.

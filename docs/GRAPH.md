@@ -36,6 +36,13 @@ stealth-browser foundation; `connectors/instagram_web.py` is the first connector
 (admin-only, `[browser]` extra, logged-in view via a stored session). Next: per-post
 location/image richness, LinkedIn/Maps via the same engine, then Opus Evaluate (§13).
 
+**Web mentions on the map — SHIPPED 2026-06-25.** `web_mention` signals (Tavily/Brave
+name search, urlscan, IntelX leaks/pastes) now render as `mention` nodes (content-
+addressed by URL→domain), so searched-up references actually appear instead of being
+dropped at classify time. `manage eval-coverage [scan_id]` prints per-connector coverage
+for a map scan (what IG vs LinkedIn vs each source actually returned) to drive source
+allocation. IntelX host is now config-driven (`ARESCOPE_INTELX_BASE_URL`) for free-tier.
+
 ### 0a. Map persistence & rerun (locked 2026-06-25)
 - **Maps are never deleted.** Every "Build identity map" is a separate persisted Scan
   (mode=map); old ones stay reachable (they list on the dashboard with a mode marker).

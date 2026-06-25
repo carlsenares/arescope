@@ -6,6 +6,7 @@ Separate from cli.py (which runs a stateless local scan with no DB).
     python -m arescope.manage migrate                 # add new tables/columns to an existing DB
     python -m arescope.manage create-admin            # seed admin from ARESCOPE_ADMIN_* env
     python -m arescope.manage create-admin -e a@b.c -u admin -p secret  # explicit
+    python -m arescope.manage eval-coverage [scan_id]  # what each connector returned (map)
 """
 
 from __future__ import annotations
@@ -76,6 +77,59 @@ def _create_admin(args: argparse.Namespace) -> int:
     return 0
 
 
+def _eval_coverage(args: argparse.Namespace) -> int:
+    """Print what each connector actually returned for a map scan — the data needed to
+    weigh sources against each other (e.g. is Instagram or LinkedIn worth the credits?).
+    Defaults to the latest map scan. Run where the DB is reachable (e.g. inside the api
+    container) and paste the output.
+    """
+    from collections import Counter
+
+    from sqlalchemy import select
+
+    from arescope.db import models
+    from arescope.db.session import session_scope
+
+    with session_scope() as s:
+        scan_id = args.scan_id
+        if not scan_id:
+            rows = s.execute(
+                select(models.Scan.id, models.Scan.options).order_by(models.Scan.started_at.desc())
+            ).all()
+            scan_id = next((sid for sid, opts in rows if (opts or {}).get("mode") == "map"), None)
+            if scan_id is None and rows:
+                scan_id = rows[0][0]
+        if not scan_id:
+            print("No scans found.", file=sys.stderr)
+            return 1
+
+        sigs = s.query(models.Signal).filter(models.Signal.scan_id == scan_id).all()
+        by_source: dict[str, list] = {}
+        for sig in sigs:
+            by_source.setdefault(sig.source, []).append(sig)
+
+        print(f"Coverage for scan {scan_id} — {len(sigs)} signals from {len(by_source)} sources\n")
+        for source in sorted(by_source):
+            group = by_source[source]
+            kinds = dict(Counter(sig.kind for sig in group))
+            print(f"## {source}  ({len(group)} signals: {kinds})")
+            for sig in group:
+                raw = sig.raw or {}
+                if sig.kind == "account":
+                    posts = raw.get("recent_posts") or []
+                    print(f"   platform={raw.get('domain')} name={raw.get('display_name')!r} "
+                          f"followers={raw.get('followers')} posts={len(posts)}")
+                    for p in posts[:3]:
+                        print(f"      · {str(p)[:90]}")
+                elif sig.kind == "identity_attribute":
+                    print(f"   {raw.get('attribute')}={str(raw.get('value'))[:90]!r} "
+                          f"({raw.get('platform')})")
+                elif sig.kind == "web_mention":
+                    print(f"   mention {raw.get('domain') or raw.get('url')}: {raw.get('title')!r}")
+            print()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="arescope.manage")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -88,6 +142,9 @@ def main(argv: list[str] | None = None) -> int:
     ca.add_argument("-u", "--username")
     ca.add_argument("-p", "--password")
 
+    ec = sub.add_parser("eval-coverage", help="print per-connector coverage for a map scan")
+    ec.add_argument("scan_id", nargs="?", default=None, help="scan id (default: latest map)")
+
     args = parser.parse_args(argv)
     if args.cmd == "init-db":
         init_db()
@@ -98,6 +155,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "create-admin":
         init_db()  # ensure tables exist before seeding
         return _create_admin(args)
+    if args.cmd == "eval-coverage":
+        return _eval_coverage(args)
     return 1
 
 
