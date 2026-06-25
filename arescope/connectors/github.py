@@ -8,14 +8,44 @@ company, email, avatar, and the linked Twitter/blog (deanonymization vectors).
 
 from __future__ import annotations
 
+from collections import Counter
+
 import httpx
 
 from arescope.config import Settings
-from arescope.connectors._identity import LINK, from_profile_fields, identity_signal
+from arescope.connectors._identity import LINK, PHOTO, from_profile_fields, identity_signal
 from arescope.connectors.base import Connector, ConnectorGap
 from arescope.schemas import InputType, Signal
 
 _API = "https://api.github.com/users/"
+_TOP_REPOS = 6   # how many of the user's own repos to surface on the map / for inference
+
+
+def _summarize_repos(repos: list[dict]) -> dict:
+    """Aggregate a user's OWN public repos into inference-ready facts (no forks).
+
+    Languages + topics hint at what they work on; the top repos (by stars) are the
+    public projects worth a node. Pure + defensive — feeds the map now and Opus
+    Evaluate later (the "what do their repos reveal" inference).
+    """
+    own = [r for r in repos if isinstance(r, dict) and not r.get("fork")]
+    langs = Counter(r["language"] for r in own if r.get("language"))
+    topics: Counter = Counter()
+    for r in own:
+        for t in (r.get("topics") or []):
+            topics[t] += 1
+    top = sorted(own, key=lambda r: r.get("stargazers_count") or 0, reverse=True)[:_TOP_REPOS]
+    return {
+        "languages": [lang for lang, _ in langs.most_common(8)],
+        "topics": [t for t, _ in topics.most_common(10)],
+        "total_stars": sum(r.get("stargazers_count") or 0 for r in own),
+        "top_repos": [
+            {"name": r.get("name"), "url": r.get("html_url"),
+             "description": (r.get("description") or "")[:140],
+             "stars": r.get("stargazers_count") or 0, "language": r.get("language")}
+            for r in top if r.get("name")
+        ],
+    }
 
 
 class GitHubConnector(Connector):
@@ -24,6 +54,29 @@ class GitHubConnector(Connector):
 
     def available(self, cfg: Settings) -> bool:
         return cfg.github_enabled
+
+    def _repo_summary(self, username: str, headers: dict) -> dict:
+        """Fetch the user's public repos and summarize. Best-effort: any failure returns
+        {} so the profile signal still lands (repos are a bonus, not a gap)."""
+        # Paginate (bounded to 3 pages / 300 repos) so star totals + top-by-stars aren't
+        # skewed by only seeing the first page — without unbounded calls for a power user.
+        repos: list[dict] = []
+        for page in range(1, 4):
+            try:
+                resp = httpx.get(f"{_API}{username}/repos", headers=headers, timeout=20,
+                                 params={"sort": "pushed", "direction": "desc",
+                                         "per_page": 100, "type": "owner", "page": page})
+            except httpx.HTTPError:
+                break
+            if resp.status_code != 200:
+                break
+            batch = resp.json()
+            if not isinstance(batch, list) or not batch:
+                break
+            repos.extend(batch)
+            if len(batch) < 100:
+                break
+        return _summarize_repos(repos) if repos else {}
 
     def run(self, value: str, input_type: InputType, cfg: Settings) -> list[Signal]:
         headers = {"accept": "application/vnd.github+json", "user-agent": "arescope-self-audit"}
@@ -43,6 +96,10 @@ class GitHubConnector(Connector):
 
         data = resp.json() or {}
         profile_url = data.get("html_url")
+
+        # Public repos → languages / topics / top projects (inference fuel + map nodes).
+        repo_summary = self._repo_summary(value, headers)
+
         signals: list[Signal] = [
             Signal(
                 source=self.name,
@@ -56,21 +113,18 @@ class GitHubConnector(Connector):
                     "public_repos": data.get("public_repos"),
                     "followers": data.get("followers"),
                     "created_at": data.get("created_at"),
+                    **repo_summary,
                 },
             )
         ]
 
-        # Identity attributes the profile leaks. avatar_url is always present on GitHub
-        # (it's a default identicon when unset), so only treat it as a real photo when
-        # the user uploaded one (gravatar_id non-empty signals a custom avatar).
+        # Identity attributes the profile leaks (name/location/company/bio).
         fields: dict[str, object] = {
             "name": data.get("name"),
             "location": data.get("location"),
             "company": data.get("company"),
             "bio": data.get("bio"),
         }
-        if data.get("gravatar_id") or (data.get("avatar_url") and "?" in str(data.get("avatar_url"))):
-            fields["avatar_url"] = data.get("avatar_url")
         signals.extend(
             from_profile_fields(
                 source=self.name,
@@ -81,6 +135,15 @@ class GitHubConnector(Connector):
                 profile_url=profile_url,
             )
         )
+        # The avatar as a real face on the map. GitHub's API exposes no "is this the
+        # default identicon" flag, so we surface it as a photo (real uploads dominate
+        # among real accounts) and let the proxy/monogram fallback handle a miss.
+        if data.get("avatar_url"):
+            avatar = str(data["avatar_url"])
+            signals.append(identity_signal(
+                source=self.name, attribute=PHOTO, value=avatar,
+                subject_value=value, subject_type=InputType.USERNAME,
+                platform="github.com", url=avatar))
 
         # A public email or a linked handle is a direct pivot to other identities.
         if data.get("email"):

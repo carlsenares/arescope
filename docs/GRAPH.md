@@ -36,6 +36,13 @@ stealth-browser foundation; `connectors/instagram_web.py` is the first connector
 (admin-only, `[browser]` extra, logged-in view via a stored session). Next: per-post
 location/image richness, LinkedIn/Maps via the same engine, then Opus Evaluate (§13).
 
+**GitHub enrichment — SHIPPED 2026-06-25.** The avatar now surfaces as a `photo` node
+(GitHub exposes no default-identicon flag, so we show it and let the monogram fallback
+handle a miss), and the user's own public repos are summarized (languages/topics/top
+projects by stars, forks excluded) into the account signal — rendered as small `repo`
+nodes off the GitHub node and kept in raw for Opus Evaluate's "what do their repos
+reveal" inference. (`media.licdn.com` added to the photo-proxy allow-list for LinkedIn.)
+
 **LinkedIn enrichment — SHIPPED 2026-06-25.** LinkedIn can't be reached from a handle,
 so it runs as a **post-discovery enrichment pass** (`service._enrich_linkedin`): PDL
 surfaces the `linkedin_url`, then the URL is fetched once via two paths — **Jina Reader**
