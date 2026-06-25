@@ -14,6 +14,8 @@ import json
 from arescope.config import get_settings
 from arescope.db import models
 from arescope.db.session import session_scope
+from arescope.connectors import linkedin
+from arescope.connectors.base import ConnectorGap, ConnectorUnavailable
 from arescope.connectors.registry import available_connectors
 from arescope.graph import build_account_graph, build_scan_graph
 from arescope.pipeline.chat import answer as chat_answer
@@ -31,6 +33,7 @@ from arescope.schemas import (
     ActionBucket,
     Category,
     ContingencyQuestion,
+    CoverageGap,
     EvidenceCluster,
     FixDifficulty,
     JudgedFinding,
@@ -223,6 +226,10 @@ def run_and_store_map(scan_id: str) -> str:
                                             kind=sig.kind, locator=sig.locator, raw=raw))
                 total += len(sigs)
             _set_phase(scan_id, f"Mapping — {cname} ({total} signals so far)…")
+        # Enrichment: discovery (PDL) surfaced profile URLs; fetch their content now.
+        # LinkedIn can't be reached from a handle, so this runs after the URL exists.
+        _set_phase(scan_id, "Enriching — LinkedIn…")
+        gaps += _enrich_linkedin(scan_id, cfg, owner_is_admin)
         _finalize_scan(scan_id, gaps, searched)
     except Exception:
         _fail_scan(scan_id)
@@ -232,6 +239,66 @@ def run_and_store_map(scan_id: str) -> str:
 
 # Connectors whose latency warrants running last in a streaming map build.
 _SLOW_SOURCES = {"maigret", "sherlock", "apify", "ignorant", "phoneinfoga"}
+
+
+def _is_linkedin_url(url: str) -> bool:
+    """True only for an exact linkedin.com host or a real subdomain of it."""
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or "").lower()
+    return host == "linkedin.com" or host.endswith(".linkedin.com")
+
+
+def _enrich_linkedin(scan_id: str, cfg, owner_is_admin: bool) -> list[CoverageGap]:
+    """Post-discovery enrichment: fetch content for LinkedIn URLs PDL already surfaced.
+
+    Jina Reader runs for every tier (free public page); the Apify actor runs for admins
+    only (deep, credit-metered). The URL is resolved ONCE here, not re-queried per
+    connector. Persists each fetch in its own txn so the streaming graph picks it up.
+    """
+    targets: dict[str, tuple[str, str]] = {}  # url -> (subject_value, subject_type)
+    with session_scope() as s:
+        rows = (
+            s.query(models.Signal)
+            .filter(models.Signal.scan_id == scan_id, models.Signal.kind == "account")
+            .all()
+        )
+        for r in rows:
+            raw = r.raw or {}
+            url = raw.get("url")
+            # only the DISCOVERED linkedin URL (from PDL etc.), not our own fetched rows.
+            # Validate the real host (exact linkedin.com or a true subdomain) so a
+            # lookalike like evil-linkedin.com can't get fetched.
+            if url and _is_linkedin_url(url) \
+                    and r.source not in ("linkedin_jina", "linkedin_apify"):
+                targets.setdefault(url, (raw.get("__subject_value", ""),
+                                         raw.get("__subject_type", "email")))
+
+    gaps: list[CoverageGap] = []
+    for url, (subj_val, subj_type) in targets.items():
+        st = InputType(subj_type) if subj_type in InputType._value2member_map_ else InputType.EMAIL
+        jobs = []
+        if linkedin.jina_available(cfg):
+            jobs.append(("linkedin_jina", linkedin.fetch_via_jina))
+        if owner_is_admin and linkedin.apify_linkedin_available(cfg):
+            jobs.append(("linkedin_apify", linkedin.fetch_via_apify))
+        for name, fn in jobs:
+            try:
+                sigs = fn(url, cfg, subj_val, st)
+            except (ConnectorGap, ConnectorUnavailable) as e:
+                gaps.append(CoverageGap(source=name, reason=str(e)))
+                continue
+            except Exception as e:  # noqa: BLE001 — never fail the scan on enrichment
+                gaps.append(CoverageGap(source=name, reason=f"unexpected error: {e}"))
+                continue
+            if sigs:
+                with session_scope() as s:
+                    for sig in sigs:
+                        raw = dict(sig.raw or {})
+                        raw["__subject_value"] = sig.subject_value
+                        raw["__subject_type"] = sig.subject_type.value
+                        s.add(models.Signal(scan_id=scan_id, source=sig.source,
+                                            kind=sig.kind, locator=sig.locator, raw=raw))
+    return gaps
 
 
 def _persist_one_finding(scan_id: str, jf: JudgedFinding) -> None:

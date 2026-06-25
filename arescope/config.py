@@ -117,6 +117,11 @@ class Settings(BaseSettings):
     browser_scraping_enabled: bool = True
     instagram_session_path: str = ""
 
+    # LinkedIn enrichment (fed a profile URL discovered by PDL). Jina Reader is the free,
+    # no-key public path (regular tier); the Apify LinkedIn actor is the deep admin path.
+    jina_enabled: bool = True      # r.jina.ai public-page → markdown (free, no cookie)
+    jina_api_key: str = ""         # optional: lifts Jina rate limits
+
     # Name → data-broker / people-search listings (root input: name). Provider-agnostic
     # and config-gated: point NAME_SEARCH_API_URL at your chosen people-search/broker API
     # (or a thin shim you host) and set the key. Absent => connector unavailable =>
