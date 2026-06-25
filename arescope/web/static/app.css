@@ -1258,6 +1258,40 @@ td.right,
   display: grid;
   gap: 0.55rem;
 }
+/* Opus inference report — right-side scrollable panel. */
+.map-report {
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 22rem;
+  max-width: calc(100vw - 1.7rem);
+  max-height: calc(100vh - 6rem);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.report-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--hairline);
+}
+.report-title { font-family: var(--font-display); font-weight: 600; font-size: 0.95rem; }
+.report-body { padding: 0.6rem 0.85rem 0.9rem; overflow-y: auto; font-size: 0.86rem; }
+.report-headline { font-weight: 600; margin: 0.3rem 0 0.5rem; }
+.report-exposure { color: var(--muted); margin: 0 0 0.6rem; text-transform: capitalize; }
+.report-sec { margin: 0.7rem 0; }
+.report-sec h4 {
+  font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); margin: 0 0 0.35rem;
+}
+.report-sec ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; }
+.report-conf {
+  font-size: 0.7rem; color: var(--muted); text-transform: uppercase;
+  border: 1px solid var(--hairline); border-radius: 5px; padding: 0 0.3rem;
+}
+.report-ev { font-size: 0.76rem; color: var(--muted); }
 .map-titlebar {
   display: flex;
   align-items: center;

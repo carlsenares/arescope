@@ -38,6 +38,7 @@ from arescope.schemas import SEVERITY_ORDER, Category, Identifier, InputType, Se
 from arescope.service import (
     create_scan,
     create_subject,
+    evaluate_and_store_map,
     generate_finding_artifact,
     generate_finding_remediation,
     load_chat,
@@ -46,7 +47,7 @@ from arescope.service import (
     send_map_chat,
 )
 from arescope.taxonomy import TAXONOMY
-from arescope.worker.tasks import run_map_task, run_scan_task
+from arescope.worker.tasks import evaluate_map_task, run_map_task, run_scan_task
 
 _HERE = os.path.dirname(__file__)
 TEMPLATES_DIR = os.path.join(_HERE, "templates")
@@ -489,7 +490,8 @@ def map_scan_view(request: Request, scan_id: str):
         raise HTTPException(404, "map not found")
     elements = build_map_graph(scan_id, label=user.username or "you")
     return _render(request, "map.html", elements=elements, scope="map",
-                   scan=scan_id, scan_status=info["status"], scan_name=info.get("name"))
+                   scan=scan_id, scan_status=info["status"], scan_name=info.get("name"),
+                   analysis=info.get("analysis"))
 
 
 @router.get("/app/map/scan/{scan_id}/status")
@@ -591,6 +593,39 @@ async def map_scan_rerun(request: Request, scan_id: str):
     except Exception:
         pass
     return RedirectResponse(f"/app/map/scan/{new_scan_id}", status_code=303)
+
+
+@router.post("/app/map/scan/{scan_id}/evaluate")
+async def map_scan_evaluate(request: Request, scan_id: str) -> dict:
+    """Kick off Opus Evaluate (inference over the whole footprint). Gated — it's an LLM
+    cost. Runs in the worker; the client polls /analysis for the result."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        raise HTTPException(403)
+    if not can_run_scan(user):
+        raise HTTPException(403, "not permitted")
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+    if _load_owned_scan(user, scan_id) is None:
+        raise HTTPException(404)
+    try:
+        evaluate_map_task.delay(scan_id)
+    except Exception:
+        evaluate_and_store_map(scan_id)  # no broker (e.g. tests/CLI) → run inline
+    return {"status": "running"}
+
+
+@router.get("/app/map/scan/{scan_id}/analysis")
+def map_scan_analysis(request: Request, scan_id: str) -> dict:
+    """Poll target: returns the stored Evaluate result once ready (else ready=false)."""
+    user = current_user(request)
+    if user is None:
+        raise HTTPException(403)
+    info = _load_owned_scan(user, scan_id)
+    if info is None:
+        raise HTTPException(404)
+    analysis = info.get("analysis")
+    return {"ready": analysis is not None, "analysis": analysis}
 
 
 # --- admin: real-time run-access control ------------------------------------
@@ -845,6 +880,7 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
             "status": scan.status,
             "started_at": scan.started_at,
             "options": scan.options or {},
+            "analysis": scan.analysis,
             "phase": snap.get("phase"),
             "coverage_gaps": snap.get("coverage_gaps", []),
             # Did any input actually have a source that searched it? (e.g. a name-only

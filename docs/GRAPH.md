@@ -36,6 +36,16 @@ stealth-browser foundation; `connectors/instagram_web.py` is the first connector
 (admin-only, `[browser]` extra, logged-in view via a stored session). Next: per-post
 location/image richness, LinkedIn/Maps via the same engine, then Opus Evaluate (§13).
 
+**Opus Evaluate — SHIPPED 2026-06-25.** The inference layer (§13), on-demand and gated.
+One Opus call (`pipeline/evaluate.py`, structured output, adaptive thinking) over a rich
+digest of ALL signals → `MapEvaluation`: a `headline`, `exposure_level`, `derived_facts`
+(each flagged `map_node` + category/confidence/evidence) and a prose `profile`. Facts with
+`map_node=true` render as dashed-violet **inference nodes** around the centre (distinct
+from collected fact); the rest + the profile show in a right-side report panel ("What can
+be inferred?"). Stored on `Scan.analysis`; runs in the worker, client polls `/analysis`.
+Not interactive yet (user-corrects-Opus deferred). This is what turns the map from nodes
+into the *shock*.
+
 **GitHub enrichment — SHIPPED 2026-06-25.** The avatar now surfaces as a `photo` node
 (GitHub exposes no default-identicon flag, so we show it and let the monogram fallback
 handle a miss), and the user's own public repos are summarized (languages/topics/top

@@ -248,6 +248,26 @@ def _is_linkedin_url(url: str) -> bool:
     return host == "linkedin.com" or host.endswith(".linkedin.com")
 
 
+def evaluate_and_store_map(scan_id: str) -> dict:
+    """Opus Evaluate over a map's full footprint → derived facts + profile, stored on
+    the scan. Signals are read into plain objects so the DB session isn't held during
+    the (slow) Opus call; the result is written back in a fresh txn."""
+    from types import SimpleNamespace
+
+    from arescope.pipeline.evaluate import evaluate_map
+
+    with session_scope() as s:
+        rows = s.query(models.Signal).filter(models.Signal.scan_id == scan_id).all()
+        sigs = [SimpleNamespace(source=r.source, kind=r.kind, locator=r.locator, raw=r.raw)
+                for r in rows]
+    payload = evaluate_map(sigs, label="this person").model_dump()
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is not None:
+            scan.analysis = payload
+    return payload
+
+
 def _enrich_linkedin(scan_id: str, cfg, owner_is_admin: bool) -> list[CoverageGap]:
     """Post-discovery enrichment: fetch content for LinkedIn URLs PDL already surfaced.
 

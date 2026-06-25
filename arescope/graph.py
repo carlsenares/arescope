@@ -409,6 +409,20 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
                     put_node(repo_id, severity="info", **rdata)
                     put_edge(node_id, repo_id, "info", "repo")
 
+        # Opus Evaluate deductions flagged map_node => inference nodes around the centre.
+        # Distinct from collected fact: these are what Opus INFERRED (GRAPH.md §13).
+        for i, fact in enumerate((scan.analysis or {}).get("derived_facts", []) if scan else []):
+            if not fact.get("map_node"):
+                continue
+            stmt = fact.get("statement") or ""
+            nid = f"inference:{i}:{_slug_hash(stmt)}"
+            put_node(nid, severity="info", type="inference",
+                     label=stmt if len(stmt) <= 48 else stmt[:47] + "…",
+                     meta={"category": fact.get("category"),
+                           "confidence": fact.get("confidence"),
+                           "evidence": fact.get("evidence", []), "statement": stmt})
+            put_edge("self", nid, "info", "inferred")
+
     out_nodes = []
     for n in nodes.values():
         n["data"]["severity"] = n["sev"] or "info"

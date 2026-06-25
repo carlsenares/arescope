@@ -21,7 +21,8 @@
         <form method="post" action="/app/map/scan/{{ scan }}/rerun" class="inline" title="Re-run with the same inputs (keeps this map to compare)">
           <input type="hidden" name="csrf" value="{{ csrf }}" />
           <button class="btn btn-ghost btn-sm" type="submit">↻ Rerun</button>
-        </form>{% endif %}
+        </form>
+        <button id="evaluateBtn" class="btn btn-primary btn-sm" type="button" title="Let Opus infer what your footprint reveals">✦ What can be inferred?</button>{% endif %}
         <span class="map-count">{{ elements.counts.nodes }} nodes · {{ elements.counts.edges }} links</span>
       </div>
     </div>
@@ -42,6 +43,19 @@
         <input type="text" name="phone" placeholder="another phone" autocomplete="off" />
         <button class="btn btn-primary btn-sm" type="submit">Add & re-map</button>
       </form>
+    </div>
+    {% endif %}
+
+    {% if scope == 'map' %}
+    <!-- right overlay: Opus inference report -->
+    <div class="map-overlay map-report" id="mapReport" hidden>
+      <div class="report-head">
+        <span class="report-title">What your footprint reveals</span>
+        <button type="button" class="ask-close" id="reportClose" aria-label="Close" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="report-body" id="reportBody"></div>
     </div>
     {% endif %}
 
@@ -96,6 +110,8 @@
 <script>
   const ELEMENTS = {{ elements | tojson }};
   const SCAN_ID = {{ (scan or '') | tojson }};
+  const CSRF = {{ csrf | tojson }};
+  const ANALYSIS = {{ analysis | tojson if analysis is defined else 'null' }};
   const SEV = {
     critical: 'oklch(0.64 0.2 18)', high: 'oklch(0.78 0.15 70)',
     medium: 'oklch(0.82 0.15 95)', low: 'oklch(0.78 0.24 145)', info: 'oklch(0.62 0 0)'
@@ -261,6 +277,13 @@
             'background-width': '60%', 'background-height': '60%',
             'background-position-x': '50%', 'background-position-y': '50%',
             'background-clip': 'node', 'border-width': 2, 'border-color': sev } },
+        // Opus inference: a deduction, not a collected fact — dashed violet ring so it
+        // reads as "what we worked out about you" distinct from hard data.
+        { selector: 'node[type="inference"]', style: {
+            'width': 30, 'height': 30, 'shape': 'round-rectangle',
+            'background-color': '#241b33', 'border-width': 2, 'border-style': 'dashed',
+            'border-color': 'oklch(0.7 0.16 300)', 'font-size': 12,
+            'color': 'oklch(0.85 0.1 300)', 'text-max-width': 150 } },
         // public code repo: a small labelled node off the GitHub account (tech/interests).
         { selector: 'node[type="repo"]', style: {
             'width': 24, 'height': 24, 'shape': 'round-tag',
@@ -331,6 +354,7 @@
       if (d.type === 'post' && m.text) extra = '<div class="t-sub">' + esc(m.text) + '</div>';
       if (d.type === 'mention') extra = '<div class="t-sub">' + [esc(m.source), esc(d.url || m.domain)].filter(Boolean).join(' · ') + '</div>';
       if (d.type === 'repo') extra = '<div class="t-sub">' + [esc(m.language), m.stars ? '★ ' + esc(m.stars) : '', esc(m.description)].filter(Boolean).join(' · ') + '</div>';
+      if (d.type === 'inference') extra = '<div class="t-sub">' + [esc(m.confidence) + ' confidence', (m.evidence || []).map(esc).join(', ')].filter(Boolean).join(' · ') + '</div>';
       if (d.type === 'broker') extra = '<div class="t-sub">' + esc(m.domain || '') + (m.opt_out_url ? ' · opt-out available' : '') + '</div>';
       if (d.type === 'service' && m.vulns && m.vulns.length) extra = '<div class="t-sub">' + esc(m.vulns.join(', ')) + '</div>';
       showTip('<strong>' + esc(d.label || d.id) + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>' + extra, e.renderedPosition);
@@ -428,6 +452,66 @@
     const addBtn = document.getElementById('addIdentity');
     const panel = document.getElementById('addPanel');
     if (addBtn && panel) addBtn.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+  })();
+
+  // --- Opus Evaluate: the inference report -----------------------------------
+  (function () {
+    const panel = document.getElementById('mapReport');
+    const body = document.getElementById('reportBody');
+    const btn = document.getElementById('evaluateBtn');
+    const closeBtn = document.getElementById('reportClose');
+    if (!panel || !body) return;
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+      c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function render(a) {
+      if (!a) return;
+      let h = '';
+      if (a.headline) h += '<p class="report-headline">' + esc(a.headline) + '</p>';
+      if (a.exposure_level) h += '<p class="report-exposure">Exposure: <b>' + esc(a.exposure_level) + '</b></p>';
+      (a.profile || []).forEach(sec => {
+        h += '<div class="report-sec"><h4>' + esc(sec.heading) + '</h4><ul>' +
+          (sec.points || []).map(p => '<li>' + esc(p) + '</li>').join('') + '</ul></div>';
+      });
+      if ((a.most_revealing || []).length) {
+        h += '<div class="report-sec"><h4>Most revealing</h4><ul>' +
+          a.most_revealing.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul></div>';
+      }
+      if ((a.derived_facts || []).length) {
+        h += '<div class="report-sec"><h4>Deductions</h4><ul>' +
+          a.derived_facts.map(f => '<li><b>' + esc(f.statement) + '</b> <span class="report-conf">' +
+            esc(f.confidence) + '</span>' +
+            ((f.evidence || []).length ? '<br><span class="report-ev">' + f.evidence.map(esc).join(', ') + '</span>' : '') +
+            '</li>').join('') + '</ul></div>';
+      }
+      body.innerHTML = h || '<p class="muted">No strong inferences from this footprint.</p>';
+      panel.hidden = false;
+    }
+
+    if (typeof ANALYSIS !== 'undefined' && ANALYSIS) render(ANALYSIS);
+    if (closeBtn) closeBtn.addEventListener('click', () => { panel.hidden = true; });
+
+    if (btn) btn.addEventListener('click', async () => {
+      btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Analyzing…';
+      panel.hidden = false;
+      body.innerHTML = '<p class="muted"><span class="spinner"></span> Opus is reading your footprint…</p>';
+      try {
+        const fd = new FormData(); fd.append('csrf', CSRF);
+        await fetch('/app/map/scan/' + SCAN_ID + '/evaluate', { method: 'POST', body: fd });
+      } catch (e) { /* poll anyway */ }
+      let tries = 0;
+      const poll = async () => {
+        tries++;
+        let d = null;
+        try { d = await (await fetch('/app/map/scan/' + SCAN_ID + '/analysis',
+          { headers: { accept: 'application/json' } })).json(); } catch (e) { /* retry */ }
+        if (d && d.ready) { location.reload(); return; }   // reload picks up inference nodes too
+        if (tries < 40) { setTimeout(poll, 3000); return; }
+        body.innerHTML = '<p class="muted">Still working — refresh in a moment.</p>';
+        btn.disabled = false; btn.textContent = orig;
+      };
+      setTimeout(poll, 3000);
+    });
   })();
 </script>
 <script src="/app/static/chat.js?v={{ asset_v }}"></script>

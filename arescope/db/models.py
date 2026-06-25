@@ -116,6 +116,8 @@ class Scan(Base):
     config_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     # per-scan run options chosen at submit time (e.g. {"maigret_top_sites": 50}).
     options: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Opus Evaluate result for a map (derived facts + profile), generated on demand.
+    analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     subject: Mapped["Subject"] = relationship(back_populates="scans")
     signals: Mapped[list["Signal"]] = relationship(
