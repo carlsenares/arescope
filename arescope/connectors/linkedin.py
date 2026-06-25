@@ -21,7 +21,7 @@ import re
 import httpx
 
 from arescope.config import Settings
-from arescope.connectors._identity import LOCATION, PHOTO, identity_signal
+from arescope.connectors._identity import COMPANY, LOCATION, NAME, PHOTO, identity_signal
 from arescope.connectors.base import ConnectorGap
 from arescope.schemas import InputType, Signal
 
@@ -93,7 +93,7 @@ def fetch_via_jina(url: str, cfg: Settings, subject_value: str,
         display_name=p["name"], description=p["headline"] or p["snippet"])]
     if p["name"]:
         sigs.append(identity_signal(
-            source="linkedin_jina", attribute="name", value=p["name"],
+            source="linkedin_jina", attribute=NAME, value=p["name"],
             subject_value=subject_value, subject_type=subject_type, platform="linkedin"))
     return sigs
 
@@ -145,7 +145,7 @@ def fetch_via_apify(url: str, cfg: Settings, subject_value: str,
         display_name=p["name"], description=p["headline"])]
     if p["name"]:
         sigs.append(identity_signal(
-            source="linkedin_apify", attribute="name", value=p["name"],
+            source="linkedin_apify", attribute=NAME, value=p["name"],
             subject_value=subject_value, subject_type=subject_type, platform="linkedin"))
     if p["location"]:
         sigs.append(identity_signal(
@@ -153,7 +153,7 @@ def fetch_via_apify(url: str, cfg: Settings, subject_value: str,
             subject_value=subject_value, subject_type=subject_type, platform="linkedin"))
     if p["company"]:
         sigs.append(identity_signal(
-            source="linkedin_apify", attribute="company", value=str(p["company"]),
+            source="linkedin_apify", attribute=COMPANY, value=str(p["company"]),
             subject_value=subject_value, subject_type=subject_type, platform="linkedin"))
     if p["photo"]:
         sigs.append(identity_signal(

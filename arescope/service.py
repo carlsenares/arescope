@@ -241,6 +241,13 @@ def run_and_store_map(scan_id: str) -> str:
 _SLOW_SOURCES = {"maigret", "sherlock", "apify", "ignorant", "phoneinfoga"}
 
 
+def _is_linkedin_url(url: str) -> bool:
+    """True only for an exact linkedin.com host or a real subdomain of it."""
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or "").lower()
+    return host == "linkedin.com" or host.endswith(".linkedin.com")
+
+
 def _enrich_linkedin(scan_id: str, cfg, owner_is_admin: bool) -> list[CoverageGap]:
     """Post-discovery enrichment: fetch content for LinkedIn URLs PDL already surfaced.
 
@@ -258,8 +265,10 @@ def _enrich_linkedin(scan_id: str, cfg, owner_is_admin: bool) -> list[CoverageGa
         for r in rows:
             raw = r.raw or {}
             url = raw.get("url")
-            # only the DISCOVERED linkedin URL (from PDL etc.), not our own fetched rows
-            if url and (raw.get("domain") or "").endswith("linkedin.com") \
+            # only the DISCOVERED linkedin URL (from PDL etc.), not our own fetched rows.
+            # Validate the real host (exact linkedin.com or a true subdomain) so a
+            # lookalike like evil-linkedin.com can't get fetched.
+            if url and _is_linkedin_url(url) \
                     and r.source not in ("linkedin_jina", "linkedin_apify"):
                 targets.setdefault(url, (raw.get("__subject_value", ""),
                                          raw.get("__subject_type", "email")))

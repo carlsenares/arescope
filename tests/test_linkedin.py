@@ -56,6 +56,16 @@ def test_availability_flags():
     assert apify_linkedin_available(Settings(apify_token="t", apify_linkedin_actor="a/b")) is True
 
 
+def test_is_linkedin_url_rejects_lookalikes():
+    from arescope.service import _is_linkedin_url
+    assert _is_linkedin_url("https://www.linkedin.com/in/jane")
+    assert _is_linkedin_url("https://linkedin.com/in/jane")
+    assert _is_linkedin_url("https://de.linkedin.com/in/jane")
+    assert not _is_linkedin_url("https://evil-linkedin.com/in/jane")
+    assert not _is_linkedin_url("https://linkedin.com.attacker.io/in/jane")
+    assert not _is_linkedin_url("not a url")
+
+
 def test_apify_empty_items_is_clean(monkeypatch):
     import arescope.connectors.linkedin as lk
 
