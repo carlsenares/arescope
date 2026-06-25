@@ -116,7 +116,7 @@
     // Self-hosted logo for site nodes (monogram shows if it 404s); real profile photos
     // come through our own proxy too (never hotlink Google/Gravatar from the browser).
     ELEMENTS.nodes.forEach(n => {
-      if (n.data.type === 'site' && n.data.slug) n.data.logoUrl = '/app/logo/' + n.data.slug;
+      if ((n.data.type === 'site' || n.data.type === 'mention' || n.data.type === 'broker') && n.data.slug) n.data.logoUrl = '/app/logo/' + n.data.slug;
       if (n.data.type === 'photo' && n.data.url) n.data.imgUrl = '/app/photo?u=' + encodeURIComponent(n.data.url);
     });
 
@@ -252,6 +252,15 @@
             'background-color': '#202020', 'border-width': 1.5,
             'border-color': '#3a3a3a', 'font-size': 11, 'color': '#bdbdbd',
             'text-max-width': 150 } },
+        // web mention: a page/record that names the person (search, leak, paste). Site
+        // logo on a quiet plate, distinct rounded shape + cool border so it reads as
+        // "a reference to you out there" rather than an account you hold.
+        { selector: 'node[type="mention"]', style: {
+            'width': 34, 'height': 34, 'shape': 'round-rectangle',
+            'background-color': '#fff', 'background-image': 'data(logoUrl)',
+            'background-width': '60%', 'background-height': '60%',
+            'background-position-x': '50%', 'background-position-y': '50%',
+            'background-clip': 'node', 'border-width': 2, 'border-color': sev } },
         { selector: 'node[type="broker"]', style: {
             'width': 46, 'height': 46, 'shape': 'round-hexagon', 'font-size': 13,
             'background-color': nodeBg, 'border-color': sev } },
@@ -314,6 +323,7 @@
       if (d.type === 'iploc') extra = '<div class="t-sub">' + [m.location, m.isp, (m.open_ports || []).length + ' open ports'].filter(Boolean).map(esc).join(' · ') + '</div>';
       if (d.type === 'site' && d.url) extra = '<div class="t-sub">' + esc(d.url) + '</div>';
       if (d.type === 'post' && m.text) extra = '<div class="t-sub">' + esc(m.text) + '</div>';
+      if (d.type === 'mention') extra = '<div class="t-sub">' + [esc(m.source), esc(d.url || m.domain)].filter(Boolean).join(' · ') + '</div>';
       if (d.type === 'broker') extra = '<div class="t-sub">' + esc(m.domain || '') + (m.opt_out_url ? ' · opt-out available' : '') + '</div>';
       if (d.type === 'service' && m.vulns && m.vulns.length) extra = '<div class="t-sub">' + esc(m.vulns.join(', ')) + '</div>';
       showTip('<strong>' + esc(d.label || d.id) + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>' + extra, e.renderedPosition);
@@ -362,7 +372,7 @@
       const seenE = new Set(cy.edges().map(e => e.id()));
       const countEl = document.querySelector('.map-count');
       const decorate = d => {
-        if (d.type === 'site' && d.slug) d.logoUrl = '/app/logo/' + d.slug;
+        if ((d.type === 'site' || d.type === 'mention' || d.type === 'broker') && d.slug) d.logoUrl = '/app/logo/' + d.slug;
         if (d.type === 'photo' && d.url) d.imgUrl = '/app/photo?u=' + encodeURIComponent(d.url);
         return d;
       };

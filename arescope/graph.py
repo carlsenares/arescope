@@ -153,6 +153,21 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
             }
         return None  # name/bio/company/link: surfaced in the finding, not the map
 
+    if sig.kind == "web_mention":
+        # Where the person is *mentioned* on the web (Tavily/Brave name search, urlscan,
+        # IntelX leaks/pastes). Content-addressed by URL (else domain) so the same page
+        # from two sources collapses to one node.
+        url = raw.get("url") or ""
+        domain = (raw.get("domain") or _domain(url) or "web").lower()
+        return f"mention:{_slug_hash(url or domain)}", {
+            "type": "mention",
+            "label": (raw.get("title") or domain)[:60],
+            "slug": _slug(domain),
+            "url": url or None,
+            "meta": {"domain": domain, "source": raw.get("source_label"),
+                     "description": raw.get("description")},
+        }
+
     if sig.kind == "account":
         platform = _platform_key(sig)
         return f"site:{platform}", {
