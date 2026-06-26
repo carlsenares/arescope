@@ -210,11 +210,21 @@ def run_and_store_map(scan_id: str) -> str:
         available.sort(key=lambda c: c.name in _SLOW_SOURCES)
 
         gaps = unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
+        # Per-connector outcome for the Sources panel. status priority: ok > gap > empty
+        # (a connector that returned data for one input but gapped on another reads as ok).
+        coverage: dict[str, dict] = {}
         total = 0
         for cname, sigs, gap in stream_connectors(identifiers, cfg, available):
+            rec = coverage.setdefault(cname, {"source": cname, "status": "empty",
+                                              "count": 0, "reason": None})
             if gap is not None:
                 gaps.append(gap)
+                if rec["status"] != "ok":
+                    rec["status"] = "gap"
+                    rec["reason"] = rec["reason"] or gap.reason
             if sigs:
+                rec["status"] = "ok"
+                rec["count"] += len(sigs)
                 # Persist this connector's batch in its own txn — the moment it commits,
                 # the next /graph poll picks the new nodes up and streams them in.
                 with session_scope() as s:
@@ -230,7 +240,7 @@ def run_and_store_map(scan_id: str) -> str:
         # LinkedIn can't be reached from a handle, so this runs after the URL exists.
         _set_phase(scan_id, "Enriching — LinkedIn…")
         gaps += _enrich_linkedin(scan_id, cfg, owner_is_admin)
-        _finalize_scan(scan_id, gaps, searched)
+        _finalize_scan(scan_id, gaps, searched, coverage=list(coverage.values()))
     except Exception:
         _fail_scan(scan_id)
         raise
@@ -387,7 +397,8 @@ def _set_phase(scan_id: str, phase: str) -> None:
             scan.config_snapshot = snap
 
 
-def _finalize_scan(scan_id: str, gaps: list, searched_types: list[str] | None = None) -> None:
+def _finalize_scan(scan_id: str, gaps: list, searched_types: list[str] | None = None,
+                   coverage: list[dict] | None = None) -> None:
     with session_scope() as s:
         scan = s.get(models.Scan, scan_id)
         if scan is None:
@@ -395,6 +406,9 @@ def _finalize_scan(scan_id: str, gaps: list, searched_types: list[str] | None = 
         scan.config_snapshot = {
             "coverage_gaps": [g.model_dump() for g in gaps],
             "searched_types": searched_types or [],
+            # Per-connector outcome (ran ok / ran empty / gap) for the map's Sources panel,
+            # so "no Instagram photo" vs "Instagram didn't run" is answerable (honest coverage).
+            "coverage": coverage or [],
         }
         scan.status = "complete"
         scan.finished_at = datetime.now(timezone.utc)

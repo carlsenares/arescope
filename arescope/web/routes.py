@@ -492,7 +492,9 @@ def map_scan_view(request: Request, scan_id: str):
     elements = build_map_graph(scan_id, label=user.username or "you")
     return _render(request, "map.html", elements=elements, scope="map",
                    scan=scan_id, scan_status=info["status"], scan_name=info.get("name"),
-                   analysis=info.get("analysis"))
+                   analysis=info.get("analysis"),
+                   coverage=info.get("coverage", []),
+                   coverage_gaps=info.get("coverage_gaps", []))
 
 
 @router.get("/app/map/scan/{scan_id}/status")
@@ -517,6 +519,8 @@ def map_scan_graph(request: Request, scan_id: str) -> dict:
     if info is None:
         raise HTTPException(404)
     return {"status": info["status"], "phase": info.get("phase"),
+            "coverage": info.get("coverage", []),
+            "coverage_gaps": info.get("coverage_gaps", []),
             "elements": build_map_graph(scan_id, label=user.username or "you")}
 
 
@@ -887,6 +891,7 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
             "analysis": scan.analysis,
             "phase": snap.get("phase"),
             "coverage_gaps": snap.get("coverage_gaps", []),
+            "coverage": snap.get("coverage", []),
             # Did any input actually have a source that searched it? (e.g. a name-only
             # scan searches nothing — a clean report must not claim "Nothing exposed".)
             # Missing key = legacy scan from before we tracked this → assume it searched.

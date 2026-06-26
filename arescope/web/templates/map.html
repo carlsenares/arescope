@@ -22,6 +22,7 @@
           <input type="hidden" name="csrf" value="{{ csrf }}" />
           <button class="btn btn-ghost btn-sm" type="submit">↻ Rerun</button>
         </form>
+        <button id="sourcesBtn" class="btn btn-ghost btn-sm" type="button" title="Which sources ran, which were skipped">Sources</button>
         <button id="evaluateBtn" class="btn btn-primary btn-sm" type="button" title="Let Opus infer what your footprint reveals">✦ What can be inferred?</button>{% endif %}
         <span class="map-count">{{ elements.counts.nodes }} nodes · {{ elements.counts.edges }} links</span>
       </div>
@@ -56,6 +57,19 @@
         </button>
       </div>
       <div class="report-body" id="reportBody"></div>
+    </div>
+    {% endif %}
+
+    {% if scope == 'map' %}
+    <!-- right overlay: which sources ran vs were skipped (honest coverage) -->
+    <div class="map-overlay map-report map-sources" id="mapSources" hidden>
+      <div class="report-head">
+        <span class="report-title">Sources</span>
+        <button type="button" class="ask-close" id="sourcesClose" aria-label="Close" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="report-body" id="sourcesBody"></div>
     </div>
     {% endif %}
 
@@ -112,6 +126,8 @@
   const SCAN_ID = {{ (scan or '') | tojson }};
   const CSRF = {{ csrf | tojson }};
   const ANALYSIS = {{ analysis | tojson if analysis is defined else 'null' }};
+  const COVERAGE = {{ coverage | tojson if coverage is defined else '[]' }};
+  const COVERAGE_GAPS = {{ coverage_gaps | tojson if coverage_gaps is defined else '[]' }};
   const SEV = {
     critical: 'oklch(0.64 0.2 18)', high: 'oklch(0.78 0.15 70)',
     medium: 'oklch(0.82 0.15 95)', low: 'oklch(0.78 0.24 145)', info: 'oklch(0.62 0 0)'
@@ -498,6 +514,7 @@
         });
         if (countEl) countEl.textContent = cy.nodes().length + ' nodes · ' + cy.edges().length + ' links';
         if (building.querySelector('.phase') && data.phase) building.querySelector('.phase').textContent = data.phase;
+        if (window.__setSources) window.__setSources(data.coverage, data.coverage_gaps);
         // New nodes are already visible at their near-source seed; debounce the
         // structural reorg so rapid polls collapse into one settle, not a tumble.
         if (added > 0) scheduleRelayout({ animate: true, fit: false });
@@ -555,6 +572,7 @@
             '</li>').join('') + '</ul></div>';
       }
       body.innerHTML = h || '<p class="muted">No strong inferences from this footprint.</p>';
+      const srcPanel = document.getElementById('mapSources'); if (srcPanel) srcPanel.hidden = true;
       panel.hidden = false;
     }
 
@@ -563,6 +581,7 @@
 
     if (btn) btn.addEventListener('click', async () => {
       btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Analyzing…';
+      const srcPanel = document.getElementById('mapSources'); if (srcPanel) srcPanel.hidden = true;
       panel.hidden = false;
       body.innerHTML = '<p class="muted"><span class="spinner"></span> Opus is reading your footprint…</p>';
       try {
@@ -582,6 +601,49 @@
       };
       setTimeout(poll, 3000);
     });
+  })();
+
+  // --- Sources panel: which connectors ran, which were skipped (honest coverage) ----
+  (function () {
+    const btn = document.getElementById('sourcesBtn');
+    const panel = document.getElementById('mapSources');
+    const body = document.getElementById('sourcesBody');
+    const closeBtn = document.getElementById('sourcesClose');
+    if (!btn || !panel || !body) return;
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+      c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    let cov = Array.isArray(COVERAGE) ? COVERAGE : [];
+    let gaps = Array.isArray(COVERAGE_GAPS) ? COVERAGE_GAPS : [];
+    // Bridge from the streaming poller (different scope) so the panel refreshes live.
+    window.__setSources = (c, g) => {
+      if (Array.isArray(c)) cov = c;
+      if (Array.isArray(g)) gaps = g;
+      if (!panel.hidden) render();
+    };
+    const sec = (title, lis) => lis ? '<div class="report-sec"><h4>' + esc(title) + '</h4><ul>' + lis + '</ul></div>' : '';
+    function render() {
+      const ran = cov.filter(r => r.status === 'ok' || r.status === 'empty');
+      const failed = cov.filter(r => r.status === 'gap');
+      const notEnabled = gaps.filter(g => /not configured|disabled/i.test(g.reason || ''));
+      if (!cov.length && !gaps.length) {
+        body.innerHTML = '<p class="muted">Source coverage appears once the map finishes building.</p>';
+        return;
+      }
+      let h = '';
+      h += sec('Searched', ran.map(r => '<li><b>' + esc(r.source) + '</b> · ' +
+        (r.status === 'ok' ? esc(r.count) + ' result' + (r.count === 1 ? '' : 's') : 'nothing found') +
+        '</li>').join(''));
+      h += sec('Couldn\'t check', failed.map(r => '<li><b>' + esc(r.source) + '</b> — ' +
+        esc(r.reason || 'unavailable') + '</li>').join(''));
+      if (notEnabled.length) h += '<div class="report-sec"><h4>Not enabled (' + notEnabled.length +
+        ')</h4><ul>' + notEnabled.map(g => '<li>' + esc(g.source) + '</li>').join('') + '</ul></div>';
+      body.innerHTML = h || '<p class="muted">No source activity recorded.</p>';
+    }
+    btn.addEventListener('click', () => {
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) { const r = document.getElementById('mapReport'); if (r) r.hidden = true; render(); }
+    });
+    if (closeBtn) closeBtn.addEventListener('click', () => { panel.hidden = true; });
   })();
 </script>
 <script src="/app/static/chat.js?v={{ asset_v }}"></script>
