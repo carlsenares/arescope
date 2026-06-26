@@ -68,10 +68,12 @@ class ApifyConnector(Connector):
                  "display_name": it.get("fullName"), "description": it.get("biography"),
                  "followers": it.get("followersCount"), "recent_posts": posts},
         )]
-        # Profile photo → a face node on the map (the actor returns it; we just never
-        # extracted it before). Skip private accounts — the picture isn't public there.
-        photo = it.get("profilePicUrlHD") or it.get("profilePicUrl")
-        if photo and not it.get("private"):
+        # Profile photo → a face node on the map. Emit it even for PRIVATE accounts: on
+        # Instagram the profile picture is public regardless of privacy (only the posts
+        # are gated), so suppressing it for private profiles hid a real face we can show.
+        photo = (it.get("profilePicUrlHD") or it.get("profilePicUrl")
+                 or it.get("profilePic") or it.get("profile_pic_url_hd"))
+        if photo:
             sigs.append(identity_signal(
                 source=self.name, attribute=PHOTO, value=photo,
                 subject_value=value, subject_type=InputType.USERNAME, platform="instagram"))

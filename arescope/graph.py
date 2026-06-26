@@ -222,19 +222,26 @@ def _present(data: dict) -> str | None:
     t = data.get("type")
     meta = data.get("meta") or {}
     if t == "broker":
+        # The collapsed removal checklist (the free enumeration tier — same catalog for
+        # everyone, nothing confirmed about you specifically).
+        if meta.get("items") is not None or meta.get("count"):
+            n = meta.get("count") or len(meta.get("items") or [])
+            return (f"{n} people-search sites that commonly list people — none confirmed "
+                    "for you. Use the opt-out links to remove yourself proactively.")
         base = "People-search site — may publish your address, phone and relatives."
         if meta.get("opt_out_url"):
             base += " Opt-out available."
-        # confirmed is False for the free enumeration tier (we didn't verify the listing).
-        if meta.get("confirmed") is False:
-            return "You may be listed here. " + base
         return base
     if t == "mention":
         if meta.get("source") == "Intelligence X" or str(data.get("id", "")).startswith("intelx:"):
             return "Your data appears in leaked or pasted records circulating online."
         return "A public web page that names you."
     if t == "iploc":
-        return "Your approximate location and network provider, inferred from your IP."
+        # Be honest about the ceiling: an IP gives a city-level area + ISP, never a street
+        # address (only the ISP holds that, via legal process). The real movement signal is
+        # the Google Maps reviews node, not this.
+        return ("Approximate city-level area and network provider from your IP — not your "
+                "street address. Your real movements show up via your Google Maps reviews.")
     if t == "breach":
         return "Your account was in this data breach — assume the listed data leaked."
     if t == "stealer":
@@ -463,11 +470,22 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
         # — unreadable and one node each floods the map. Collapse all of an input's IntelX
         # hits into ONE "appears in N leaked records" node (titles kept in the tooltip).
         intelx_agg: dict[str, list[str]] = {}
+        # Unconfirmed broker listings are the SAME name-independent removal catalog for
+        # everyone ("you may be listed here") — 12 scary hexagons of pure noise. Collapse
+        # them into ONE "removal checklist" node per input (opt-out links kept in the
+        # tooltip). A CONFIRMED listing (paid provider verified the person) is a real hit
+        # and still gets its own node.
+        broker_agg: dict[str, list[dict]] = {}
         for sig in sigs:
             raw = sig.raw or {}
             in_id = in_ids.get((raw.get("__subject_type"), raw.get("__subject_value")), "self")
             if sig.source == "intelx" and sig.kind == "web_mention":
                 intelx_agg.setdefault(in_id, []).append(str(raw.get("title") or "record")[:80])
+                continue
+            if sig.kind == "broker_listing" and raw.get("confirmed") is False:
+                broker_agg.setdefault(in_id, []).append(
+                    {"broker": raw.get("broker") or raw.get("domain"),
+                     "domain": raw.get("domain"), "opt_out_url": raw.get("opt_out_url")})
                 continue
             classified = _classify(sig)
             if classified is None:
@@ -486,6 +504,15 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
                     put_node(repo_id, severity="info", **rdata)
                     put_edge(node_id, repo_id, "info", "repo")
 
+        # One collapsed data-broker removal checklist per input (see aggregation above).
+        for in_id, blist in broker_agg.items():
+            n = len(blist)
+            nid = f"broker:checklist:{in_id}"
+            put_node(nid, severity="low", type="broker",
+                     label=f"Data-broker removal checklist ({n} site{'s' if n != 1 else ''})",
+                     meta={"confirmed": False, "count": n, "items": blist[:30]})
+            put_edge(in_id, nid, "low", "brokers")
+
         # One collapsed IntelX node per input (see the aggregation above).
         for in_id, items in intelx_agg.items():
             n = len(items)
@@ -503,7 +530,7 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
             stmt = fact.get("statement") or ""
             nid = f"inference:{i}:{_slug_hash(stmt)}"
             put_node(nid, severity="info", type="inference",
-                     label=stmt if len(stmt) <= 48 else stmt[:47] + "…",
+                     label="✦ " + (stmt if len(stmt) <= 46 else stmt[:45] + "…"),
                      meta={"category": fact.get("category"),
                            "confidence": fact.get("confidence"),
                            "evidence": fact.get("evidence", []), "statement": stmt})

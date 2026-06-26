@@ -93,9 +93,10 @@ def test_iploc_source_without_location_does_not_clobber():
 
 def test_present_humanizes_nodes():
     from arescope.graph import _present
-    # broker: free-enumeration listing reads as "may be listed", not a confirmed hit
-    assert "may be listed" in _present(
-        {"type": "broker", "meta": {"confirmed": False, "opt_out_url": "x"}}).lower()
+    # broker: unconfirmed listings are collapsed into a removal-checklist node (count/items)
+    assert "none confirmed" in _present(
+        {"type": "broker", "meta": {"confirmed": False, "count": 5, "items": []}}).lower()
+    # a CONFIRMED individual listing still reads as a real people-search hit
     assert _present({"type": "broker", "meta": {"confirmed": True}}).startswith("People-search")
     # intelx collapsed node + a default avatar
     assert "leaked" in _present({"type": "mention", "id": "intelx:in:ip:1.1.1.1", "meta": {}})

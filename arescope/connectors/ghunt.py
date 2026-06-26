@@ -32,6 +32,17 @@ from arescope.schemas import InputType, Signal
 # against ghunt 2.3.4). We stage the operator's creds file here before running.
 _GHUNT_DEFAULT_CREDS = Path.home() / ".malfrats" / "ghunt" / "creds.m"
 
+# --- Google Maps contributor reviews -----------------------------------------
+# GHunt's `email` JSON gives the Maps review COUNT but never the place names. Getting the
+# actual places turns out NOT to be reliably possible: verified live (2026-06-26), the
+# `locationhistory/preview/mas` RPC returns only the contributor's stats — even with
+# GHunt's authenticated session the review-entity list is absent. Google moved the review
+# list behind a different, undocumented RPC; GHunt itself disabled its review loop
+# (helpers/gmaps.py, commented out) for the same reason. So we surface the COUNT plus the
+# public contributor URL — one click shows the owner their own reviewed places — and don't
+# ship a fragile scrape that would just degrade every run.
+_MAPS_CONTRIB_URL = "https://www.google.com/maps/contrib/{gaia}/reviews"
+
 
 class GHuntConnector(Connector):
     name = "ghunt"
@@ -55,6 +66,7 @@ class GHuntConnector(Connector):
         if not data:
             return []  # no public Google account for this email
 
+        gaia_id = _gaia_id(data)
         signals: list[Signal] = [
             Signal(
                 source=self.name,
@@ -62,7 +74,7 @@ class GHuntConnector(Connector):
                 locator="google.com",
                 subject_value=value,
                 subject_type=InputType.EMAIL,
-                raw={"domain": "google.com", "gaia_id": _first_str(data, ("gaia", "gaia_id", "id"))},
+                raw={"domain": "google.com", "gaia_id": gaia_id},
             )
         ]
 
@@ -82,13 +94,19 @@ class GHuntConnector(Connector):
                 source=self.name, attribute=NAME, value=name,
                 subject_value=value, subject_type=InputType.EMAIL, platform="google.com",
             ))
-        # Google Maps reviews → places the person has been (location footprint).
-        for place in _maps_places(data)[:15]:
+
+        # Google Maps reviews → a real-world location footprint (the places the person
+        # reviewed). We can reliably get the COUNT + a link to their public contributor
+        # page (see the module note on why the place list isn't fetchable); surface that
+        # as one location signal the owner can click through to see the actual places.
+        review_count = _maps_review_count(data)
+        if gaia_id and review_count:
             signals.append(identity_signal(
-                source=self.name, attribute=LOCATION, value=place,
+                source=self.name, attribute=LOCATION,
+                value=f"{review_count} Google Maps review{'s' if review_count != 1 else ''}",
+                url=_MAPS_CONTRIB_URL.format(gaia=gaia_id),
                 subject_value=value, subject_type=InputType.EMAIL,
-                platform="maps.google.com",
-            ))
+                platform="maps.google.com"))
         return signals
 
 
@@ -165,13 +183,23 @@ def _first_str(data: dict, keys: tuple[str, ...]) -> str | None:
     return None
 
 
-def _maps_places(data: dict) -> list[str]:
-    """Best-effort: pull location/place strings out of a Maps-reviews structure."""
-    places: list[str] = []
+def _gaia_id(data: dict) -> str | None:
+    """The numeric Google account id (gaia), used to address the Maps contributor RPC.
+
+    GHunt's email JSON exposes it as profile.personId; fall back to any gaia-ish key."""
+    pid = _first_str(data, ("personId", "gaia", "gaia_id"))
+    if pid and pid.isdigit():
+        return pid
+    # last resort: a long all-digit value anywhere (gaia ids are ~21 digits)
+    for _k, v in _walk(data):
+        if isinstance(v, str) and v.isdigit() and len(v) >= 18:
+            return v
+    return None
+
+
+def _maps_review_count(data: dict) -> int:
+    """The Reviews count from PROFILE_CONTAINER/maps/stats (0 if absent)."""
     for k, v in _walk(data):
-        if isinstance(k, str) and k.lower() in ("address", "location", "place", "name") \
-                and isinstance(v, str) and v.strip():
-            places.append(v.strip())
-    # de-dup, preserve order
-    seen: set[str] = set()
-    return [p for p in places if not (p.lower() in seen or seen.add(p.lower()))]
+        if isinstance(k, str) and k.lower() == "reviews" and isinstance(v, int):
+            return v
+    return 0

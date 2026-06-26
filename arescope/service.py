@@ -15,6 +15,7 @@ from arescope.config import get_settings
 from arescope.db import models
 from arescope.db.session import session_scope
 from arescope.connectors import linkedin
+from arescope.connectors._webfilter import is_directory_noise
 from arescope.connectors.base import ConnectorGap, ConnectorUnavailable
 from arescope.connectors.registry import available_connectors
 from arescope.graph import build_account_graph, build_scan_graph
@@ -292,18 +293,24 @@ def _enrich_linkedin(scan_id: str, cfg, owner_is_admin: bool) -> list[CoverageGa
     """
     targets: dict[str, tuple[str, str]] = {}  # url -> (subject_value, subject_type)
     with session_scope() as s:
+        # A LinkedIn URL can be DISCOVERED two ways: as an `account` (PDL's linkedin_url)
+        # OR as a `web_mention` from name web-search (Tavily/Brave often surface the
+        # public /in/<slug> page even when PDL has nothing). Harvest both — keying only
+        # on `account` is why a LinkedIn that web-search clearly found was never fetched.
         rows = (
             s.query(models.Signal)
-            .filter(models.Signal.scan_id == scan_id, models.Signal.kind == "account")
+            .filter(models.Signal.scan_id == scan_id,
+                    models.Signal.kind.in_(("account", "web_mention")))
             .all()
         )
         for r in rows:
             raw = r.raw or {}
             url = raw.get("url")
-            # only the DISCOVERED linkedin URL (from PDL etc.), not our own fetched rows.
             # Validate the real host (exact linkedin.com or a true subdomain) so a
-            # lookalike like evil-linkedin.com can't get fetched.
-            if url and _is_linkedin_url(url) \
+            # lookalike like evil-linkedin.com can't get fetched; skip directory pages
+            # (/pub/dir) — they list many people, not a single profile; and never
+            # re-fetch our own enrichment rows.
+            if url and _is_linkedin_url(url) and not is_directory_noise(url, raw.get("title")) \
                     and r.source not in ("linkedin_jina", "linkedin_apify"):
                 targets.setdefault(url, (raw.get("__subject_value", ""),
                                          raw.get("__subject_type", "email")))

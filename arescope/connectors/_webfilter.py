@@ -13,6 +13,7 @@ web-mention only cuts noise, never coverage.
 from __future__ import annotations
 
 import re
+import unicodedata
 from urllib.parse import urlparse
 
 # Aggregator / people-search domains that index many people, never a person's own page.
@@ -41,3 +42,29 @@ def is_directory_noise(url: str, title: str | None = None) -> bool:
     if any(frag in path for frag in _DIRECTORY_PATHS):
         return True
     return bool(title and _DIRECTORY_TITLE.search(title))
+
+
+def _normalize(text: str) -> str:
+    """Casefold + strip accents + collapse non-alphanumerics to spaces.
+
+    So "Patrík  Breeck!" and "patrik breeck" compare equal, but "Breck" stays distinct
+    from "Breeck" — we fold accents/case/punctuation, never spelling."""
+    text = unicodedata.normalize("NFKD", text or "")
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", " ", text.casefold()).strip()
+
+
+def name_matches(query_name: str, *fields: str | None) -> bool:
+    """True only if EVERY token of the searched name appears as a whole word in one of
+    the given fields (title/description), exact spelling.
+
+    A name search for "Patrik Breeck" returns the owner AND look-alikes the engine
+    fuzzed in — "Patrick Breck", "Brad Breeck", unrelated "An Duy Dang". The connectors'
+    `"quoted"` query doesn't stop that, so we gate results on an exact first+last match:
+    keep only pages whose text contains every name token verbatim (order-independent).
+    """
+    tokens = [t for t in _normalize(query_name).split() if t]
+    if not tokens:
+        return True  # nothing to match against → don't filter
+    haystack = " " + " ".join(_normalize(f) for f in fields if f) + " "
+    return all(f" {tok} " in haystack for tok in tokens)

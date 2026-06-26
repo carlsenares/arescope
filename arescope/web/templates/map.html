@@ -201,10 +201,12 @@
         // Opus inference: a deduction, not a collected fact — dashed violet ring so it
         // reads as "what we worked out about you" distinct from hard data.
         { selector: 'node[type="inference"]', style: {
-            'width': 30, 'height': 30, 'shape': 'round-rectangle',
-            'background-color': '#241b33', 'border-width': 2, 'border-style': 'dashed',
-            'border-color': 'oklch(0.7 0.16 300)', 'font-size': 12,
-            'color': 'oklch(0.85 0.1 300)', 'text-max-width': 150 } },
+            'width': 46, 'height': 46, 'shape': 'round-rectangle',
+            'background-color': 'oklch(0.32 0.11 300)', 'border-width': 2.5,
+            'border-style': 'dashed', 'border-color': 'oklch(0.8 0.2 300)',
+            'shadow-blur': 18, 'shadow-color': 'oklch(0.7 0.2 300)', 'shadow-opacity': 0.85,
+            'font-size': 14, 'font-weight': 600, 'color': 'oklch(0.94 0.05 300)',
+            'text-max-width': 160, 'z-index': 30 } },
         // public code repo: a small labelled node off the GitHub account (tech/interests).
         { selector: 'node[type="repo"]', style: {
             'width': 24, 'height': 24, 'shape': 'round-tag',
@@ -372,6 +374,11 @@
     // fcose params scale with the freshly-computed spread: denser graphs get stronger
     // repulsion / longer edges / more separation. 'proof' runs the crossing-minimiser
     // (final + manual relayout); intermediate streaming beats use 'default' (cheaper).
+    // Nodes whose position is "settled" — locked in place on incremental (streaming)
+    // relayouts so already-placed nodes never tumble when a later batch lands. A full
+    // relayout() re-seeds everything and resets this to the whole graph.
+    const settled = new Set();
+
     function relayout({ animate = true, fit = false, quality = 'default' } = {}) {
       const { fixed, spread } = computeSeeds();
       cy.layout({
@@ -384,14 +391,42 @@
         numIter: 2500, tile: true,
         fixedNodeConstraint: fixed,
       }).run();
+      // After a full re-seed every node is authoritatively placed.
+      settled.clear();
+      cy.nodes().forEach(n => settled.add(n.id()));
     }
 
-    // Debounce streaming relayouts: a burst of polls collapses into ONE reorganization
-    // beat ~900ms after the last batch, so the map settles instead of tumbling per-poll.
+    // Incremental settle for streaming batches: PIN every already-settled node at its
+    // CURRENT position and let fcose place ONLY the newly-added nodes (seeded near their
+    // source at add time). This is the fix for "everything reloads when one input lands"
+    // — the email arm stays put while the name's nodes lay out around it.
+    function relayoutIncremental({ animate = true } = {}) {
+      const fixed = [];
+      cy.nodes().forEach(n => {
+        if (settled.has(n.id())) fixed.push({ nodeId: n.id(), position: { ...n.position() } });
+      });
+      // Nothing settled yet (first batch before any full layout) → do a full seed.
+      if (!fixed.length) { relayout({ animate, fit: false, quality: 'default' }); return; }
+      const spread = Math.min(2.6, 0.9 + cy.nodes().length / 32);
+      cy.layout({
+        name: 'fcose', quality: 'default', randomize: false, animate,
+        animationDuration: 500, fit: false, padding: 70,
+        nodeSeparation: 120 * spread,
+        idealEdgeLength: () => 110 * spread,
+        nodeRepulsion: () => 9000 * spread,
+        gravity: 0.03, gravityCompound: 0.25, gravityRangeCompound: 1.5,
+        numIter: 1200, tile: false,
+        fixedNodeConstraint: fixed,
+      }).run();
+      cy.nodes().forEach(n => settled.add(n.id()));  // the new nodes are now placed too
+    }
+
+    // Debounce streaming relayouts: a burst of polls collapses into ONE settle beat
+    // ~900ms after the last batch, so the map settles instead of tumbling per-poll.
     let _relayoutTimer = null;
     function scheduleRelayout(opts = {}) {
       clearTimeout(_relayoutTimer);
-      _relayoutTimer = setTimeout(() => relayout(opts), 900);
+      _relayoutTimer = setTimeout(() => relayoutIncremental(opts), 900);
     }
 
     // Initial render: seed + run the crossing-minimiser once, fit to view.
@@ -431,7 +466,11 @@
       if (d.type === 'mention') extra = '<div class="t-sub">' + [esc(m.source), esc(d.url || m.domain)].filter(Boolean).join(' · ') + '</div>';
       if (d.type === 'repo') extra = '<div class="t-sub">' + [esc(m.language), m.stars ? '★ ' + esc(m.stars) : '', esc(m.description)].filter(Boolean).join(' · ') + '</div>';
       if (d.type === 'inference') extra = '<div class="t-sub">' + [esc(m.confidence) + ' confidence', (m.evidence || []).map(esc).join(', ')].filter(Boolean).join(' · ') + '</div>';
-      if (d.type === 'broker') extra = '<div class="t-sub">' + esc(m.domain || '') + (m.opt_out_url ? ' · opt-out available' : '') + '</div>';
+      if (d.type === 'broker' && m.items && m.items.length)
+        extra = '<div class="t-sub">' + m.items.slice(0, 8).map(b =>
+          esc(b.broker || b.domain || '')).filter(Boolean).join(' · ') +
+          (m.items.length > 8 ? ' …' : '') + '</div>';
+      else if (d.type === 'broker') extra = '<div class="t-sub">' + esc(m.domain || '') + (m.opt_out_url ? ' · opt-out available' : '') + '</div>';
       if (d.type === 'service' && m.vulns && m.vulns.length) extra = '<div class="t-sub">' + esc(m.vulns.join(', ')) + '</div>';
       if (d.type === 'mention' && m.items && m.items.length) extra += '<div class="t-sub">' + esc(m.items.slice(0, 6).join(' · ')) + (m.items.length > 6 ? ' …' : '') + '</div>';
       // Plain-language note (the legibility layer) — what this node is / why it matters.
