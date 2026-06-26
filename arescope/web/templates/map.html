@@ -136,105 +136,10 @@
       if (n.data.type === 'photo' && n.data.url) n.data.imgUrl = '/app/photo?u=' + encodeURIComponent(n.data.url);
     });
 
-    // --- arm layout (feedback: grouping was random — some nodes far, some stacked).
-    // Each input the user entered becomes ONE arm radiating off the central identity
-    // in its own direction; the sites/breaches reached through that input fan out
-    // along the arm. Inputs are ordered email→username→name→ip so likely-to-overlap
-    // pairs (email & username share many sites) sit on ADJACENT arms, keeping the
-    // cross-links short. A node reached by several inputs is seeded at their mean
-    // angle (between the arms). fcose then relaxes from these seeds with the inputs
-    // PINNED (fixedNodeConstraint), so the arm structure holds but leaves never stack.
-    const idNode = ELEMENTS.nodes.find(n => n.data.type === 'identity');
-    const identityId = idNode ? idNode.data.id : null;
-    const inputs = ELEMENTS.nodes.filter(n => n.data.type === 'input');
-    const KIND_ORDER = { email: 0, username: 1, name: 2, ip: 3 };
-    inputs.sort((a, b) =>
-      ((KIND_ORDER[a.data.kind] ?? 9) - (KIND_ORDER[b.data.kind] ?? 9)) ||
-      String(a.data.id).localeCompare(String(b.data.id)));
-
-    // stable 0..1 hash of a node id → deterministic jitter (no reload tumble).
-    const hash01 = s => {
-      let h = 2166136261;
-      for (let k = 0; k < s.length; k++) { h ^= s.charCodeAt(k); h = Math.imul(h, 16777619); }
-      return ((h >>> 0) % 1000) / 1000;
-    };
-
-    // Scale the whole layout with node count so a big footprint claims more canvas
-    // instead of cramming into the same radius (feedback: graph too crowded). This is
-    // the "re-check the build on every addition" — the spacing is a function of N, so
-    // adding nodes widens the wheel rather than stacking onto it.
-    const N = ELEMENTS.nodes.length;
-    const spread = Math.min(2.4, 1 + N / 40);
-    const ARM_R = 250 * spread, LEAF_R = 440 * spread;
-    const armAngle = {};
-    const fixed = [];
-    if (identityId) fixed.push({ nodeId: identityId, position: { x: 0, y: 0 } });
-    if (idNode) idNode.position = { x: 0, y: 0 };
-    inputs.forEach((n, k) => {
-      const a = (-Math.PI / 2) + (k * 2 * Math.PI / Math.max(inputs.length, 1));
-      armAngle[n.data.id] = a;
-      const pos = { x: Math.cos(a) * ARM_R, y: Math.sin(a) * ARM_R };
-      n.position = pos;
-      fixed.push({ nodeId: n.data.id, position: pos });
-    });
-
-    // which input arm(s) each leaf hangs off (via its edges to input nodes).
-    const inputIds = new Set(inputs.map(n => n.data.id));
-    const leafArms = {};
-    ELEMENTS.edges.forEach(e => {
-      const { source, target } = e.data;
-      if (inputIds.has(source) && !inputIds.has(target)) (leafArms[target] ||= []).push(source);
-      if (inputIds.has(target) && !inputIds.has(source)) (leafArms[source] ||= []).push(target);
-    });
-    // Group leaves by the set of arms they hang off (a node reached by two inputs forms
-    // its own group seeded BETWEEN those arms — convergence stays visible). Then fan each
-    // group across an angular spread and stagger it across radial "rings", so leaves that
-    // share an arm no longer stack on one point. Wider groups get a wider fan and more
-    // rings — that's what kills the crowding and most of the edge crossings.
-    const groups = {};
-    ELEMENTS.nodes.forEach(n => {
-      if (n.data.type === 'identity' || n.data.type === 'input') return;
-      const arms = (leafArms[n.data.id] || []).slice().sort();
-      const key = arms.length ? arms.join('+') : ('free:' + (Math.floor(hash01(n.data.id) * 6)));
-      (groups[key] = groups[key] || { arms, leaves: [] }).leaves.push(n);
-    });
-    Object.values(groups).forEach(g => {
-      let baseA;
-      if (g.arms.length) {
-        let sx = 0, sy = 0;
-        g.arms.forEach(id => { const ang = armAngle[id] ?? 0; sx += Math.cos(ang); sy += Math.sin(ang); });
-        baseA = Math.atan2(sy, sx);
-      } else {
-        baseA = hash01(g.leaves[0].data.id) * 2 * Math.PI;  // off-arm orphans
-      }
-      const count = g.leaves.length;
-      const PER_RING = 7;
-      const fan = Math.min(Math.PI * 0.62, 0.16 * Math.min(count, PER_RING));
-      g.leaves.forEach((n, i) => {
-        const ring = Math.floor(i / PER_RING);
-        const inRing = i % PER_RING;
-        const ringCount = Math.min(count - ring * PER_RING, PER_RING);
-        const t = ringCount > 1 ? (inRing / (ringCount - 1) - 0.5) : 0;  // -0.5..0.5 across the fan
-        const a = baseA + t * fan + (hash01(n.data.id) - 0.5) * 0.1;
-        const r = LEAF_R + ring * 165 + hash01(n.data.id + 'r') * 55;
-        n.position = { x: Math.cos(a) * r, y: Math.sin(a) * r };
-      });
-    });
-
-    // fcose params also scale with N: denser graphs get stronger repulsion, longer
-    // ideal edges and more node separation so they relax into a readable spread rather
-    // than a hairball. 'proof' quality runs the crossing-minimising pass.
-    const LAYOUT = {
-      name: 'fcose', quality: 'proof', randomize: false, animate: false,
-      fit: true, padding: 70,
-      nodeSeparation: 130 * spread,
-      idealEdgeLength: e => 110 * spread,
-      nodeRepulsion: () => 9000 * spread,
-      gravity: 0.03, gravityCompound: 0.25, gravityRangeCompound: 1.5,
-      numIter: 3000, tile: true,
-      fixedNodeConstraint: fixed,
-    };
-
+    // Layout is computed by relayout() (defined below) from the LIVE graph, not once
+    // from the initial ELEMENTS — so streamed nodes get the same arm/ring structure and
+    // the spacing widens as the footprint grows. Create with no auto-layout; the first
+    // relayout() seeds + runs fcose right after construction.
     const cy = cytoscape({
       container: document.getElementById('cy'),
       elements: ELEMENTS,
@@ -318,8 +223,163 @@
         { selector: 'node.sel', style: {
             'border-color': '#fff', 'border-width': 4, 'text-opacity': 1, 'z-index': 50 } },
       ],
-      layout: LAYOUT,
+      layout: { name: 'preset' },
     });
+
+    // --- unified layout engine -------------------------------------------------
+    // ONE relayout() recomputes positions + fcose params from the CURRENT graph, so
+    // initial render and every streaming batch share the same structure. Feedback this
+    // fixes: spacing never improved on live builds (the old streaming path reused params
+    // frozen at first paint), a big input crammed/blocked the center, unconnected nodes
+    // scattered through the middle, and posts/repos flew off their platform.
+    const KIND_ORDER = { email: 0, username: 1, name: 2, ip: 3 };
+    // stable 0..1 hash of a node id → deterministic jitter (no reload tumble).
+    const hash01 = s => {
+      let h = 2166136261;
+      for (let k = 0; k < s.length; k++) { h ^= s.charCodeAt(k); h = Math.imul(h, 16777619); }
+      return ((h >>> 0) % 1000) / 1000;
+    };
+
+    function computeSeeds() {
+      const N = cy.nodes().length;
+      // Spacing scales with the LIVE node count so a big footprint claims more canvas
+      // instead of cramming — recomputed every relayout, not once at first paint.
+      const spread = Math.min(2.6, 0.9 + N / 32);
+
+      const idNode = cy.nodes('[type="identity"]').first();
+      const identityId = idNode.nonempty() ? idNode.id() : null;
+      const inputs = cy.nodes('[type="input"]').toArray().sort((a, b) =>
+        ((KIND_ORDER[a.data('kind')] ?? 9) - (KIND_ORDER[b.data('kind')] ?? 9)) ||
+        String(a.id()).localeCompare(String(b.id())));
+      const inputIds = new Set(inputs.map(n => n.id()));
+
+      // leaf id → the input arm(s) it hangs off (via its edges to input nodes).
+      const leafArms = {};
+      cy.edges().forEach(e => {
+        const s = e.data('source'), t = e.data('target');
+        if (inputIds.has(s) && !inputIds.has(t)) (leafArms[t] ||= []).push(s);
+        if (inputIds.has(t) && !inputIds.has(s)) (leafArms[s] ||= []).push(t);
+      });
+      const leafIds = new Set(Object.keys(leafArms));
+
+      // per-input leaf count → arm radius. Heavy inputs sit FARTHER from center so they
+      // stop blocking it (feedback: one big input destroyed the visual).
+      const leafCount = {};
+      inputs.forEach(n => { leafCount[n.id()] = 0; });
+      Object.values(leafArms).forEach(arms => arms.forEach(a => { leafCount[a] = (leafCount[a] || 0) + 1; }));
+
+      const armAngle = {}, armR = {}, fixed = [];
+      if (identityId) { idNode.position({ x: 0, y: 0 }); fixed.push({ nodeId: identityId, position: { x: 0, y: 0 } }); }
+      inputs.forEach((n, k) => {
+        const a = (-Math.PI / 2) + (k * 2 * Math.PI / Math.max(inputs.length, 1));
+        const r = (220 + 70 * Math.log2(1 + (leafCount[n.id()] || 0))) * spread;
+        armAngle[n.id()] = a; armR[n.id()] = r;
+        const pos = { x: Math.cos(a) * r, y: Math.sin(a) * r };
+        n.position(pos);
+        fixed.push({ nodeId: n.id(), position: pos });  // pin so the arm structure holds
+      });
+      const maxArmReach = inputs.length ? Math.max(...inputs.map(n => armR[n.id()])) : 220 * spread;
+
+      // Tier: leaves (connect to ≥1 input). Group by arm-set so a node reached by two
+      // inputs seeds BETWEEN their arms (convergence stays visible); fan + ring each group
+      // off that arm's radius so leaves never stack on one point.
+      const groups = {};
+      cy.nodes().forEach(n => {
+        const id = n.id();
+        if (n.data('type') === 'identity' || inputIds.has(id) || !leafIds.has(id)) return;
+        const arms = (leafArms[id] || []).slice().sort();
+        (groups[arms.join('+')] = groups[arms.join('+')] || { arms, leaves: [] }).leaves.push(n);
+      });
+      Object.values(groups).forEach(g => {
+        let sx = 0, sy = 0, baseR = 0;
+        g.arms.forEach(id => { const ang = armAngle[id] ?? 0; sx += Math.cos(ang); sy += Math.sin(ang); baseR = Math.max(baseR, armR[id] || maxArmReach); });
+        const baseA = Math.atan2(sy, sx);
+        const count = g.leaves.length, PER_RING = 7;
+        const fan = Math.min(Math.PI * 0.62, 0.16 * Math.min(count, PER_RING));
+        g.leaves.forEach((n, i) => {
+          const ring = Math.floor(i / PER_RING), inRing = i % PER_RING;
+          const ringCount = Math.min(count - ring * PER_RING, PER_RING);
+          const t = ringCount > 1 ? (inRing / (ringCount - 1) - 0.5) : 0;  // -0.5..0.5 across the fan
+          const a = baseA + t * fan + (hash01(n.id()) - 0.5) * 0.1;
+          const r = baseR + 190 + ring * 165 + hash01(n.id() + 'r') * 55;
+          n.position({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+        });
+      });
+
+      // Tier: identity-connected non-inputs (Opus inference nodes, edge to self) → a
+      // small ring around the center (their intended "deductions near the middle" spot).
+      const idc = [];
+      if (identityId) cy.edges().forEach(e => {
+        const s = e.data('source'), t = e.data('target');
+        const other = s === identityId ? t : (t === identityId ? s : null);
+        if (other && !inputIds.has(other) && !leafIds.has(other)) idc.push(other);
+      });
+      const idcU = [...new Set(idc)];
+      idcU.forEach((id, i) => {
+        const n = cy.getElementById(id); if (n.empty()) return;
+        const a = (i / Math.max(idcU.length, 1)) * 2 * Math.PI;
+        n.position({ x: Math.cos(a) * 150 * spread, y: Math.sin(a) * 150 * spread });
+      });
+
+      const placed = new Set([...inputIds, ...leafIds, ...idcU]);
+      if (identityId) placed.add(identityId);
+
+      // Tier: leaf-children (posts/repos hang off a site, not an input) → near the PARENT
+      // leaf so content clusters on its platform instead of scattering (was a real bug).
+      const childParent = {};
+      cy.edges().forEach(e => {
+        const s = e.data('source'), t = e.data('target');
+        if (leafIds.has(s) && !placed.has(t)) childParent[t] = childParent[t] || s;
+        if (leafIds.has(t) && !placed.has(s)) childParent[s] = childParent[s] || t;
+      });
+      Object.entries(childParent).forEach(([id, parent]) => {
+        const n = cy.getElementById(id), p = cy.getElementById(parent);
+        if (n.empty() || p.empty()) return;
+        const pp = p.position();
+        n.position({ x: pp.x + (hash01(id) - 0.5) * 120, y: pp.y + (hash01(id + 'y') - 0.5) * 120 });
+        placed.add(id);
+      });
+
+      // Tier: true orphans → an outer-rim halo beyond every arm, so unconnected clutter
+      // sits at the perimeter and never crowds the center (feedback: place them outside).
+      const rim = maxArmReach + 320 * spread;
+      cy.nodes().forEach(n => {
+        const id = n.id();
+        if (placed.has(id) || n.data('type') === 'identity') return;
+        const a = hash01(id) * 2 * Math.PI, r = rim + hash01(id + 'r') * 120;
+        n.position({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+      });
+
+      return { fixed, spread };
+    }
+
+    // fcose params scale with the freshly-computed spread: denser graphs get stronger
+    // repulsion / longer edges / more separation. 'proof' runs the crossing-minimiser
+    // (final + manual relayout); intermediate streaming beats use 'default' (cheaper).
+    function relayout({ animate = true, fit = false, quality = 'default' } = {}) {
+      const { fixed, spread } = computeSeeds();
+      cy.layout({
+        name: 'fcose', quality, randomize: false, animate,
+        animationDuration: 600, fit, padding: 70,
+        nodeSeparation: 120 * spread,
+        idealEdgeLength: () => 110 * spread,
+        nodeRepulsion: () => 9000 * spread,
+        gravity: 0.03, gravityCompound: 0.25, gravityRangeCompound: 1.5,
+        numIter: 2500, tile: true,
+        fixedNodeConstraint: fixed,
+      }).run();
+    }
+
+    // Debounce streaming relayouts: a burst of polls collapses into ONE reorganization
+    // beat ~900ms after the last batch, so the map settles instead of tumbling per-poll.
+    let _relayoutTimer = null;
+    function scheduleRelayout(opts = {}) {
+      clearTimeout(_relayoutTimer);
+      _relayoutTimer = setTimeout(() => relayout(opts), 900);
+    }
+
+    // Initial render: seed + run the crossing-minimiser once, fit to view.
+    relayout({ animate: false, fit: true, quality: 'proof' });
 
     // --- hover: highlight the path, gently de-emphasise the rest -------------
     // Escape EVERY dynamic value before it goes into tooltip innerHTML — node labels,
@@ -393,7 +453,7 @@
     // --- controls ------------------------------------------------------------
     document.getElementById('cyFit').addEventListener('click', () => cy.animate({ fit: { padding: 60 }, duration: 250 }));
     document.getElementById('cyRelayout').addEventListener('click', () => {
-      cy.layout({ ...LAYOUT, animate: true, animationDuration: 500 }).run();
+      relayout({ animate: true, fit: true, quality: 'proof' });
     });
 
     // --- streaming: poll while the map builds, adding new nodes/edges live -----
@@ -435,10 +495,13 @@
         });
         if (countEl) countEl.textContent = cy.nodes().length + ' nodes · ' + cy.edges().length + ' links';
         if (building.querySelector('.phase') && data.phase) building.querySelector('.phase').textContent = data.phase;
-        if (added > 0) cy.layout({ ...LAYOUT, randomize: false, animate: true, animationDuration: 600, fit: false }).run();
+        // New nodes are already visible at their near-source seed; debounce the
+        // structural reorg so rapid polls collapse into one settle, not a tumble.
+        if (added > 0) scheduleRelayout({ animate: true, fit: false });
         if (data.status === 'complete' || data.status === 'failed') {
           stop = true; building.remove();
-          cy.layout({ ...LAYOUT, randomize: false, animate: true, animationDuration: 700, fit: true }).run();
+          clearTimeout(_relayoutTimer);  // cancel any pending beat; do the authoritative one
+          relayout({ animate: true, fit: true, quality: 'proof' });
           return;
         }
         setTimeout(poll, 2200);
