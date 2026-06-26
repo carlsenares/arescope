@@ -1386,6 +1386,12 @@ td.right,
   color: var(--muted);
   word-break: break-all;
 }
+/* Plain-language node note (the legibility layer): readable, not a raw-data line. */
+.cy-tip .t-note {
+  margin-top: 0.35rem;
+  color: var(--ink-soft, var(--ink));
+  line-height: 1.35;
+}
 .cy-tip .t-sev {
   display: inline-block;
   margin-top: 0.35rem;

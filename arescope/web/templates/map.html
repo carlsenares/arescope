@@ -417,7 +417,10 @@
       if (d.type === 'inference') extra = '<div class="t-sub">' + [esc(m.confidence) + ' confidence', (m.evidence || []).map(esc).join(', ')].filter(Boolean).join(' · ') + '</div>';
       if (d.type === 'broker') extra = '<div class="t-sub">' + esc(m.domain || '') + (m.opt_out_url ? ' · opt-out available' : '') + '</div>';
       if (d.type === 'service' && m.vulns && m.vulns.length) extra = '<div class="t-sub">' + esc(m.vulns.join(', ')) + '</div>';
-      showTip('<strong>' + esc(d.label || d.id) + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>' + extra, e.renderedPosition);
+      if (d.type === 'mention' && m.items && m.items.length) extra += '<div class="t-sub">' + esc(m.items.slice(0, 6).join(' · ')) + (m.items.length > 6 ? ' …' : '') + '</div>';
+      // Plain-language note (the legibility layer) — what this node is / why it matters.
+      const note = d.note ? '<div class="t-note">' + esc(d.note) + '</div>' : '';
+      showTip('<strong>' + esc(d.label || d.id) + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>' + note + extra, e.renderedPosition);
       trace(e.target);
     });
     cy.on('mouseover', 'edge', e => {

@@ -156,7 +156,10 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
             "label": raw.get("broker") or domain,
             "slug": _slug(domain),
             "url": raw.get("listing_url"),
-            "meta": {"domain": domain, "opt_out_url": raw.get("opt_out_url")},
+            "meta": {"domain": domain, "opt_out_url": raw.get("opt_out_url"),
+                     # False => free enumeration (not a verified listing); the presenter
+                     # phrases it as "you may be listed" rather than a confirmed hit.
+                     "confirmed": raw.get("confirmed")},
         }
     if sig.kind == "identity_attribute":
         # The real-world facts a handle leaks. Photos and locations get their own map
@@ -208,6 +211,48 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
             "url": raw.get("url"),
             "meta": {"platform": platform, "tags": raw.get("tags")},
         }
+    return None
+
+
+# Plain-language "what this is / why it matters" for each node type — the legibility
+# layer between raw connector output and the map, so a non-technical owner (and the
+# operator) can read it without decoding `wak.json` or "instantcheckmate". Deterministic
+# (no per-node LLM); attached as node `note` at flatten time and shown in the tooltip.
+def _present(data: dict) -> str | None:
+    t = data.get("type")
+    meta = data.get("meta") or {}
+    if t == "broker":
+        base = "People-search site — may publish your address, phone and relatives."
+        if meta.get("opt_out_url"):
+            base += " Opt-out available."
+        # confirmed is False for the free enumeration tier (we didn't verify the listing).
+        if meta.get("confirmed") is False:
+            return "You may be listed here. " + base
+        return base
+    if t == "mention":
+        if meta.get("source") == "Intelligence X" or str(data.get("id", "")).startswith("intelx:"):
+            return "Your data appears in leaked or pasted records circulating online."
+        return "A public web page that names you."
+    if t == "iploc":
+        return "Your approximate location and network provider, inferred from your IP."
+    if t == "breach":
+        return "Your account was in this data breach — assume the listed data leaked."
+    if t == "stealer":
+        return "Malware on a device logged credentials — high risk; rotate passwords."
+    if t == "service":
+        return "A service exposed on your IP, visible to internet-wide scanners."
+    if t == "photo":
+        return None if meta.get("is_default") else "Your real photo is publicly visible."
+    if t == "post":
+        return "Public content you posted — reveals interests, places and routine."
+    if t == "repo":
+        return "A public code project — exposes your tech, interests, sometimes employer."
+    if t == "inference":
+        return "A deduction about you from the footprint — not a stored fact."
+    if t == "location":
+        return "A place tied to you (a tagged post or review)."
+    if t == "site":
+        return "An account or profile linked to one of your identifiers."
     return None
 
 
@@ -269,6 +314,9 @@ def _build(scan_ids: list[str], label: str) -> dict:
         n["data"]["severity"] = n["sev"] or "info"
         if not n["data"].get("label"):
             n["data"]["label"] = "IP location" if n["data"].get("type") == "iploc" else n["data"]["id"]
+        note = _present(n["data"])
+        if note:
+            n["data"]["note"] = note
         out_nodes.append({"data": n["data"]})
 
     return {
@@ -411,15 +459,22 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
             put_edge("self", in_id, "info", "owns")
 
         sigs = s.query(models.Signal).filter(models.Signal.scan_id == scan_id).all()
+        # IntelX returns one catalog record per leaked file/paste (names like "wak.json")
+        # — unreadable and one node each floods the map. Collapse all of an input's IntelX
+        # hits into ONE "appears in N leaked records" node (titles kept in the tooltip).
+        intelx_agg: dict[str, list[str]] = {}
         for sig in sigs:
+            raw = sig.raw or {}
+            in_id = in_ids.get((raw.get("__subject_type"), raw.get("__subject_value")), "self")
+            if sig.source == "intelx" and sig.kind == "web_mention":
+                intelx_agg.setdefault(in_id, []).append(str(raw.get("title") or "record")[:80])
+                continue
             classified = _classify(sig)
             if classified is None:
                 continue
             node_id, ndata = classified
             sev = _map_sev(sig)
             put_node(node_id, severity=sev, **ndata)
-            raw = sig.raw or {}
-            in_id = in_ids.get((raw.get("__subject_type"), raw.get("__subject_value")), "self")
             put_edge(in_id, node_id, sev, sig.source)
             # Hang each collected post / public repo off its platform node so the
             # content shows (the inference fuel the map is for).
@@ -430,6 +485,15 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
                 for repo_id, rdata in _repo_nodes(sig):
                     put_node(repo_id, severity="info", **rdata)
                     put_edge(node_id, repo_id, "info", "repo")
+
+        # One collapsed IntelX node per input (see the aggregation above).
+        for in_id, items in intelx_agg.items():
+            n = len(items)
+            nid = f"intelx:{in_id}"
+            put_node(nid, severity="low", type="mention", slug="intelligencex",
+                     label=f"Appears in {n} leaked record{'s' if n != 1 else ''}",
+                     meta={"source": "Intelligence X", "count": n, "items": items[:25]})
+            put_edge(in_id, nid, "low", "intelx")
 
         # Opus Evaluate deductions flagged map_node => inference nodes around the centre.
         # Distinct from collected fact: these are what Opus INFERRED (GRAPH.md §13).
@@ -450,6 +514,9 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
         n["data"]["severity"] = n["sev"] or "info"
         if not n["data"].get("label"):
             n["data"]["label"] = "IP location" if n["data"].get("type") == "iploc" else n["data"]["id"]
+        note = _present(n["data"])
+        if note:
+            n["data"]["note"] = note
         out_nodes.append({"data": n["data"]})
     return {"nodes": out_nodes, "edges": list(edges.values()),
             "counts": {"nodes": len(out_nodes), "edges": len(edges)}}

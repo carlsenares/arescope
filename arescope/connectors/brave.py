@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 import httpx
 
 from arescope.config import Settings
+from arescope.connectors._webfilter import is_directory_noise
 from arescope.connectors.base import Connector, ConnectorGap
 from arescope.schemas import InputType, Signal
 
@@ -57,6 +58,8 @@ class BraveConnector(Connector):
             url = r.get("url")
             if not url:
                 continue
+            if is_directory_noise(url, r.get("title")):
+                continue  # "50+ profiles named X" / people-search aggregators — not the owner
             domain = (urlparse(url).netloc or "").lower()
             signals.append(
                 Signal(

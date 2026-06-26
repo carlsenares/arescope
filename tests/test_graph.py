@@ -91,6 +91,29 @@ def test_iploc_source_without_location_does_not_clobber():
     assert data["meta"]["location"] == "Cologne, DE"  # not blanked by the source w/o location
 
 
+def test_present_humanizes_nodes():
+    from arescope.graph import _present
+    # broker: free-enumeration listing reads as "may be listed", not a confirmed hit
+    assert "may be listed" in _present(
+        {"type": "broker", "meta": {"confirmed": False, "opt_out_url": "x"}}).lower()
+    assert _present({"type": "broker", "meta": {"confirmed": True}}).startswith("People-search")
+    # intelx collapsed node + a default avatar
+    assert "leaked" in _present({"type": "mention", "id": "intelx:in:ip:1.1.1.1", "meta": {}})
+    assert _present({"type": "photo", "meta": {"is_default": True}}) is None
+    assert _present({"type": "photo", "meta": {}}).startswith("Your real photo")
+
+
+def test_directory_noise_filter():
+    from arescope.connectors._webfilter import is_directory_noise
+    # the exact case from the test report: a LinkedIn directory of many same-named people
+    assert is_directory_noise("https://www.linkedin.com/pub/dir/x", "50+ Breeck profiles | LinkedIn")
+    assert is_directory_noise("https://spokeo.com/John-Breeck")            # aggregator domain
+    assert is_directory_noise("https://any.site/p", "127+ profiles named Breeck")  # title rule
+    # a real profile / personal page is kept
+    assert not is_directory_noise("https://www.linkedin.com/in/john-breeck-123", "John Breeck | LinkedIn")
+    assert not is_directory_noise("https://janedoe.com/about", "About Jane Doe")
+
+
 def test_slug_override():
     assert _slug("twitter.com") == "x"
     assert _slug("github.com") == "github"
