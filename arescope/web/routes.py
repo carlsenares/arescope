@@ -1199,6 +1199,15 @@ _PHOTO_HOSTS = {
     "gravatar.com", "www.gravatar.com", "secure.gravatar.com",  # Gravatar
     "media.licdn.com",                       # LinkedIn profile photo (Apify enrichment)
 }
+# Instagram serves photos from dynamic CDN subdomains (scontent-*.cdninstagram.com,
+# *.fbcdn.net), so allow by parent-domain SUFFIX rather than an exact host. Still a fixed
+# set of CDNs (no open proxy / SSRF) — just not a single static hostname.
+_PHOTO_HOST_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
+
+
+def _photo_host_allowed(host: str) -> bool:
+    return host in _PHOTO_HOSTS or any(
+        host == s or host.endswith("." + s) for s in _PHOTO_HOST_SUFFIXES)
 
 
 @router.get("/app/photo")
@@ -1210,7 +1219,7 @@ def photo_proxy(request: Request, u: str):
     if user is None:
         raise HTTPException(403)
     host = (urlparse(u).hostname or "").lower()
-    if host not in _PHOTO_HOSTS:
+    if not _photo_host_allowed(host):
         raise HTTPException(404)
     os.makedirs(_PHOTO_CACHE, exist_ok=True)
     key = hashlib.sha1(u.encode()).hexdigest()[:24]  # noqa: S324 (cache key, not security)

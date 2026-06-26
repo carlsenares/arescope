@@ -58,6 +58,24 @@ def _worse(a: str | None, b: str) -> str:
     return a if _SEV_RANK.get(a, 0) >= _SEV_RANK.get(b, 0) else b
 
 
+def _merge_node_data(dst: dict, src: dict) -> None:
+    """Merge a later signal's node data into an existing node, keeping non-null values.
+
+    `meta` is merged key-by-key (not replaced wholesale) so a second source that
+    corroborates a node but lacks a field can't wipe what the first source provided —
+    the bug where AbuseIPDB (no `location`) merging after IPinfo blanked the IP's city.
+    """
+    for k, v in src.items():
+        if v is None:
+            continue
+        if k == "meta" and isinstance(v, dict) and isinstance(dst.get("meta"), dict):
+            for mk, mv in v.items():
+                if mv is not None or mk not in dst["meta"]:
+                    dst["meta"][mk] = mv
+        else:
+            dst[k] = v
+
+
 def _domain(url: str | None) -> str | None:
     if not url:
         return None
@@ -115,7 +133,9 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
     if sig.kind == "host_profile":
         return f"iploc:{sig.locator}", {
             "type": "iploc",
-            "label": raw.get("location") or "IP location",
+            # None when this source has no location → won't clobber a city a corroborating
+            # source did supply (merge keeps non-null). Flatten falls back to "IP location".
+            "label": raw.get("location"),
             "meta": {
                 "location": raw.get("location"),
                 "isp": raw.get("isp"),
@@ -200,7 +220,7 @@ def _build(scan_ids: list[str], label: str) -> dict:
         if n is None:
             nodes[node_id] = {"data": {"id": node_id, **data}, "sev": severity}
         else:
-            n["data"].update({k: v for k, v in data.items() if v is not None})
+            _merge_node_data(n["data"], data)
             n["sev"] = _worse(n["sev"], severity) if severity else n["sev"]
 
     def put_edge(src: str, dst: str, severity: str, info: str) -> None:
@@ -247,6 +267,8 @@ def _build(scan_ids: list[str], label: str) -> dict:
     out_nodes = []
     for n in nodes.values():
         n["data"]["severity"] = n["sev"] or "info"
+        if not n["data"].get("label"):
+            n["data"]["label"] = "IP location" if n["data"].get("type") == "iploc" else n["data"]["id"]
         out_nodes.append({"data": n["data"]})
 
     return {
@@ -363,7 +385,7 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
         if n is None:
             nodes[node_id] = {"data": {"id": node_id, **data}, "sev": severity}
         else:
-            n["data"].update({k: v for k, v in data.items() if v is not None})
+            _merge_node_data(n["data"], data)
             n["sev"] = _worse(n["sev"], severity) if severity else n["sev"]
 
     def put_edge(src: str, dst: str, severity: str, info: str) -> None:
@@ -426,6 +448,8 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
     out_nodes = []
     for n in nodes.values():
         n["data"]["severity"] = n["sev"] or "info"
+        if not n["data"].get("label"):
+            n["data"]["label"] = "IP location" if n["data"].get("type") == "iploc" else n["data"]["id"]
         out_nodes.append({"data": n["data"]})
     return {"nodes": out_nodes, "edges": list(edges.values()),
             "counts": {"nodes": len(out_nodes), "edges": len(edges)}}

@@ -2,7 +2,15 @@
 
 from types import SimpleNamespace
 
-from arescope.graph import _classify, _domain, _mask, _platform_key, _slug, _worse
+from arescope.graph import (
+    _classify,
+    _domain,
+    _mask,
+    _merge_node_data,
+    _platform_key,
+    _slug,
+    _worse,
+)
 
 
 def _sig(source, kind, locator, raw):
@@ -65,6 +73,22 @@ def test_classify_iploc_from_any_host_profile_source():
                        {"location": "Cologne, DE", "isp": "Example ISP"}))
     assert n[0] == "iploc:8.8.8.8" and n[1]["type"] == "iploc"
     assert n[1]["label"] == "Cologne, DE"
+
+
+def test_iploc_source_without_location_does_not_clobber():
+    # AbuseIPDB has no `location`; merging it after IPinfo must NOT blank the city,
+    # and a host_profile with no location classifies to label=None (flatten fills it).
+    ipinfo = _classify(_sig("ipinfo", "host_profile", "8.8.8.8",
+                            {"location": "Cologne, DE", "isp": "Example ISP"}))
+    abuse = _classify(_sig("abuseipdb", "host_profile", "8.8.8.8",
+                           {"isp": "Example ISP", "abuse_score": 0}))
+    assert abuse[1]["label"] is None  # no location => no clobbering label
+    # simulate the merge order ipinfo-then-abuse on one node's data
+    data = dict(ipinfo[1])
+    data["meta"] = dict(ipinfo[1]["meta"])
+    _merge_node_data(data, abuse[1])
+    assert data["label"] == "Cologne, DE"          # city survives the merge
+    assert data["meta"]["location"] == "Cologne, DE"  # not blanked by the source w/o location
 
 
 def test_slug_override():

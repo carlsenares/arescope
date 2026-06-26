@@ -16,6 +16,7 @@ from __future__ import annotations
 import httpx
 
 from arescope.config import Settings
+from arescope.connectors._identity import PHOTO, identity_signal
 from arescope.connectors.base import Connector, ConnectorGap
 from arescope.schemas import InputType, Signal
 
@@ -60,10 +61,18 @@ class ApifyConnector(Connector):
             for p in (it.get("latestPosts") or [])[:5]
             if isinstance(p, dict) and p.get("caption")
         ]
-        return [Signal(
+        sigs = [Signal(
             source=self.name, kind="account", locator="instagram.com",
             subject_value=value, subject_type=InputType.USERNAME,
             raw={"url": f"https://instagram.com/{handle}", "domain": "instagram.com",
                  "display_name": it.get("fullName"), "description": it.get("biography"),
                  "followers": it.get("followersCount"), "recent_posts": posts},
         )]
+        # Profile photo → a face node on the map (the actor returns it; we just never
+        # extracted it before). Skip private accounts — the picture isn't public there.
+        photo = it.get("profilePicUrlHD") or it.get("profilePicUrl")
+        if photo and not it.get("private"):
+            sigs.append(identity_signal(
+                source=self.name, attribute=PHOTO, value=photo,
+                subject_value=value, subject_type=InputType.USERNAME, platform="instagram"))
+        return sigs
