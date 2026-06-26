@@ -18,7 +18,13 @@ from urllib.parse import quote, urlparse
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request
 from kombu.exceptions import OperationalError as BrokerError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.templating import Jinja2Templates
 
 from arescope.auth import (
@@ -492,7 +498,9 @@ def map_scan_view(request: Request, scan_id: str):
     elements = build_map_graph(scan_id, label=user.username or "you")
     return _render(request, "map.html", elements=elements, scope="map",
                    scan=scan_id, scan_status=info["status"], scan_name=info.get("name"),
-                   analysis=info.get("analysis"))
+                   analysis=info.get("analysis"),
+                   coverage=info.get("coverage", []),
+                   coverage_gaps=info.get("coverage_gaps", []))
 
 
 @router.get("/app/map/scan/{scan_id}/status")
@@ -517,6 +525,8 @@ def map_scan_graph(request: Request, scan_id: str) -> dict:
     if info is None:
         raise HTTPException(404)
     return {"status": info["status"], "phase": info.get("phase"),
+            "coverage": info.get("coverage", []),
+            "coverage_gaps": info.get("coverage_gaps", []),
             "elements": build_map_graph(scan_id, label=user.username or "you")}
 
 
@@ -887,6 +897,7 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
             "analysis": scan.analysis,
             "phase": snap.get("phase"),
             "coverage_gaps": snap.get("coverage_gaps", []),
+            "coverage": snap.get("coverage", []),
             # Did any input actually have a source that searched it? (e.g. a name-only
             # scan searches nothing — a clean report must not claim "Nothing exposed".)
             # Missing key = legacy scan from before we tracked this → assume it searched.
@@ -1168,26 +1179,60 @@ def map_home(request: Request):
     return RedirectResponse("/app/map/new", status_code=303)
 
 
+def _monogram_svg(slug: str) -> bytes:
+    """A readable fallback mark: the slug's first letter on a tinted disc (hue derived
+    from the slug, so each platform is stable + distinguishable). Replaces the old blank
+    white circle for any platform Simple Icons doesn't have (brokers, IntelX, niche sites)."""
+    letter = (re.sub(r"[^a-z0-9]", "", slug.lower())[:1] or "?").upper()
+    hue = int(hashlib.md5(slug.encode()).hexdigest(), 16) % 360  # noqa: S324 (color, not security)
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+        f'<circle cx="12" cy="12" r="12" fill="hsl({hue}, 52%, 45%)"/>'
+        f'<text x="12" y="12" text-anchor="middle" dominant-baseline="central" '
+        f'font-family="system-ui, sans-serif" font-size="13" font-weight="700" '
+        f'fill="#fff">{letter}</text></svg>'
+    ).encode()
+
+
 @router.get("/app/logo/{slug}")
 def logo_proxy(slug: str):
-    """Serve a brand logo, cached on our own origin (no per-render third-party
-    call from the user's browser). Fetched once from Simple Icons; 404 => the map
-    falls back to a monogram. Slug is sanitised, source is fixed (no SSRF)."""
+    """Serve a brand logo, cached on our own origin (no per-render third-party call from
+    the user's browser). Fetched once from Simple Icons; if there's no brand icon we cache
+    a generated monogram instead of 404'ing (which left a blank white node). Slug is
+    sanitised, source is fixed (no SSRF)."""
     safe = re.sub(r"[^a-z0-9-]", "", slug.lower())[:40]
     if not safe:
         raise HTTPException(404)
     os.makedirs(_LOGO_CACHE, exist_ok=True)
     path = os.path.join(_LOGO_CACHE, f"{safe}.svg")
-    if not os.path.exists(path):
-        try:
-            r = httpx.get(f"https://cdn.simpleicons.org/{safe}", timeout=10)
-        except httpx.HTTPError:
-            raise HTTPException(404)
-        if r.status_code != 200 or "svg" not in r.headers.get("content-type", ""):
-            raise HTTPException(404)
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/svg+xml")
+
+    content: bytes | None = None
+    icon_missing = False  # True only when Simple Icons CONFIRMS there's no brand icon (404)
+    try:
+        r = httpx.get(f"https://cdn.simpleicons.org/{safe}", timeout=10)
+        if r.status_code == 200 and "svg" in r.headers.get("content-type", ""):
+            content = r.content
+        elif r.status_code == 404:
+            icon_missing = True
+    except httpx.HTTPError:
+        content = None  # transient (network/timeout) — fall through, don't cache
+
+    if content is not None:
         with open(path, "wb") as fh:
-            fh.write(r.content)
-    return FileResponse(path, media_type="image/svg+xml")
+            fh.write(content)
+        return FileResponse(path, media_type="image/svg+xml")
+
+    # No real icon. Cache the monogram ONLY when the icon is genuinely missing (404);
+    # on a transient failure (5xx / odd content-type / network) serve it but DON'T write
+    # to disk, so a later request retries the CDN instead of being stuck on the fallback.
+    monogram = _monogram_svg(safe)
+    if icon_missing:
+        with open(path, "wb") as fh:
+            fh.write(monogram)
+        return FileResponse(path, media_type="image/svg+xml")
+    return Response(content=monogram, media_type="image/svg+xml")
 
 
 _PHOTO_CACHE = os.path.join(APP_STATIC_DIR, "photocache")
@@ -1199,6 +1244,15 @@ _PHOTO_HOSTS = {
     "gravatar.com", "www.gravatar.com", "secure.gravatar.com",  # Gravatar
     "media.licdn.com",                       # LinkedIn profile photo (Apify enrichment)
 }
+# Instagram serves photos from dynamic CDN subdomains (scontent-*.cdninstagram.com,
+# *.fbcdn.net), so allow by parent-domain SUFFIX rather than an exact host. Still a fixed
+# set of CDNs (no open proxy / SSRF) — just not a single static hostname.
+_PHOTO_HOST_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
+
+
+def _photo_host_allowed(host: str) -> bool:
+    return host in _PHOTO_HOSTS or any(
+        host == s or host.endswith("." + s) for s in _PHOTO_HOST_SUFFIXES)
 
 
 @router.get("/app/photo")
@@ -1210,7 +1264,7 @@ def photo_proxy(request: Request, u: str):
     if user is None:
         raise HTTPException(403)
     host = (urlparse(u).hostname or "").lower()
-    if host not in _PHOTO_HOSTS:
+    if not _photo_host_allowed(host):
         raise HTTPException(404)
     os.makedirs(_PHOTO_CACHE, exist_ok=True)
     key = hashlib.sha1(u.encode()).hexdigest()[:24]  # noqa: S324 (cache key, not security)

@@ -49,7 +49,20 @@ self-audit hard rule; they are audit-logged.
 | **Gravatar** | email → avatar, display name, linked profiles | gravatar.com (no key) | the normal-tier PHOTO, from the verified seed |
 | **Photo EXIF** | uploaded image → GPS, device, timestamp | local parse (Pillow/exifread) | $0, high-impact; needs the photo input added to the form |
 | **Wayback** | name/username/url → deleted / historical profile versions | archive.org (free) | "what you thought you removed" |
-| **GHunt** | email → Google identity: profile PHOTO, Maps reviews (locations), YouTube | free, self-hosted | **install isolated (`pipx install ghunt`) — it pins httpx<0.28 and conflicts with the app**; auth via `ghunt login` (browser + GHunt Companion extension + a burner Google account) → creds at `~/.malfrats/ghunt/creds.m`; point `ARESCOPE_GHUNT_CREDS_PATH` at that file; fragile, name unreliable since 2024 |
+| **GHunt** | email → Google identity: profile PHOTO, Maps review COUNT + contributor link, YouTube | free, self-hosted | **install isolated (`pipx install ghunt`) — it pins httpx<0.28 and conflicts with the app**; auth via `ghunt login` (browser + GHunt Companion extension + a burner Google account) → creds at `~/.malfrats/ghunt/creds.m`; point `ARESCOPE_GHUNT_CREDS_PATH` at that file; fragile, name unreliable since 2024 |
+
+> **Maps reviews — capability note (verified live 2026-06-26).** GHunt is healthy: it
+> returns the real profile photo + the Maps review **count**, but **not the place names**.
+> The `locationhistory/preview/mas` RPC returns only *stats* — even with GHunt's auth (so
+> GHunt's own review loop is commented out). The places DO render on the public contributor
+> page, so the connector now does a **best-effort Camoufox render** of
+> `…/maps/contrib/<gaia>/reviews` and scrapes the `/maps/place/<slug>` links. Caveat: Google
+> defaults a profile's contributions to **private**, in which case the feed is empty and we
+> degrade to `"N Google Maps reviews"` + the contributor link. (The test account
+> breeckpatrik@gmail.com is private — verified: full JS render shows no review feed — so for
+> it the map shows count+link; a private profile is itself a useful self-audit signal.) The
+> place scrape lights up for accounts with public contributions; its slug extractor is
+> unit-tested but unvalidated against a live public account (Maps resists harvesting one).
 | **Brave Search** (admin) | **name** → web/news/court/social mentions | Brave Search API | $5 free credit/mo covers dev; owns its index (no scrape-legal exposure) |
 | **Apify** (admin) | username → locked-platform public posts/pics (IG/TikTok/LinkedIn) | Apify actors | $5 free credit/mo; public surfaces only, no login bypass |
 

@@ -46,10 +46,15 @@ def test_parse_extracts_account_photo_and_location():
     assert locations and locations[0].raw["value"] == "Cologne, Germany"
 
 
-def test_private_profile_omits_photo():
+def test_private_profile_still_exposes_photo():
+    # The profile picture is PUBLIC even on a private account (only posts are gated), so
+    # we surface the face but the account is still marked private in the raw.
     data = {"data": {"user": {**_SAMPLE["data"]["user"], "is_private": True}}}
     sigs = _parse_web_profile_info(data, "janedoe")
-    assert not [s for s in sigs if s.kind == "identity_attribute" and s.raw["attribute"] == "photo"]
+    photos = [s for s in sigs if s.kind == "identity_attribute" and s.raw["attribute"] == "photo"]
+    assert photos and photos[0].raw["value"] == "https://example.com/jane.jpg"
+    account = next(s for s in sigs if s.kind == "account")
+    assert account.raw["is_private"] is True
 
 
 def test_empty_user_is_clean():

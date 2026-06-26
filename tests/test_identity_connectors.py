@@ -196,15 +196,22 @@ def test_ghunt_gated_on_creds_path():
     assert c.admin_only is False  # email-seeded self-audit, allowed on both tiers
 
 
-def test_ghunt_defensive_parsers_extract_photo_and_places():
-    from arescope.connectors.ghunt import _find_first, _looks_like_photo, _maps_places
+def test_ghunt_defensive_parsers_extract_photo_and_gaia():
+    from arescope.connectors.ghunt import (
+        _find_first, _looks_like_photo, _gaia_id, _maps_review_count,
+    )
     sample = {
-        "profile": {"name": "Jane", "picture": "https://lh3.googleusercontent.com/a/x=s64"},
-        "maps": {"reviews": [{"location": "Blue Bottle, Berlin"}, {"address": "Acme HQ, Berlin"}]},
+        "PROFILE_CONTAINER": {
+            "profile": {"name": "Jane", "personId": "113877553740284000332",
+                        "picture": "https://lh3.googleusercontent.com/a/x=s64"},
+            "maps": {"stats": {"Reviews": 4}},
+        }
     }
     assert _find_first(sample, _looks_like_photo).startswith("https://lh3.googleusercontent")
-    places = _maps_places(sample)
-    assert "Blue Bottle, Berlin" in places and "Acme HQ, Berlin" in places
+    # Maps places now come from the contributor RPC (tested in test_map_overhaul); the
+    # email JSON only yields the gaia id + review count that drive that fetch.
+    assert _gaia_id(sample) == "113877553740284000332"
+    assert _maps_review_count(sample) == 4
 
 
 def test_new_connectors_registered():

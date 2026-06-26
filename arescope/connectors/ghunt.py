@@ -17,20 +17,40 @@ shape is parsed defensively; treat field extraction as best-effort until run liv
 from __future__ import annotations
 
 import json
+import logging
+import re
 import shutil
 import subprocess
 import tempfile
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
 from arescope.config import Settings
+from arescope.connectors import browser
 from arescope.connectors._identity import LOCATION, NAME, PHOTO, identity_signal
 from arescope.connectors.base import Connector, ConnectorGap
 from arescope.schemas import InputType, Signal
 
+log = logging.getLogger("arescope.ghunt")
+
 # GHunt only reads creds from this fixed location (no flag, no env override — verified
 # against ghunt 2.3.4). We stage the operator's creds file here before running.
 _GHUNT_DEFAULT_CREDS = Path.home() / ".malfrats" / "ghunt" / "creds.m"
+
+# --- Google Maps contributor reviews -----------------------------------------
+# GHunt's `email` JSON gives the Maps review COUNT but never the place names, and the
+# `locationhistory/preview/mas` RPC returns only stats even with GHunt's auth (verified
+# live 2026-06-26 — that's why GHunt's own review loop is commented out). The places DO
+# render on the public contributor page, but only when the account's contributions are
+# PUBLIC; Google defaults them to private (the target tested here is private => the page
+# renders no review feed). So we attempt a best-effort browser render to pull the places,
+# and degrade to "COUNT + contributor link" when they aren't public — the honest outcome
+# either way (a private profile is itself a useful self-audit finding: not leaking).
+_MAPS_CONTRIB_URL = "https://www.google.com/maps/contrib/{gaia}/reviews?hl=en"
+_MAPS_MAX_PLACES = 15
+# Junk slugs that aren't real places (UI chrome that also lives under /maps/place/-ish).
+_MAPS_PLACE_NOISE = {"", "photo", "photos", "directions"}
 
 
 class GHuntConnector(Connector):
@@ -55,6 +75,7 @@ class GHuntConnector(Connector):
         if not data:
             return []  # no public Google account for this email
 
+        gaia_id = _gaia_id(data)
         signals: list[Signal] = [
             Signal(
                 source=self.name,
@@ -62,7 +83,7 @@ class GHuntConnector(Connector):
                 locator="google.com",
                 subject_value=value,
                 subject_type=InputType.EMAIL,
-                raw={"domain": "google.com", "gaia_id": _first_str(data, ("gaia", "gaia_id", "id"))},
+                raw={"domain": "google.com", "gaia_id": gaia_id},
             )
         ]
 
@@ -82,13 +103,27 @@ class GHuntConnector(Connector):
                 source=self.name, attribute=NAME, value=name,
                 subject_value=value, subject_type=InputType.EMAIL, platform="google.com",
             ))
-        # Google Maps reviews → places the person has been (location footprint).
-        for place in _maps_places(data)[:15]:
-            signals.append(identity_signal(
-                source=self.name, attribute=LOCATION, value=place,
-                subject_value=value, subject_type=InputType.EMAIL,
-                platform="maps.google.com",
-            ))
+
+        # Google Maps reviews → a real-world location footprint (the places the person
+        # reviewed). Best-effort: render the public contributor page and pull the place
+        # names; if the account's contributions are private (Google's default) the feed is
+        # empty, so degrade to "COUNT + contributor link" (the owner can click through).
+        review_count = _maps_review_count(data)
+        if gaia_id and review_count:
+            places = _maps_review_places(gaia_id, cfg)
+            if places:
+                for place in places[:_MAPS_MAX_PLACES]:
+                    signals.append(identity_signal(
+                        source=self.name, attribute=LOCATION, value=place,
+                        subject_value=value, subject_type=InputType.EMAIL,
+                        platform="maps.google.com"))
+            else:
+                signals.append(identity_signal(
+                    source=self.name, attribute=LOCATION,
+                    value=f"{review_count} Google Maps review{'s' if review_count != 1 else ''}",
+                    url=_MAPS_CONTRIB_URL.format(gaia=gaia_id),
+                    subject_value=value, subject_type=InputType.EMAIL,
+                    platform="maps.google.com"))
         return signals
 
 
@@ -165,13 +200,57 @@ def _first_str(data: dict, keys: tuple[str, ...]) -> str | None:
     return None
 
 
-def _maps_places(data: dict) -> list[str]:
-    """Best-effort: pull location/place strings out of a Maps-reviews structure."""
-    places: list[str] = []
+def _gaia_id(data: dict) -> str | None:
+    """The numeric Google account id (gaia), used to address the Maps contributor RPC.
+
+    GHunt's email JSON exposes it as profile.personId; fall back to any gaia-ish key."""
+    pid = _first_str(data, ("personId", "gaia", "gaia_id"))
+    if pid and pid.isdigit():
+        return pid
+    # last resort: a long all-digit value anywhere (gaia ids are ~21 digits)
+    for _k, v in _walk(data):
+        if isinstance(v, str) and v.isdigit() and len(v) >= 18:
+            return v
+    return None
+
+
+def _maps_review_count(data: dict) -> int:
+    """The Reviews count from PROFILE_CONTAINER/maps/stats (0 if absent)."""
     for k, v in _walk(data):
-        if isinstance(k, str) and k.lower() in ("address", "location", "place", "name") \
-                and isinstance(v, str) and v.strip():
-            places.append(v.strip())
-    # de-dup, preserve order
+        if isinstance(k, str) and k.lower() == "reviews" and isinstance(v, int):
+            return v
+    return 0
+
+
+def _maps_review_places(gaia_id: str, cfg: Settings) -> list[str]:
+    """Render the public contributor reviews page and extract the reviewed place names.
+
+    Requires the stealth browser (the feed is JS-rendered); without it, or if the
+    contributions aren't public, returns [] and the caller degrades to count + link.
+    Never raises — a browser/Google failure is just "no places".
+    """
+    if not (cfg.browser_scraping_enabled and browser.available()):
+        return []
+    try:
+        result = browser.render(
+            _MAPS_CONTRIB_URL.format(gaia=gaia_id),
+            wait_selector='a[href*="/maps/place/"]', wait_ms=6000, scroll_rounds=4)
+    except ConnectorGap as e:
+        log.info("ghunt maps render failed: %s", e)
+        return []
+    return _extract_places_from_html(result.html)
+
+
+def _extract_places_from_html(html: str) -> list[str]:
+    """Pure parse: pull reviewed place names out of a rendered contributor page.
+
+    Each review card links to its place via `/maps/place/<Slug>/…`; the URL slug decodes
+    to the readable place name (order-independent, robust to Google's churning CSS
+    classes). De-duped, noise slugs dropped. Empty input / no reviews => []."""
+    places: list[str] = []
+    for slug in re.findall(r'/maps/place/([^"/?\\\s]+)', html or ""):
+        name = urllib.parse.unquote(slug).replace("+", " ").strip()
+        if name and name.lower() not in _MAPS_PLACE_NOISE and not name.startswith("@"):
+            places.append(name)
     seen: set[str] = set()
     return [p for p in places if not (p.lower() in seen or seen.add(p.lower()))]

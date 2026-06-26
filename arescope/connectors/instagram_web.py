@@ -63,7 +63,9 @@ def _parse_web_profile_info(data: dict, handle: str) -> list[Signal]:
             "recent_posts": posts,
         },
     )]
-    if photo and not user.get("is_private"):
+    # The profile picture is public even on private accounts (only posts are gated),
+    # so emit it regardless of is_private — it's a real face for the map.
+    if photo:
         signals.append(identity_signal(
             source="instagram_web", attribute=PHOTO, value=photo,
             subject_value=handle, subject_type=InputType.USERNAME, platform="instagram"))

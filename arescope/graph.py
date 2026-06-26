@@ -58,6 +58,24 @@ def _worse(a: str | None, b: str) -> str:
     return a if _SEV_RANK.get(a, 0) >= _SEV_RANK.get(b, 0) else b
 
 
+def _merge_node_data(dst: dict, src: dict) -> None:
+    """Merge a later signal's node data into an existing node, keeping non-null values.
+
+    `meta` is merged key-by-key (not replaced wholesale) so a second source that
+    corroborates a node but lacks a field can't wipe what the first source provided —
+    the bug where AbuseIPDB (no `location`) merging after IPinfo blanked the IP's city.
+    """
+    for k, v in src.items():
+        if v is None:
+            continue
+        if k == "meta" and isinstance(v, dict) and isinstance(dst.get("meta"), dict):
+            for mk, mv in v.items():
+                if mv is not None or mk not in dst["meta"]:
+                    dst["meta"][mk] = mv
+        else:
+            dst[k] = v
+
+
 def _domain(url: str | None) -> str | None:
     if not url:
         return None
@@ -115,7 +133,9 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
     if sig.kind == "host_profile":
         return f"iploc:{sig.locator}", {
             "type": "iploc",
-            "label": raw.get("location") or "IP location",
+            # None when this source has no location → won't clobber a city a corroborating
+            # source did supply (merge keeps non-null). Flatten falls back to "IP location".
+            "label": raw.get("location"),
             "meta": {
                 "location": raw.get("location"),
                 "isp": raw.get("isp"),
@@ -136,7 +156,10 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
             "label": raw.get("broker") or domain,
             "slug": _slug(domain),
             "url": raw.get("listing_url"),
-            "meta": {"domain": domain, "opt_out_url": raw.get("opt_out_url")},
+            "meta": {"domain": domain, "opt_out_url": raw.get("opt_out_url"),
+                     # False => free enumeration (not a verified listing); the presenter
+                     # phrases it as "you may be listed" rather than a confirmed hit.
+                     "confirmed": raw.get("confirmed")},
         }
     if sig.kind == "identity_attribute":
         # The real-world facts a handle leaks. Photos and locations get their own map
@@ -191,6 +214,55 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
     return None
 
 
+# Plain-language "what this is / why it matters" for each node type — the legibility
+# layer between raw connector output and the map, so a non-technical owner (and the
+# operator) can read it without decoding `wak.json` or "instantcheckmate". Deterministic
+# (no per-node LLM); attached as node `note` at flatten time and shown in the tooltip.
+def _present(data: dict) -> str | None:
+    t = data.get("type")
+    meta = data.get("meta") or {}
+    if t == "broker":
+        # The collapsed removal checklist (the free enumeration tier — same catalog for
+        # everyone, nothing confirmed about you specifically).
+        if meta.get("items") is not None or meta.get("count"):
+            n = meta.get("count") or len(meta.get("items") or [])
+            return (f"{n} people-search sites that commonly list people — none confirmed "
+                    "for you. Use the opt-out links to remove yourself proactively.")
+        base = "People-search site — may publish your address, phone and relatives."
+        if meta.get("opt_out_url"):
+            base += " Opt-out available."
+        return base
+    if t == "mention":
+        if meta.get("source") == "Intelligence X" or str(data.get("id", "")).startswith("intelx:"):
+            return "Your data appears in leaked or pasted records circulating online."
+        return "A public web page that names you."
+    if t == "iploc":
+        # Be honest about the ceiling: an IP gives a city-level area + ISP, never a street
+        # address (only the ISP holds that, via legal process). Keep the note generic — it
+        # must not imply a Maps-reviews node exists when this scan has none.
+        return ("Approximate city-level area and network provider from your IP — not your "
+                "street address (an IP can't reveal that).")
+    if t == "breach":
+        return "Your account was in this data breach — assume the listed data leaked."
+    if t == "stealer":
+        return "Malware on a device logged credentials — high risk; rotate passwords."
+    if t == "service":
+        return "A service exposed on your IP, visible to internet-wide scanners."
+    if t == "photo":
+        return None if meta.get("is_default") else "Your real photo is publicly visible."
+    if t == "post":
+        return "Public content you posted — reveals interests, places and routine."
+    if t == "repo":
+        return "A public code project — exposes your tech, interests, sometimes employer."
+    if t == "inference":
+        return "A deduction about you from the footprint — not a stored fact."
+    if t == "location":
+        return "A place tied to you (a tagged post or review)."
+    if t == "site":
+        return "An account or profile linked to one of your identifiers."
+    return None
+
+
 def _build(scan_ids: list[str], label: str) -> dict:
     nodes: dict[str, dict] = {}
     edges: dict[str, dict] = {}
@@ -200,7 +272,7 @@ def _build(scan_ids: list[str], label: str) -> dict:
         if n is None:
             nodes[node_id] = {"data": {"id": node_id, **data}, "sev": severity}
         else:
-            n["data"].update({k: v for k, v in data.items() if v is not None})
+            _merge_node_data(n["data"], data)
             n["sev"] = _worse(n["sev"], severity) if severity else n["sev"]
 
     def put_edge(src: str, dst: str, severity: str, info: str) -> None:
@@ -247,6 +319,11 @@ def _build(scan_ids: list[str], label: str) -> dict:
     out_nodes = []
     for n in nodes.values():
         n["data"]["severity"] = n["sev"] or "info"
+        if not n["data"].get("label"):
+            n["data"]["label"] = "IP location" if n["data"].get("type") == "iploc" else n["data"]["id"]
+        note = _present(n["data"])
+        if note:
+            n["data"]["note"] = note
         out_nodes.append({"data": n["data"]})
 
     return {
@@ -363,7 +440,7 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
         if n is None:
             nodes[node_id] = {"data": {"id": node_id, **data}, "sev": severity}
         else:
-            n["data"].update({k: v for k, v in data.items() if v is not None})
+            _merge_node_data(n["data"], data)
             n["sev"] = _worse(n["sev"], severity) if severity else n["sev"]
 
     def put_edge(src: str, dst: str, severity: str, info: str) -> None:
@@ -389,15 +466,33 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
             put_edge("self", in_id, "info", "owns")
 
         sigs = s.query(models.Signal).filter(models.Signal.scan_id == scan_id).all()
+        # IntelX returns one catalog record per leaked file/paste (names like "wak.json")
+        # — unreadable and one node each floods the map. Collapse all of an input's IntelX
+        # hits into ONE "appears in N leaked records" node (titles kept in the tooltip).
+        intelx_agg: dict[str, list[str]] = {}
+        # Unconfirmed broker listings are the SAME name-independent removal catalog for
+        # everyone ("you may be listed here") — 12 scary hexagons of pure noise. Collapse
+        # them into ONE "removal checklist" node per input (opt-out links kept in the
+        # tooltip). A CONFIRMED listing (paid provider verified the person) is a real hit
+        # and still gets its own node.
+        broker_agg: dict[str, list[dict]] = {}
         for sig in sigs:
+            raw = sig.raw or {}
+            in_id = in_ids.get((raw.get("__subject_type"), raw.get("__subject_value")), "self")
+            if sig.source == "intelx" and sig.kind == "web_mention":
+                intelx_agg.setdefault(in_id, []).append(str(raw.get("title") or "record")[:80])
+                continue
+            if sig.kind == "broker_listing" and raw.get("confirmed") is False:
+                broker_agg.setdefault(in_id, []).append(
+                    {"broker": raw.get("broker") or raw.get("domain"),
+                     "domain": raw.get("domain"), "opt_out_url": raw.get("opt_out_url")})
+                continue
             classified = _classify(sig)
             if classified is None:
                 continue
             node_id, ndata = classified
             sev = _map_sev(sig)
             put_node(node_id, severity=sev, **ndata)
-            raw = sig.raw or {}
-            in_id = in_ids.get((raw.get("__subject_type"), raw.get("__subject_value")), "self")
             put_edge(in_id, node_id, sev, sig.source)
             # Hang each collected post / public repo off its platform node so the
             # content shows (the inference fuel the map is for).
@@ -409,6 +504,24 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
                     put_node(repo_id, severity="info", **rdata)
                     put_edge(node_id, repo_id, "info", "repo")
 
+        # One collapsed data-broker removal checklist per input (see aggregation above).
+        for in_id, blist in broker_agg.items():
+            n = len(blist)
+            nid = f"broker:checklist:{in_id}"
+            put_node(nid, severity="low", type="broker",
+                     label=f"Data-broker removal checklist ({n} site{'s' if n != 1 else ''})",
+                     meta={"confirmed": False, "count": n, "items": blist[:30]})
+            put_edge(in_id, nid, "low", "brokers")
+
+        # One collapsed IntelX node per input (see the aggregation above).
+        for in_id, items in intelx_agg.items():
+            n = len(items)
+            nid = f"intelx:{in_id}"
+            put_node(nid, severity="low", type="mention", slug="intelligencex",
+                     label=f"Appears in {n} leaked record{'s' if n != 1 else ''}",
+                     meta={"source": "Intelligence X", "count": n, "items": items[:25]})
+            put_edge(in_id, nid, "low", "intelx")
+
         # Opus Evaluate deductions flagged map_node => inference nodes around the centre.
         # Distinct from collected fact: these are what Opus INFERRED (GRAPH.md §13).
         for i, fact in enumerate((scan.analysis or {}).get("derived_facts", []) if scan else []):
@@ -417,7 +530,7 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
             stmt = fact.get("statement") or ""
             nid = f"inference:{i}:{_slug_hash(stmt)}"
             put_node(nid, severity="info", type="inference",
-                     label=stmt if len(stmt) <= 48 else stmt[:47] + "…",
+                     label="✦ " + (stmt if len(stmt) <= 46 else stmt[:45] + "…"),
                      meta={"category": fact.get("category"),
                            "confidence": fact.get("confidence"),
                            "evidence": fact.get("evidence", []), "statement": stmt})
@@ -426,6 +539,11 @@ def build_map_graph(scan_id: str, label: str = "you") -> dict:
     out_nodes = []
     for n in nodes.values():
         n["data"]["severity"] = n["sev"] or "info"
+        if not n["data"].get("label"):
+            n["data"]["label"] = "IP location" if n["data"].get("type") == "iploc" else n["data"]["id"]
+        note = _present(n["data"])
+        if note:
+            n["data"]["note"] = note
         out_nodes.append({"data": n["data"]})
     return {"nodes": out_nodes, "edges": list(edges.values()),
             "counts": {"nodes": len(out_nodes), "edges": len(edges)}}

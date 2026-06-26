@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 import httpx
 
 from arescope.config import Settings
+from arescope.connectors._webfilter import is_directory_noise, name_matches
 from arescope.connectors.base import Connector, ConnectorGap
 from arescope.schemas import InputType, Signal
 
@@ -51,6 +52,10 @@ class TavilyConnector(Connector):
             url = r.get("url")
             if not url:
                 continue
+            if is_directory_noise(url, r.get("title")):
+                continue  # people-search aggregators / "N profiles named X" — not the owner
+            if not name_matches(value, r.get("title"), r.get("content")):
+                continue  # fuzzed look-alike ("Patrick Breck", "Brad Breeck") — not this person
             domain = (urlparse(url).netloc or "").lower()
             domain = domain[4:] if domain.startswith("www.") else domain
             if domain in seen:

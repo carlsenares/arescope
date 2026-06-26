@@ -2,7 +2,15 @@
 
 from types import SimpleNamespace
 
-from arescope.graph import _classify, _domain, _mask, _platform_key, _slug, _worse
+from arescope.graph import (
+    _classify,
+    _domain,
+    _mask,
+    _merge_node_data,
+    _platform_key,
+    _slug,
+    _worse,
+)
 
 
 def _sig(source, kind, locator, raw):
@@ -65,6 +73,46 @@ def test_classify_iploc_from_any_host_profile_source():
                        {"location": "Cologne, DE", "isp": "Example ISP"}))
     assert n[0] == "iploc:8.8.8.8" and n[1]["type"] == "iploc"
     assert n[1]["label"] == "Cologne, DE"
+
+
+def test_iploc_source_without_location_does_not_clobber():
+    # AbuseIPDB has no `location`; merging it after IPinfo must NOT blank the city,
+    # and a host_profile with no location classifies to label=None (flatten fills it).
+    ipinfo = _classify(_sig("ipinfo", "host_profile", "8.8.8.8",
+                            {"location": "Cologne, DE", "isp": "Example ISP"}))
+    abuse = _classify(_sig("abuseipdb", "host_profile", "8.8.8.8",
+                           {"isp": "Example ISP", "abuse_score": 0}))
+    assert abuse[1]["label"] is None  # no location => no clobbering label
+    # simulate the merge order ipinfo-then-abuse on one node's data
+    data = dict(ipinfo[1])
+    data["meta"] = dict(ipinfo[1]["meta"])
+    _merge_node_data(data, abuse[1])
+    assert data["label"] == "Cologne, DE"          # city survives the merge
+    assert data["meta"]["location"] == "Cologne, DE"  # not blanked by the source w/o location
+
+
+def test_present_humanizes_nodes():
+    from arescope.graph import _present
+    # broker: unconfirmed listings are collapsed into a removal-checklist node (count/items)
+    assert "none confirmed" in _present(
+        {"type": "broker", "meta": {"confirmed": False, "count": 5, "items": []}}).lower()
+    # a CONFIRMED individual listing still reads as a real people-search hit
+    assert _present({"type": "broker", "meta": {"confirmed": True}}).startswith("People-search")
+    # intelx collapsed node + a default avatar
+    assert "leaked" in _present({"type": "mention", "id": "intelx:in:ip:1.1.1.1", "meta": {}})
+    assert _present({"type": "photo", "meta": {"is_default": True}}) is None
+    assert _present({"type": "photo", "meta": {}}).startswith("Your real photo")
+
+
+def test_directory_noise_filter():
+    from arescope.connectors._webfilter import is_directory_noise
+    # the exact case from the test report: a LinkedIn directory of many same-named people
+    assert is_directory_noise("https://www.linkedin.com/pub/dir/x", "50+ Breeck profiles | LinkedIn")
+    assert is_directory_noise("https://spokeo.com/John-Breeck")            # aggregator domain
+    assert is_directory_noise("https://any.site/p", "127+ profiles named Breeck")  # title rule
+    # a real profile / personal page is kept
+    assert not is_directory_noise("https://www.linkedin.com/in/john-breeck-123", "John Breeck | LinkedIn")
+    assert not is_directory_noise("https://janedoe.com/about", "About Jane Doe")
 
 
 def test_slug_override():

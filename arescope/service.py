@@ -15,6 +15,7 @@ from arescope.config import get_settings
 from arescope.db import models
 from arescope.db.session import session_scope
 from arescope.connectors import linkedin
+from arescope.connectors._webfilter import is_directory_noise
 from arescope.connectors.base import ConnectorGap, ConnectorUnavailable
 from arescope.connectors.registry import available_connectors
 from arescope.graph import build_account_graph, build_scan_graph
@@ -210,11 +211,21 @@ def run_and_store_map(scan_id: str) -> str:
         available.sort(key=lambda c: c.name in _SLOW_SOURCES)
 
         gaps = unavailable_gaps(cfg) + uncovered_input_gaps(identifiers, cfg)
+        # Per-connector outcome for the Sources panel. status priority: ok > gap > empty
+        # (a connector that returned data for one input but gapped on another reads as ok).
+        coverage: dict[str, dict] = {}
         total = 0
         for cname, sigs, gap in stream_connectors(identifiers, cfg, available):
+            rec = coverage.setdefault(cname, {"source": cname, "status": "empty",
+                                              "count": 0, "reason": None})
             if gap is not None:
                 gaps.append(gap)
+                if rec["status"] != "ok":
+                    rec["status"] = "gap"
+                    rec["reason"] = rec["reason"] or _public_gap_reason(gap.reason)
             if sigs:
+                rec["status"] = "ok"
+                rec["count"] += len(sigs)
                 # Persist this connector's batch in its own txn — the moment it commits,
                 # the next /graph poll picks the new nodes up and streams them in.
                 with session_scope() as s:
@@ -230,7 +241,7 @@ def run_and_store_map(scan_id: str) -> str:
         # LinkedIn can't be reached from a handle, so this runs after the URL exists.
         _set_phase(scan_id, "Enriching — LinkedIn…")
         gaps += _enrich_linkedin(scan_id, cfg, owner_is_admin)
-        _finalize_scan(scan_id, gaps, searched)
+        _finalize_scan(scan_id, gaps, searched, coverage=list(coverage.values()))
     except Exception:
         _fail_scan(scan_id)
         raise
@@ -239,6 +250,17 @@ def run_and_store_map(scan_id: str) -> str:
 
 # Connectors whose latency warrants running last in a streaming map build.
 _SLOW_SOURCES = {"maigret", "sherlock", "apify", "ignorant", "phoneinfoga"}
+
+
+def _public_gap_reason(reason: str | None) -> str:
+    """Strip raw exception text from a coverage-gap reason before it reaches the user-facing
+    Sources panel. The connector crash path emits "unexpected error: <repr>" (which can
+    carry internal detail); keep the category, drop the payload — the full traceback is
+    already in the server logs via stream_connectors()."""
+    reason = (reason or "unavailable").strip()
+    if reason.lower().startswith("unexpected error"):
+        return "unexpected error"
+    return reason
 
 
 def _is_linkedin_url(url: str) -> bool:
@@ -282,18 +304,24 @@ def _enrich_linkedin(scan_id: str, cfg, owner_is_admin: bool) -> list[CoverageGa
     """
     targets: dict[str, tuple[str, str]] = {}  # url -> (subject_value, subject_type)
     with session_scope() as s:
+        # A LinkedIn URL can be DISCOVERED two ways: as an `account` (PDL's linkedin_url)
+        # OR as a `web_mention` from name web-search (Tavily/Brave often surface the
+        # public /in/<slug> page even when PDL has nothing). Harvest both — keying only
+        # on `account` is why a LinkedIn that web-search clearly found was never fetched.
         rows = (
             s.query(models.Signal)
-            .filter(models.Signal.scan_id == scan_id, models.Signal.kind == "account")
+            .filter(models.Signal.scan_id == scan_id,
+                    models.Signal.kind.in_(("account", "web_mention")))
             .all()
         )
         for r in rows:
             raw = r.raw or {}
             url = raw.get("url")
-            # only the DISCOVERED linkedin URL (from PDL etc.), not our own fetched rows.
             # Validate the real host (exact linkedin.com or a true subdomain) so a
-            # lookalike like evil-linkedin.com can't get fetched.
-            if url and _is_linkedin_url(url) \
+            # lookalike like evil-linkedin.com can't get fetched; skip directory pages
+            # (/pub/dir) — they list many people, not a single profile; and never
+            # re-fetch our own enrichment rows.
+            if url and _is_linkedin_url(url) and not is_directory_noise(url, raw.get("title")) \
                     and r.source not in ("linkedin_jina", "linkedin_apify"):
                 targets.setdefault(url, (raw.get("__subject_value", ""),
                                          raw.get("__subject_type", "email")))
@@ -387,7 +415,8 @@ def _set_phase(scan_id: str, phase: str) -> None:
             scan.config_snapshot = snap
 
 
-def _finalize_scan(scan_id: str, gaps: list, searched_types: list[str] | None = None) -> None:
+def _finalize_scan(scan_id: str, gaps: list, searched_types: list[str] | None = None,
+                   coverage: list[dict] | None = None) -> None:
     with session_scope() as s:
         scan = s.get(models.Scan, scan_id)
         if scan is None:
@@ -395,6 +424,9 @@ def _finalize_scan(scan_id: str, gaps: list, searched_types: list[str] | None = 
         scan.config_snapshot = {
             "coverage_gaps": [g.model_dump() for g in gaps],
             "searched_types": searched_types or [],
+            # Per-connector outcome (ran ok / ran empty / gap) for the map's Sources panel,
+            # so "no Instagram photo" vs "Instagram didn't run" is answerable (honest coverage).
+            "coverage": coverage or [],
         }
         scan.status = "complete"
         scan.finished_at = datetime.now(timezone.utc)
