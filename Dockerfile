@@ -31,7 +31,12 @@ RUN python -m venv /opt/ghunt-venv \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgtk-3-0 libx11-xcb1 libasound2 libdbus-glib-1-2 libxtst6 libxrandr2 \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir ".[browser]" \
-    && python -m camoufox fetch
+    && pip install --no-cache-dir ".[browser]"
+# Prefetch the patched Firefox in its OWN layer, non-fatal: a flaky CDN download must not
+# break the whole api/worker build. If it fails the lib is still installed and the browser
+# connectors just degrade to a coverage gap at runtime (connectors/browser.py) — same
+# contract as every other optional tool. Re-runnable: rebuild to retry the fetch.
+RUN python -m camoufox fetch \
+    || echo "WARNING: camoufox fetch failed — browser connectors will degrade to coverage gaps"
 
 ENV PYTHONUNBUFFERED=1
