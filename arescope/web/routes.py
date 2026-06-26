@@ -1173,25 +1173,42 @@ def map_home(request: Request):
     return RedirectResponse("/app/map/new", status_code=303)
 
 
+def _monogram_svg(slug: str) -> bytes:
+    """A readable fallback mark: the slug's first letter on a tinted disc (hue derived
+    from the slug, so each platform is stable + distinguishable). Replaces the old blank
+    white circle for any platform Simple Icons doesn't have (brokers, IntelX, niche sites)."""
+    letter = (re.sub(r"[^a-z0-9]", "", slug.lower())[:1] or "?").upper()
+    hue = int(hashlib.md5(slug.encode()).hexdigest(), 16) % 360  # noqa: S324 (color, not security)
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+        f'<circle cx="12" cy="12" r="12" fill="hsl({hue}, 52%, 45%)"/>'
+        f'<text x="12" y="12" text-anchor="middle" dominant-baseline="central" '
+        f'font-family="system-ui, sans-serif" font-size="13" font-weight="700" '
+        f'fill="#fff">{letter}</text></svg>'
+    ).encode()
+
+
 @router.get("/app/logo/{slug}")
 def logo_proxy(slug: str):
-    """Serve a brand logo, cached on our own origin (no per-render third-party
-    call from the user's browser). Fetched once from Simple Icons; 404 => the map
-    falls back to a monogram. Slug is sanitised, source is fixed (no SSRF)."""
+    """Serve a brand logo, cached on our own origin (no per-render third-party call from
+    the user's browser). Fetched once from Simple Icons; if there's no brand icon we cache
+    a generated monogram instead of 404'ing (which left a blank white node). Slug is
+    sanitised, source is fixed (no SSRF)."""
     safe = re.sub(r"[^a-z0-9-]", "", slug.lower())[:40]
     if not safe:
         raise HTTPException(404)
     os.makedirs(_LOGO_CACHE, exist_ok=True)
     path = os.path.join(_LOGO_CACHE, f"{safe}.svg")
     if not os.path.exists(path):
+        content: bytes | None = None
         try:
             r = httpx.get(f"https://cdn.simpleicons.org/{safe}", timeout=10)
+            if r.status_code == 200 and "svg" in r.headers.get("content-type", ""):
+                content = r.content
         except httpx.HTTPError:
-            raise HTTPException(404)
-        if r.status_code != 200 or "svg" not in r.headers.get("content-type", ""):
-            raise HTTPException(404)
+            content = None
         with open(path, "wb") as fh:
-            fh.write(r.content)
+            fh.write(content if content is not None else _monogram_svg(safe))
     return FileResponse(path, media_type="image/svg+xml")
 
 
