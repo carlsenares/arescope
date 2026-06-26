@@ -47,6 +47,24 @@ def test_gaia_id_and_review_count():
     assert _gaia_id({}) is None
 
 
+def test_extract_places_from_rendered_contrib_html():
+    from arescope.connectors.ghunt import _extract_places_from_html
+    html = (
+        '<a href="/maps/place/Caf%C3%A9+Central/data=abc" aria-label="Café Central">x</a>'
+        '<a href="/maps/place/G%C3%B6rlitzer+Park/@52.1,13.4,17z">y</a>'
+        '<a href="/maps/place/Caf%C3%A9+Central/other">dup</a>'   # de-duped
+        '<a href="/maps/place/photo/...">noise</a>'                # dropped
+    )
+    places = _extract_places_from_html(html)
+    assert places == ["Café Central", "Görlitzer Park"]
+
+
+def test_extract_places_empty_on_private_or_blank():
+    from arescope.connectors.ghunt import _extract_places_from_html
+    assert _extract_places_from_html("") == []
+    assert _extract_places_from_html("<div>Reviews aren't verified</div>") == []
+
+
 # --- Apify Instagram photo on private accounts -------------------------------
 
 def test_apify_emits_photo_even_when_private(monkeypatch):

@@ -24,16 +24,14 @@ RUN python -m venv /opt/ghunt-venv \
     && /opt/ghunt-venv/bin/python /tmp/patch_ghunt_people.py \
         /opt/ghunt-venv/lib/python3.12/site-packages/ghunt
 
-# Camoufox stealth browser (admin/demo public-content connectors: Instagram, …).
-# OPTIONAL + heavy: pulls Playwright + downloads a patched Firefox (~100MB) and its
-# system libs. The connectors degrade to a coverage gap when it's absent, so the image
-# builds fine without it. Uncomment to enable, then rebuild the api+worker images.
-# (Left commented because it's unvalidated end-to-end and the exact apt set may need a
-#  tweak per base image — enable deliberately, don't let it silently bloat the build.)
-# RUN apt-get update && apt-get install -y --no-install-recommends \
-#         libgtk-3-0 libx11-xcb1 libasound2 libdbus-glib-1-2 libxtst6 libxrandr2 \
-#     && rm -rf /var/lib/apt/lists/* \
-#     && pip install --no-cache-dir ".[browser]" \
-#     && python -m camoufox fetch
+# Camoufox stealth browser (admin/demo public-content connectors: Instagram + the GHunt
+# Google-Maps-reviews render). Heavy: pulls Playwright + downloads a patched Firefox
+# (~100MB) and its system libs. Connectors still degrade to a coverage gap if the binary
+# fails at runtime, so a partial/odd install never sinks a scan.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgtk-3-0 libx11-xcb1 libasound2 libdbus-glib-1-2 libxtst6 libxrandr2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir ".[browser]" \
+    && python -m camoufox fetch
 
 ENV PYTHONUNBUFFERED=1
