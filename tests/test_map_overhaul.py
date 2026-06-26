@@ -109,3 +109,34 @@ def test_present_iploc_note_is_honest_about_address():
     note = _present({"type": "iploc", "meta": {"location": "Berlin"}})
     assert "not your street address" in note
     assert "city-level" in note
+
+
+# --- CodeRabbit: don't leak raw exceptions / don't poison the logo cache -------
+
+def test_public_gap_reason_strips_raw_exception():
+    from arescope.service import _public_gap_reason
+    assert _public_gap_reason("unexpected error: KeyError('container')") == "unexpected error"
+    assert _public_gap_reason("ipinfo rejected the token (401)") == "ipinfo rejected the token (401)"
+    assert _public_gap_reason(None) == "unavailable"
+
+
+def test_logo_proxy_caches_on_404_but_not_on_transient(monkeypatch, tmp_path):
+    from arescope.web import routes
+
+    class _Resp:
+        def __init__(self, status, ctype="image/svg+xml"):
+            self.status_code = status
+            self.headers = {"content-type": ctype}
+            self.content = b"<svg/>"
+
+    monkeypatch.setattr(routes, "_LOGO_CACHE", str(tmp_path))
+
+    # transient (500) → monogram served but NOT written to disk (retry later)
+    monkeypatch.setattr(routes.httpx, "get", lambda *a, **k: _Resp(500))
+    routes.logo_proxy("spokeo")
+    assert not (tmp_path / "spokeo.svg").exists()
+
+    # genuine 404 → monogram cached permanently
+    monkeypatch.setattr(routes.httpx, "get", lambda *a, **k: _Resp(404))
+    routes.logo_proxy("spokeo")
+    assert (tmp_path / "spokeo.svg").exists()

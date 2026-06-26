@@ -18,7 +18,13 @@ from urllib.parse import quote, urlparse
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request
 from kombu.exceptions import OperationalError as BrokerError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.templating import Jinja2Templates
 
 from arescope.auth import (
@@ -1199,17 +1205,34 @@ def logo_proxy(slug: str):
         raise HTTPException(404)
     os.makedirs(_LOGO_CACHE, exist_ok=True)
     path = os.path.join(_LOGO_CACHE, f"{safe}.svg")
-    if not os.path.exists(path):
-        content: bytes | None = None
-        try:
-            r = httpx.get(f"https://cdn.simpleicons.org/{safe}", timeout=10)
-            if r.status_code == 200 and "svg" in r.headers.get("content-type", ""):
-                content = r.content
-        except httpx.HTTPError:
-            content = None
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/svg+xml")
+
+    content: bytes | None = None
+    icon_missing = False  # True only when Simple Icons CONFIRMS there's no brand icon (404)
+    try:
+        r = httpx.get(f"https://cdn.simpleicons.org/{safe}", timeout=10)
+        if r.status_code == 200 and "svg" in r.headers.get("content-type", ""):
+            content = r.content
+        elif r.status_code == 404:
+            icon_missing = True
+    except httpx.HTTPError:
+        content = None  # transient (network/timeout) — fall through, don't cache
+
+    if content is not None:
         with open(path, "wb") as fh:
-            fh.write(content if content is not None else _monogram_svg(safe))
-    return FileResponse(path, media_type="image/svg+xml")
+            fh.write(content)
+        return FileResponse(path, media_type="image/svg+xml")
+
+    # No real icon. Cache the monogram ONLY when the icon is genuinely missing (404);
+    # on a transient failure (5xx / odd content-type / network) serve it but DON'T write
+    # to disk, so a later request retries the CDN instead of being stuck on the fallback.
+    monogram = _monogram_svg(safe)
+    if icon_missing:
+        with open(path, "wb") as fh:
+            fh.write(monogram)
+        return FileResponse(path, media_type="image/svg+xml")
+    return Response(content=monogram, media_type="image/svg+xml")
 
 
 _PHOTO_CACHE = os.path.join(APP_STATIC_DIR, "photocache")

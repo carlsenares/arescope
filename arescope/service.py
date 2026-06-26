@@ -222,7 +222,7 @@ def run_and_store_map(scan_id: str) -> str:
                 gaps.append(gap)
                 if rec["status"] != "ok":
                     rec["status"] = "gap"
-                    rec["reason"] = rec["reason"] or gap.reason
+                    rec["reason"] = rec["reason"] or _public_gap_reason(gap.reason)
             if sigs:
                 rec["status"] = "ok"
                 rec["count"] += len(sigs)
@@ -250,6 +250,17 @@ def run_and_store_map(scan_id: str) -> str:
 
 # Connectors whose latency warrants running last in a streaming map build.
 _SLOW_SOURCES = {"maigret", "sherlock", "apify", "ignorant", "phoneinfoga"}
+
+
+def _public_gap_reason(reason: str | None) -> str:
+    """Strip raw exception text from a coverage-gap reason before it reaches the user-facing
+    Sources panel. The connector crash path emits "unexpected error: <repr>" (which can
+    carry internal detail); keep the category, drop the payload — the full traceback is
+    already in the server logs via stream_connectors()."""
+    reason = (reason or "unavailable").strip()
+    if reason.lower().startswith("unexpected error"):
+        return "unexpected error"
+    return reason
 
 
 def _is_linkedin_url(url: str) -> bool:
