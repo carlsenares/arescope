@@ -238,10 +238,10 @@ def _present(data: dict) -> str | None:
         return "A public web page that names you."
     if t == "iploc":
         # Be honest about the ceiling: an IP gives a city-level area + ISP, never a street
-        # address (only the ISP holds that, via legal process). The real movement signal is
-        # the Google Maps reviews node, not this.
+        # address (only the ISP holds that, via legal process). Keep the note generic — it
+        # must not imply a Maps-reviews node exists when this scan has none.
         return ("Approximate city-level area and network provider from your IP — not your "
-                "street address. Your real movements show up via your Google Maps reviews.")
+                "street address (an IP can't reveal that).")
     if t == "breach":
         return "Your account was in this data breach — assume the listed data leaked."
     if t == "stealer":

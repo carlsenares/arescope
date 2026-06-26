@@ -53,7 +53,7 @@ def test_private_profile_still_exposes_photo():
     sigs = _parse_web_profile_info(data, "janedoe")
     photos = [s for s in sigs if s.kind == "identity_attribute" and s.raw["attribute"] == "photo"]
     assert photos and photos[0].raw["value"] == "https://example.com/jane.jpg"
-    account = [s for s in sigs if s.kind == "account"][0]
+    account = next(s for s in sigs if s.kind == "account")
     assert account.raw["is_private"] is True
 
 

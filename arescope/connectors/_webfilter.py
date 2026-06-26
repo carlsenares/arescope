@@ -48,23 +48,44 @@ def _normalize(text: str) -> str:
     """Casefold + strip accents + collapse non-alphanumerics to spaces.
 
     So "Patrík  Breeck!" and "patrik breeck" compare equal, but "Breck" stays distinct
-    from "Breeck" — we fold accents/case/punctuation, never spelling."""
+    from "Breeck" — we fold accents/case/punctuation, never spelling. Script-agnostic:
+    `str.isalnum()` keeps letters of ANY script (Cyrillic/CJK/Greek/…), so a non-Latin
+    name still tokenizes and the exact-name gate stays active for it (an earlier ASCII
+    regex dropped those letters → empty tokens → the filter silently went permissive)."""
     text = unicodedata.normalize("NFKD", text or "")
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]+", " ", text.casefold()).strip()
+    text = "".join(c for c in text if not unicodedata.combining(c)).casefold()
+    cleaned = "".join(c if c.isalnum() else " " for c in text)
+    return " ".join(cleaned.split())
+
+
+def _no_word_boundaries(token: str) -> bool:
+    """True for scriptio-continua tokens (CJK ideographs, Kana, Hangul) — scripts written
+    without spaces, where whole-word matching can't apply and substring is the right test."""
+    return any(
+        "぀" <= c <= "ヿ"     # Hiragana + Katakana
+        or "㐀" <= c <= "鿿"  # CJK unified ideographs
+        or "가" <= c <= "힣"  # Hangul syllables
+        for c in token
+    )
 
 
 def name_matches(query_name: str, *fields: str | None) -> bool:
-    """True only if EVERY token of the searched name appears as a whole word in one of
-    the given fields (title/description), exact spelling.
+    """True only if EVERY token of the searched name appears verbatim in one of the given
+    fields (title/description), exact spelling.
 
     A name search for "Patrik Breeck" returns the owner AND look-alikes the engine
     fuzzed in — "Patrick Breck", "Brad Breeck", unrelated "An Duy Dang". The connectors'
     `"quoted"` query doesn't stop that, so we gate results on an exact first+last match:
-    keep only pages whose text contains every name token verbatim (order-independent).
+    keep only pages whose text contains every name token (order-independent). Space-
+    delimited scripts (Latin/Cyrillic/…) match on a WHOLE word so "Breck" ≠ "Breckenridge";
+    space-less scripts (CJK/Kana/Hangul) match on substring since they have no boundaries.
     """
     tokens = [t for t in _normalize(query_name).split() if t]
     if not tokens:
         return True  # nothing to match against → don't filter
-    haystack = " " + " ".join(_normalize(f) for f in fields if f) + " "
-    return all(f" {tok} " in haystack for tok in tokens)
+    words = " " + " ".join(_normalize(f) for f in fields if f) + " "
+    compact = words.replace(" ", "")
+    return all(
+        (tok in compact) if _no_word_boundaries(tok) else (f" {tok} " in words)
+        for tok in tokens
+    )

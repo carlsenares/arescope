@@ -32,6 +32,15 @@ def test_name_matches_empty_query_is_permissive():
     assert name_matches("", "anything", None)
 
 
+def test_name_matches_non_latin_scripts_stay_active():
+    # Cyrillic/CJK names must still tokenize (regression: an ASCII-only normalize dropped
+    # the letters → empty tokens → filter went permissive and matched everything).
+    assert name_matches("Иван Петров", "Профиль: Иван Петров — VK", None)
+    assert not name_matches("Иван Петров", "Иван Сидоров", None)
+    assert name_matches("山田太郎", "山田太郎のプロフィール", None)
+    assert not name_matches("山田太郎", "鈴木一郎 profile", None)
+
+
 # --- GHunt Maps reviews (count + contributor link) ---------------------------
 # The place LIST isn't reliably fetchable (verified live — the locationhistory RPC returns
 # only stats, even authenticated), so the connector surfaces the count + a click-through
