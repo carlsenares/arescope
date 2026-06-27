@@ -16,7 +16,7 @@ import secrets
 from urllib.parse import quote, urlparse
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Query, Request
 from kombu.exceptions import OperationalError as BrokerError
 from fastapi.responses import (
     FileResponse,
@@ -26,6 +26,7 @@ from fastapi.responses import (
     Response,
 )
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
 from arescope.auth import (
     AuthError,
@@ -169,6 +170,40 @@ def _safe_next(raw: str | None) -> str:
 def _wants_json(request: Request) -> bool:
     """True when the caller asked for JSON (the dashboard's in-place AJAX actions)."""
     return "application/json" in request.headers.get("accept", "")
+
+
+def _mask_input(value: str, itype: str) -> str:
+    """Mask user inputs for list views. Detail pages can show richer context, but the
+    dashboard should not dump raw identifiers into the DOM."""
+    if itype == "email" and "@" in value:
+        local, _, domain = value.partition("@")
+        return f"{local[:1] or '•'}{'•' * max(len(local) - 1, 1)}@{domain}"
+    if itype == "phone":
+        digits = re.sub(r"\D", "", value)
+        if len(digits) >= 4:
+            return f"{'•' * max(len(digits) - 4, 4)}{digits[-4:]}"
+        return "••••"
+    if itype == "photo":
+        return "photo upload"
+    if itype == "ip":
+        parts = value.split(".")
+        if len(parts) == 4:
+            return ".".join(parts[:2] + ["•", "•"])
+    if len(value) > 2:
+        return value[:2] + "•" * min(len(value) - 2, 16)
+    return "••"
+
+
+def _scan_input_summary(scan: models.Scan) -> dict:
+    """Summary shape shared by dashboard rows, map list labels, and result headers."""
+    subject = scan.subject
+    inputs = [
+        {"type": ident.type, "value": _mask_input(str(ident.value), ident.type)}
+        for ident in (subject.identifiers if subject else [])
+    ]
+    count = len(inputs)
+    label = scan.name or f"{count} input{'s' if count != 1 else ''}"
+    return {"input_count": count, "inputs": inputs, "label": label}
 
 
 # --- signup / login / logout -------------------------------------------------
@@ -329,7 +364,7 @@ def _require_verified(request: Request) -> models.User | RedirectResponse:
 
 
 @router.get("/app", response_class=HTMLResponse)
-def app_home(request: Request):
+def app_home(request: Request, all: int = Query(0)):
     user = _require_verified(request)
     if isinstance(user, RedirectResponse):
         return user
@@ -341,6 +376,11 @@ def app_home(request: Request):
             .order_by(models.Scan.started_at.desc())
             .all()
         )
+        analysis_scans = [
+            sc for sc in scans if (sc.options or {}).get("mode", "audit") != "map"
+        ]
+        analysis_total = len(analysis_scans)
+        latest_analysis = analysis_scans[0] if analysis_scans else None
         rows = [
             {
                 "id": sc.id,
@@ -349,10 +389,124 @@ def app_home(request: Request):
                 "started_at": sc.started_at,
                 "in_map": not (sc.options or {}).get("exclude_from_map"),
                 "mode": (sc.options or {}).get("mode", "audit"),
+                **_scan_input_summary(sc),
             }
-            for sc in scans
+            for sc in analysis_scans
         ]
-    return _render(request, "app_home.html", scans=rows)
+    return _render(
+        request,
+        "app_home.html",
+        scans=rows,
+        all_scans=rows,
+        show_all=bool(all),
+        analysis_total=analysis_total,
+        latest_analysis={
+            "id": latest_analysis.id,
+            "status": latest_analysis.status,
+            "started_at": latest_analysis.started_at,
+        } if latest_analysis else None,
+    )
+
+
+# --- account settings --------------------------------------------------------
+
+
+def _account_context(user: models.User, delete_error: str | None = None) -> dict:
+    return {"account": user, "delete_error": delete_error}
+
+
+def _delete_account_rows(s: Session, user_id: str) -> None:
+    """Remove rows owned by one account before deleting the user row.
+
+    User.subjects has no ORM cascade, and several tables use user_id directly, so
+    account deletion keeps the dependency order explicit instead of relying on DB
+    cascade settings.
+    """
+    subject_ids = [
+        sid for (sid,) in s.query(models.Subject.id).filter(models.Subject.user_id == user_id).all()
+    ]
+    scan_ids: list[str] = []
+    finding_ids: list[str] = []
+    if subject_ids:
+        scan_ids = [
+            sid
+            for (sid,) in (
+                s.query(models.Scan.id)
+                .filter(models.Scan.subject_id.in_(subject_ids))
+                .all()
+            )
+        ]
+    if scan_ids:
+        finding_ids = [
+            fid
+            for (fid,) in (
+                s.query(models.Finding.id)
+                .filter(models.Finding.scan_id.in_(scan_ids))
+                .all()
+            )
+        ]
+    if finding_ids:
+        s.query(models.Remediation).filter(
+            models.Remediation.finding_id.in_(finding_ids)
+        ).delete(synchronize_session=False)
+    if scan_ids:
+        s.query(models.Finding).filter(
+            models.Finding.scan_id.in_(scan_ids)
+        ).delete(synchronize_session=False)
+        s.query(models.Signal).filter(
+            models.Signal.scan_id.in_(scan_ids)
+        ).delete(synchronize_session=False)
+        s.query(models.Scan).filter(
+            models.Scan.id.in_(scan_ids)
+        ).delete(synchronize_session=False)
+    if subject_ids:
+        s.query(models.Identifier).filter(
+            models.Identifier.subject_id.in_(subject_ids)
+        ).delete(synchronize_session=False)
+        s.query(models.Subject).filter(
+            models.Subject.id.in_(subject_ids)
+        ).delete(synchronize_session=False)
+    s.query(models.ChatMessage).filter(
+        models.ChatMessage.user_id == user_id
+    ).delete(synchronize_session=False)
+    s.query(models.LoginToken).filter(
+        models.LoginToken.user_id == user_id
+    ).delete(synchronize_session=False)
+    user = s.get(models.User, user_id)
+    if user is not None:
+        s.delete(user)
+
+
+@router.get("/app/account", response_class=HTMLResponse)
+def account_settings(request: Request):
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    return _render(request, "account.html", **_account_context(user))
+
+
+@router.post("/app/account/delete", response_class=HTMLResponse)
+def account_delete(
+    request: Request,
+    confirmation: str = Form(""),
+    csrf: str = Form(""),
+):
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    _check_csrf(request, csrf)
+    typed = confirmation.strip().lower()
+    allowed = {user.username.strip().lower(), user.email.strip().lower()}
+    if typed not in allowed:
+        return _render(
+            request,
+            "account.html",
+            **_account_context(user, "Type your username or email exactly to delete the account."),
+        )
+    with session_scope() as s:
+        _delete_account_rows(s, user.id)
+    logout_session(request)
+    return RedirectResponse("/", status_code=303)
 
 
 @router.get("/app/new", response_class=HTMLResponse)
@@ -642,6 +796,38 @@ def map_scan_analysis(request: Request, scan_id: str) -> dict:
     return {"ready": analysis is not None, "analysis": analysis}
 
 
+@router.get("/app/maps/list")
+def map_scan_list(request: Request) -> dict:
+    """Small JSON list for the map switcher panel."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        raise HTTPException(401)
+    with session_scope() as s:
+        scans = (
+            s.query(models.Scan)
+            .join(models.Subject, models.Scan.subject_id == models.Subject.id)
+            .filter(models.Subject.user_id == user.id)
+            .order_by(models.Scan.started_at.desc())
+            .all()
+        )
+        maps = []
+        for sc in scans:
+            if (sc.options or {}).get("mode", "audit") != "map":
+                continue
+            summary = _scan_input_summary(sc)
+            maps.append({
+                "id": sc.id,
+                "name": sc.name,
+                "label": sc.name or summary["label"],
+                "status": sc.status,
+                "started_at": sc.started_at.isoformat() if sc.started_at else None,
+                "url": f"/app/map/scan/{sc.id}",
+                "input_count": summary["input_count"],
+                "inputs": summary["inputs"],
+            })
+    return {"maps": maps}
+
+
 # --- admin: real-time run-access control ------------------------------------
 
 
@@ -893,6 +1079,7 @@ def _load_owned_scan(user: models.User, scan_id: str) -> dict | None:
             "name": scan.name,
             "status": scan.status,
             "started_at": scan.started_at,
+            **_scan_input_summary(scan),
             "options": scan.options or {},
             "analysis": scan.analysis,
             "phase": snap.get("phase"),
@@ -969,6 +1156,41 @@ async def scan_rename(request: Request, scan_id: str):
         return JSONResponse({"ok": True, "name": name or ""})
     back = _safe_next(str(form.get("next", "")) or f"/app/scans/{scan_id}")
     return RedirectResponse(back, status_code=303)
+
+
+@router.post("/app/scans/{scan_id}/delete")
+async def scan_delete(request: Request, scan_id: str):
+    """Delete one owned scan/analysis and its child data."""
+    user = _require_verified(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    form = await request.form()
+    _check_csrf(request, form.get("csrf"))
+
+    with session_scope() as s:
+        scan = s.get(models.Scan, scan_id)
+        if scan is None:
+            raise HTTPException(404, "scan not found")
+        subject = s.get(models.Subject, scan.subject_id)
+        if subject is None or (subject.user_id != user.id and not user.is_admin):
+            raise HTTPException(404, "scan not found")
+        owner_id = subject.user_id or user.id
+        finding_ids = [
+            fid for (fid,) in s.query(models.Finding.id)
+            .filter(models.Finding.scan_id == scan_id)
+            .all()
+        ]
+        chat_scopes = [f"map:scan:{scan_id}", f"scan:{scan_id}"]
+        chat_scopes.extend(f"finding:{fid}" for fid in finding_ids)
+        s.query(models.ChatMessage).filter(
+            models.ChatMessage.user_id == owner_id,
+            models.ChatMessage.scope.in_(chat_scopes),
+        ).delete(synchronize_session=False)
+        s.delete(scan)
+
+    if _wants_json(request):
+        return JSONResponse({"ok": True})
+    return RedirectResponse("/app", status_code=303)
 
 
 @router.post("/app/scans/{scan_id}/map-visibility")

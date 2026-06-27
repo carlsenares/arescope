@@ -116,6 +116,7 @@ class Settings(BaseSettings):
     # logged-in view — admin/demo only (shared creds rate-limit; see GRAPH.md §0).
     browser_scraping_enabled: bool = True
     instagram_session_path: str = ""
+    telegram_enabled: bool = True       # username -> public t.me profile photo (free)
 
     # LinkedIn enrichment (fed a profile URL discovered by PDL). Jina Reader is the free,
     # no-key public path (regular tier); the Apify LinkedIn actor is the deep admin path.

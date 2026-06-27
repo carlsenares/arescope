@@ -204,12 +204,24 @@ def _classify(sig: models.Signal) -> tuple[str, dict] | None:
 
     if sig.kind == "account":
         platform = _platform_key(sig)
+        display_name = raw.get("display_name")
+        description = raw.get("description")
+        label = display_name or (
+            platform.split(".")[0].capitalize() if "." in platform else platform.capitalize()
+        )
+        if platform == "linkedin.com" and description and display_name:
+            label = f"{display_name} · {description}"
         return f"site:{platform}", {
             "type": "site",
-            "label": platform.split(".")[0].capitalize() if "." in platform else platform.capitalize(),
+            "label": label[:60] if isinstance(label, str) else label,
             "slug": _slug(platform),
             "url": raw.get("url"),
-            "meta": {"platform": platform, "tags": raw.get("tags")},
+            "meta": {
+                "platform": platform,
+                "display_name": display_name,
+                "description": description,
+                "tags": raw.get("tags"),
+            },
         }
     return None
 

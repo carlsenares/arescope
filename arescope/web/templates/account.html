@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Account · Arescope{% endblock %}
+{% block content %}
+<section class="account-page stack">
+  <header class="account-head">
+    <div>
+      <span class="eyebrow">Account</span>
+      <h1>{{ account.username }}</h1>
+      <p class="muted">Manage your Arescope account and data.</p>
+    </div>
+    <a class="btn btn-ghost" href="/app">Back to dashboard</a>
+  </header>
+
+  <div class="account-grid">
+    <section class="panel account-panel">
+      <div class="panel-head">
+        <h2>Profile</h2>
+      </div>
+      <dl class="account-facts">
+        <div>
+          <dt>Username</dt>
+          <dd>{{ account.username }}</dd>
+        </div>
+        <div>
+          <dt>Email</dt>
+          <dd>{{ account.email }}</dd>
+        </div>
+        <div>
+          <dt>Member since</dt>
+          <dd>{{ account.created_at.strftime('%b %d, %Y') if account.created_at else 'Unknown' }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="panel account-panel">
+      <div class="panel-head">
+        <h2>Status</h2>
+      </div>
+      <div class="account-status-list">
+        <div class="account-status-row">
+          <span>Email verified</span>
+          {% if account.email_verified %}<span class="chip chip-ok">yes</span>{% else %}<span class="chip">no</span>{% endif %}
+        </div>
+        <div class="account-status-row">
+          <span>Admin</span>
+          {% if account.is_admin %}<span class="chip chip-admin">yes</span>{% else %}<span class="chip">no</span>{% endif %}
+        </div>
+        <div class="account-status-row">
+          <span>Scan access</span>
+          {% if account.is_admin %}<span class="chip chip-ok">always</span>
+          {% elif account.can_scan %}<span class="chip chip-ok">enabled</span>
+          {% else %}<span class="chip">locked</span>{% endif %}
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel account-panel">
+    <div class="panel-head">
+      <h2>Account actions</h2>
+    </div>
+    <div class="account-actions">
+      <a class="btn btn-ghost" href="/app/password">Check password exposure</a>
+      {% if not account.email_verified %}
+      <form method="post" action="/verify/resend" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <button class="btn btn-ghost" type="submit">Resend verification email</button>
+      </form>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="panel account-panel account-danger">
+    <div class="panel-head">
+      <h2>Delete account</h2>
+    </div>
+    <p class="muted">
+      This permanently deletes your account, subjects, scans, signals, findings,
+      remediations, and Ask-Opus chat messages.
+    </p>
+    {% if delete_error %}
+    <p class="formerror">{{ delete_error }}</p>
+    {% endif %}
+    <form method="post" action="/app/account/delete" class="form account-delete-form">
+      <input type="hidden" name="csrf" value="{{ csrf }}" />
+      <label>
+        Type <strong>{{ account.username }}</strong> or <strong>{{ account.email }}</strong> to confirm
+        <input type="text" name="confirmation" autocomplete="off" spellcheck="false" required />
+      </label>
+      <button class="btn btn-danger" type="submit">Delete account</button>
+    </form>
+  </section>
+</section>
+{% endblock %}
