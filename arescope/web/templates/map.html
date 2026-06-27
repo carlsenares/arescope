@@ -7,26 +7,60 @@
     <div id="cy"></div>
     <div id="cyTip" class="cy-tip" hidden></div>
 
-    <!-- top-left overlay: back + title + view controls -->
+    <!-- top-left overlay: map identity + primary actions -->
     <div class="map-overlay map-tl">
       <div class="map-titlebar">
-        {% if scope == 'scan' %}<a class="btn btn-ghost btn-sm" href="/app/scans/{{ scan }}">← Findings</a>
-        {% else %}<a class="btn btn-ghost btn-sm" href="/app">← Dashboard</a>{% endif %}
+        <a class="map-wordmark" href="/app" aria-label="Arescope dashboard">ARESCOPE</a>
         <span class="map-title">{% if scope == 'map' %}{{ scan_name or 'Identity map' }}{% elif scope == 'account' %}Your footprint{% else %}Analysis map{% endif %}</span>
       </div>
-      <div class="map-controls">
-        <button id="cyFit" class="btn btn-ghost btn-sm" type="button">Fit</button>
-        <button id="cyRelayout" class="btn btn-ghost btn-sm" type="button">Re-layout</button>
-        {% if scope == 'map' %}<button id="addIdentity" class="btn btn-ghost btn-sm" type="button">+ Add to identity</button>
-        <form method="post" action="/app/map/scan/{{ scan }}/rerun" class="inline" title="Re-run with the same inputs (keeps this map to compare)">
-          <input type="hidden" name="csrf" value="{{ csrf }}" />
-          <button class="btn btn-ghost btn-sm" type="submit">↻ Rerun</button>
-        </form>
-        <button id="sourcesBtn" class="btn btn-ghost btn-sm" type="button" title="Which sources ran, which were skipped">Sources</button>
-        <button id="evaluateBtn" class="btn btn-primary btn-sm" type="button" title="Let Opus infer what your footprint reveals">✦ What can be inferred?</button>{% endif %}
+      <div class="map-primary-actions">
+        {% if scope == 'map' %}
+        <button id="evaluateBtn" class="btn btn-primary btn-sm" type="button" title="Let Opus infer what your footprint reveals">Analyze</button>
+        <button id="mapsBtn" class="btn btn-ghost btn-sm" type="button" aria-expanded="false" aria-controls="mapsPanel">Maps</button>
+        {% elif scope == 'scan' %}
+        <a class="btn btn-ghost btn-sm" href="/app/scans/{{ scan }}">Findings</a>
+        {% endif %}
         <span class="map-count">{{ elements.counts.nodes }} nodes · {{ elements.counts.edges }} links</span>
       </div>
     </div>
+
+    <div class="map-overlay map-tr">
+      <button id="mapMenuBtn" class="map-menu-btn" type="button" aria-label="Map controls" aria-expanded="false" aria-controls="mapMenuPanel">☰</button>
+    </div>
+
+    <div class="map-overlay map-menu-panel" id="mapMenuPanel" hidden>
+      <div class="report-head">
+        <span class="report-title">Map controls</span>
+        <button type="button" class="ask-close" id="mapMenuClose" aria-label="Close controls" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="map-menu-body">
+        <button id="cyFit" class="btn btn-ghost btn-sm" type="button">Fit</button>
+        <button id="cyRelayout" class="btn btn-ghost btn-sm" type="button">Re-layout</button>
+        {% if scope == 'map' %}
+        <button id="addIdentity" class="btn btn-ghost btn-sm" type="button">Add to identity</button>
+        <form method="post" action="/app/map/scan/{{ scan }}/rerun" class="inline" title="Re-run with the same inputs (keeps this map to compare)">
+          <input type="hidden" name="csrf" value="{{ csrf }}" />
+          <button class="btn btn-ghost btn-sm" type="submit">Rerun</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if scope == 'map' %}
+    <div class="map-overlay map-list-panel" id="mapsPanel" hidden>
+      <div class="report-head">
+        <span class="report-title">Maps</span>
+        <button type="button" class="ask-close" id="mapsClose" aria-label="Close maps" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="map-list-body" id="mapsBody">
+        <p class="muted">Loading maps…</p>
+      </div>
+    </div>
+    {% endif %}
 
     {% if scope == 'map' and scan_status not in ('complete', 'failed') %}
     <div class="map-overlay map-building" id="mapBuilding" data-status-url="/app/map/scan/{{ scan }}/status">
@@ -57,19 +91,6 @@
         </button>
       </div>
       <div class="report-body" id="reportBody"></div>
-    </div>
-    {% endif %}
-
-    {% if scope == 'map' %}
-    <!-- right overlay: which sources ran vs were skipped (honest coverage) -->
-    <div class="map-overlay map-report map-sources" id="mapSources" hidden>
-      <div class="report-head">
-        <span class="report-title">Sources</span>
-        <button type="button" class="ask-close" id="sourcesClose" aria-label="Close" title="Close">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="report-body" id="sourcesBody"></div>
     </div>
     {% endif %}
 
@@ -126,16 +147,13 @@
   const SCAN_ID = {{ (scan or '') | tojson }};
   const CSRF = {{ csrf | tojson }};
   const ANALYSIS = {{ analysis | tojson if analysis is defined else 'null' }};
-  const COVERAGE = {{ coverage | tojson if coverage is defined else '[]' }};
-  const COVERAGE_GAPS = {{ coverage_gaps | tojson if coverage_gaps is defined else '[]' }};
   const SEV = {
     critical: 'oklch(0.64 0.2 18)', high: 'oklch(0.78 0.15 70)',
     medium: 'oklch(0.82 0.15 95)', low: 'oklch(0.78 0.24 145)', info: 'oklch(0.62 0 0)'
   };
   const sev = e => SEV[e.data('severity')] || SEV.info;
   // Dark fill tinted toward the finding's severity hue, so even before you read a
-  // label the node says "red = critical, orange = high" at a glance (feedback: only
-  // white nodes seen). Site nodes keep their white logo plate + a thick severity ring.
+  // label the node says "red = critical, orange = high" at a glance.
   const BGTINT = {
     critical: 'oklch(0.23 0.09 18)', high: 'oklch(0.25 0.07 70)',
     medium: 'oklch(0.26 0.06 95)', low: 'oklch(0.23 0.05 145)', info: '#1c1c1c',
@@ -189,15 +207,14 @@
             'background-color': '#202020', 'border-width': 1.5,
             'border-color': '#3a3a3a', 'font-size': 11, 'color': '#bdbdbd',
             'text-max-width': 150 } },
-        // web mention: a page/record that names the person (search, leak, paste). Site
-        // logo on a quiet plate, distinct rounded shape + cool border so it reads as
-        // "a reference to you out there" rather than an account you hold.
+        // web mention: a page/record that names the person (search, leak, paste).
+        // Platform imagery fills the node; the severity ring does the categorisation.
         { selector: 'node[type="mention"]', style: {
-            'width': 34, 'height': 34, 'shape': 'round-rectangle',
-            'background-color': '#fff', 'background-image': 'data(logoUrl)',
-            'background-width': '60%', 'background-height': '60%',
+            'width': 38, 'height': 38, 'shape': 'ellipse',
+            'background-color': nodeBg, 'background-image': 'data(logoUrl)',
+            'background-fit': 'cover', 'background-width': '100%', 'background-height': '100%',
             'background-position-x': '50%', 'background-position-y': '50%',
-            'background-clip': 'node', 'border-width': 2, 'border-color': sev } },
+            'background-clip': 'node', 'border-width': 2.5, 'border-color': sev } },
         // Opus inference: a deduction, not a collected fact — dashed violet ring so it
         // reads as "what we worked out about you" distinct from hard data.
         { selector: 'node[type="inference"]', style: {
@@ -214,17 +231,20 @@
             'border-color': '#2f5132', 'font-size': 11, 'color': '#bfe3c2',
             'text-max-width': 150 } },
         { selector: 'node[type="broker"]', style: {
-            'width': 46, 'height': 46, 'shape': 'round-hexagon', 'font-size': 13,
-            'background-color': nodeBg, 'border-color': sev } },
-        // Centered logo with padding: size the image to 62% and center it EXPLICITLY.
-        // Don't also set background-fit — combining 'contain' with background-width/
-        // height/position is the bug that pinned every logo to the top-left (NW drift).
-        { selector: 'node[type="site"]', style: {
-            'width': 46, 'height': 46, 'background-color': '#fff',
-            'background-image': 'data(logoUrl)',
-            'background-width': '62%', 'background-height': '62%',
+            'width': 46, 'height': 46, 'shape': 'ellipse', 'font-size': 13,
+            'background-color': nodeBg, 'background-image': 'data(logoUrl)',
+            'background-fit': 'cover', 'background-width': '100%', 'background-height': '100%',
             'background-position-x': '50%', 'background-position-y': '50%',
-            'background-clip': 'node' } },
+            'background-clip': 'node', 'border-width': 2.5, 'border-color': sev } },
+        // Platform icon is the node. Simple Icons marks and monogram fallbacks are
+        // cropped edge-to-edge; the thin severity ring preserves the risk signal.
+        { selector: 'node[type="site"]', style: {
+            'width': 48, 'height': 48, 'shape': 'ellipse',
+            'background-color': nodeBg,
+            'background-image': 'data(logoUrl)',
+            'background-fit': 'cover', 'background-width': '100%', 'background-height': '100%',
+            'background-position-x': '50%', 'background-position-y': '50%',
+            'background-clip': 'node', 'border-width': 2.5, 'border-color': sev } },
         // real profile photo: show the actual face as the node fill (cover-cropped).
         { selector: 'node[type="photo"][imgUrl]', style: {
             'width': 58, 'height': 58, 'background-color': '#fff',
@@ -396,14 +416,74 @@
       cy.nodes().forEach(n => settled.add(n.id()));
     }
 
-    // Incremental settle for streaming batches: PIN every already-settled node at its
-    // CURRENT position and let fcose place ONLY the newly-added nodes (seeded near their
-    // source at add time). This is the fix for "everything reloads when one input lands"
-    // — the email arm stays put while the name's nodes lay out around it.
-    function relayoutIncremental({ animate = true } = {}) {
+    function affectedRelayoutIds(addedIds) {
+      const starts = (addedIds || [])
+        .map(id => cy.getElementById(id))
+        .filter(n => n && n.nonempty());
+      const affected = new Set();
+      const inputAnchors = new Set();
+
+      // If the caller did not pass IDs, fall back to unsettled nodes so streaming
+      // still relaxes locally after any future code path that adds nodes.
+      if (!starts.length) {
+        cy.nodes().forEach(n => { if (!settled.has(n.id())) starts.push(n); });
+      }
+
+      const queue = starts.map(n => ({ n, depth: 0 }));
+      const queued = new Set(starts.map(n => n.id()));
+      while (queue.length) {
+        const { n, depth } = queue.shift();
+        const id = n.id();
+        if (n.data('type') !== 'identity') affected.add(id);
+        if (n.data('type') === 'input') inputAnchors.add(id);
+        if (depth >= 2) continue;
+        n.connectedEdges().forEach(edge => {
+          const other = edge.source().same(n) ? edge.target() : edge.source();
+          if (other.empty() || other.data('type') === 'identity') return;
+          if (other.data('type') === 'input') inputAnchors.add(other.id());
+          if (!queued.has(other.id())) {
+            queued.add(other.id());
+            queue.push({ n: other, depth: depth + 1 });
+          }
+        });
+      }
+
+      // Same-input arm: when a new post/repo lands on a platform node, include the
+      // platform's input arm so the cluster can breathe without pulling unrelated arms.
+      [...affected].forEach(id => {
+        const n = cy.getElementById(id);
+        if (n.empty()) return;
+        n.connectedEdges().forEach(edge => {
+          const other = edge.source().same(n) ? edge.target() : edge.source();
+          if (other.nonempty() && other.data('type') === 'input') inputAnchors.add(other.id());
+        });
+      });
+      inputAnchors.forEach(inputId => {
+        const input = cy.getElementById(inputId);
+        if (input.empty()) return;
+        affected.add(inputId);
+        input.connectedEdges().forEach(edge => {
+          const other = edge.source().same(input) ? edge.target() : edge.source();
+          if (other.empty() || other.data('type') === 'identity') return;
+          affected.add(other.id());
+          other.connectedEdges().forEach(edge2 => {
+            const child = edge2.source().same(other) ? edge2.target() : edge2.source();
+            if (child.empty() || child.data('type') === 'identity' || child.data('type') === 'input') return;
+            affected.add(child.id());
+          });
+        });
+      });
+      return affected;
+    }
+
+    // Incremental settle for streaming batches: pin only nodes OUTSIDE the local
+    // affected neighbourhood/arm. New nodes and nearby settled nodes can relax; unrelated
+    // arms stay fixed at their current positions.
+    function relayoutIncremental({ animate = true, addedIds = [] } = {}) {
+      const affected = affectedRelayoutIds(addedIds);
       const fixed = [];
       cy.nodes().forEach(n => {
-        if (settled.has(n.id())) fixed.push({ nodeId: n.id(), position: { ...n.position() } });
+        if (settled.has(n.id()) && !affected.has(n.id())) fixed.push({ nodeId: n.id(), position: { ...n.position() } });
       });
       // Nothing settled yet (first batch before any full layout) → do a full seed.
       if (!fixed.length) { relayout({ animate, fit: false, quality: 'default' }); return; }
@@ -424,9 +504,16 @@
     // Debounce streaming relayouts: a burst of polls collapses into ONE settle beat
     // ~900ms after the last batch, so the map settles instead of tumbling per-poll.
     let _relayoutTimer = null;
+    const _pendingRelayoutIds = new Set();
     function scheduleRelayout(opts = {}) {
+      (opts.addedIds || []).forEach(id => _pendingRelayoutIds.add(id));
       clearTimeout(_relayoutTimer);
-      _relayoutTimer = setTimeout(() => relayoutIncremental(opts), 900);
+      _relayoutTimer = setTimeout(() => {
+        const addedIds = [..._pendingRelayoutIds];
+        _pendingRelayoutIds.clear();
+        if (window.console && console.debug) console.debug('Arescope map incremental relayout', addedIds);
+        relayoutIncremental({ ...opts, addedIds });
+      }, 900);
     }
 
     // Initial render: seed + run the crossing-minimiser once, fit to view.
@@ -440,6 +527,16 @@
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
       c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const tip = document.getElementById('cyTip');
+    function linkHref(d) {
+      if (!d || !d.url || d.type === 'input' || d.type === 'identity') return null;
+      try {
+        const u = new URL(d.url, window.location.origin);
+        return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    const isLinkable = d => !!linkHref(d);
     function showTip(html, rpos) {
       tip.innerHTML = html;
       tip.style.left = (rpos.x + 16) + 'px';
@@ -475,7 +572,9 @@
       if (d.type === 'mention' && m.items && m.items.length) extra += '<div class="t-sub">' + esc(m.items.slice(0, 6).join(' · ')) + (m.items.length > 6 ? ' …' : '') + '</div>';
       // Plain-language note (the legibility layer) — what this node is / why it matters.
       const note = d.note ? '<div class="t-note">' + esc(d.note) + '</div>' : '';
-      showTip('<strong>' + esc(d.label || d.id) + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>' + note + extra, e.renderedPosition);
+      const linkHint = isLinkable(d) ? '<div class="t-link">Open in new tab ↗</div>' : '';
+      showTip('<strong>' + esc(d.label || d.id) + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>' + note + extra + linkHint, e.renderedPosition);
+      cy.container().style.cursor = isLinkable(d) ? 'pointer' : '';
       trace(e.target);
     });
     cy.on('mouseover', 'edge', e => {
@@ -483,7 +582,7 @@
       showTip('<strong>' + esc(d.info || 'connection') + '</strong><div class="t-sev t-' + esc(d.severity) + '">' + esc(d.severity) + '</div>', e.renderedPosition);
       trace(e.target);
     });
-    cy.on('mouseout', clear);
+    cy.on('mouseout', () => { cy.container().style.cursor = ''; clear(); });
 
     // Click nodes to FOCUS them — Opus gets the selected labels as context.
     const selected = new Map();  // id -> label
@@ -496,6 +595,11 @@
     }
     cy.on('tap', 'node', e => {
       const n = e.target, id = n.id();
+      const href = linkHref(n.data());
+      if (href) {
+        window.open(href, '_blank', 'noopener');
+        return;
+      }
       if (selected.has(id)) { selected.delete(id); n.removeClass('sel'); }
       else { selected.set(id, n.data('label') || id); n.addClass('sel'); }
       renderFocus();
@@ -513,6 +617,89 @@
     document.getElementById('cyRelayout').addEventListener('click', () => {
       relayout({ animate: true, fit: true, quality: 'proof' });
     });
+
+    // --- collapsed map controls ---------------------------------------------
+    (function () {
+      const btn = document.getElementById('mapMenuBtn');
+      const panel = document.getElementById('mapMenuPanel');
+      const closeBtn = document.getElementById('mapMenuClose');
+      if (!btn || !panel) return;
+      const setOpen = open => {
+        panel.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+          const report = document.getElementById('mapReport'); if (report) report.hidden = true;
+          const maps = document.getElementById('mapsPanel'); if (maps) maps.hidden = true;
+          const mapsBtn = document.getElementById('mapsBtn'); if (mapsBtn) mapsBtn.setAttribute('aria-expanded', 'false');
+        }
+      };
+      btn.addEventListener('click', () => setOpen(panel.hidden));
+      if (closeBtn) closeBtn.addEventListener('click', () => { setOpen(false); btn.focus(); });
+      panel.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { setOpen(false); btn.focus(); }
+      });
+    })();
+
+    // --- maps list: uses /app/maps/list when WS-D provides it, with a soft fallback
+    (function () {
+      const btn = document.getElementById('mapsBtn');
+      const panel = document.getElementById('mapsPanel');
+      const body = document.getElementById('mapsBody');
+      const closeBtn = document.getElementById('mapsClose');
+      if (!btn || !panel || !body) return;
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      let loaded = false;
+      function fallback() {
+        body.innerHTML = '<p class="muted">Maps are available from the dashboard while the list loads.</p>' +
+          '<div class="map-list-actions"><a class="btn btn-ghost btn-sm" href="/app">Dashboard</a>' +
+          '<a class="btn btn-primary btn-sm" href="/app/map/new">New map</a></div>';
+      }
+      function render(maps) {
+        if (!Array.isArray(maps)) { fallback(); return; }
+        if (!maps.length) {
+          body.innerHTML = '<p class="muted">No saved maps yet.</p>' +
+            '<a class="btn btn-primary btn-sm" href="/app/map/new">New map</a>';
+          return;
+        }
+        body.innerHTML = '<div class="map-list">' + maps.map(m => {
+          const href = m.url || (m.id ? '/app/map/scan/' + encodeURIComponent(m.id) : '/app/map');
+          const name = m.label || m.name || 'Identity map';
+          const when = m.started_at ? '<span>' + esc(m.started_at) + '</span>' : '';
+          const status = m.status ? '<span class="chip chip-map">' + esc(m.status) + '</span>' : '';
+          const active = m.id && String(m.id) === String(SCAN_ID);
+          return '<a class="map-list-item' + (active ? ' is-active' : '') + '" href="' + esc(href) + '">' +
+            '<span class="map-list-name">' + esc(name) + '</span><span class="map-list-meta">' +
+            status + when + '</span></a>';
+        }).join('') + '</div><a class="btn btn-primary btn-sm map-list-new" href="/app/map/new">New map</a>';
+      }
+      async function load() {
+        if (loaded) return;
+        loaded = true;
+        try {
+          const res = await fetch('/app/maps/list', { headers: { accept: 'application/json' } });
+          if (!res.ok) throw new Error('unavailable');
+          const data = await res.json();
+          render(data.maps);
+        } catch (e) {
+          fallback();
+        }
+      }
+      const setOpen = open => {
+        panel.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+          const menu = document.getElementById('mapMenuPanel'); if (menu) menu.hidden = true;
+          const menuBtn = document.getElementById('mapMenuBtn'); if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+          load();
+        }
+      };
+      btn.addEventListener('click', () => setOpen(panel.hidden));
+      if (closeBtn) closeBtn.addEventListener('click', () => { setOpen(false); btn.focus(); });
+      panel.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { setOpen(false); btn.focus(); }
+      });
+    })();
 
     // --- streaming: poll while the map builds, adding new nodes/edges live -----
     const building = document.getElementById('mapBuilding');
@@ -534,9 +721,10 @@
         catch (e) { setTimeout(poll, 3500); return; }
         const els = data.elements || { nodes: [], edges: [] };
         let added = 0;
+        const addedNodeIds = [];
         els.nodes.forEach(n => {
           if (seenN.has(n.data.id)) return;
-          seenN.add(n.data.id); added++;
+          seenN.add(n.data.id); added++; addedNodeIds.push(n.data.id);
           // seed near the node that links to it so it grows OUT, not from origin
           let pos = { x: (Math.random() * 80 - 40), y: (Math.random() * 80 - 40) };
           const e = els.edges.find(e => e.data.target === n.data.id);
@@ -553,10 +741,9 @@
         });
         if (countEl) countEl.textContent = cy.nodes().length + ' nodes · ' + cy.edges().length + ' links';
         if (building.querySelector('.phase') && data.phase) building.querySelector('.phase').textContent = data.phase;
-        if (window.__setSources) window.__setSources(data.coverage, data.coverage_gaps);
         // New nodes are already visible at their near-source seed; debounce the
         // structural reorg so rapid polls collapse into one settle, not a tumble.
-        if (added > 0) scheduleRelayout({ animate: true, fit: false });
+        if (added > 0) scheduleRelayout({ animate: true, fit: false, addedIds: addedNodeIds });
         if (data.status === 'complete' || data.status === 'failed') {
           stop = true; building.remove();
           clearTimeout(_relayoutTimer);  // cancel any pending beat; do the authoritative one
@@ -611,7 +798,6 @@
             '</li>').join('') + '</ul></div>';
       }
       body.innerHTML = h || '<p class="muted">No strong inferences from this footprint.</p>';
-      const srcPanel = document.getElementById('mapSources'); if (srcPanel) srcPanel.hidden = true;
       panel.hidden = false;
     }
 
@@ -620,7 +806,10 @@
 
     if (btn) btn.addEventListener('click', async () => {
       btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Analyzing…';
-      const srcPanel = document.getElementById('mapSources'); if (srcPanel) srcPanel.hidden = true;
+      const menu = document.getElementById('mapMenuPanel'); if (menu) menu.hidden = true;
+      const menuBtn = document.getElementById('mapMenuBtn'); if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+      const maps = document.getElementById('mapsPanel'); if (maps) maps.hidden = true;
+      const mapsBtn = document.getElementById('mapsBtn'); if (mapsBtn) mapsBtn.setAttribute('aria-expanded', 'false');
       panel.hidden = false;
       body.innerHTML = '<p class="muted"><span class="spinner"></span> Opus is reading your footprint…</p>';
       try {
@@ -640,49 +829,6 @@
       };
       setTimeout(poll, 3000);
     });
-  })();
-
-  // --- Sources panel: which connectors ran, which were skipped (honest coverage) ----
-  (function () {
-    const btn = document.getElementById('sourcesBtn');
-    const panel = document.getElementById('mapSources');
-    const body = document.getElementById('sourcesBody');
-    const closeBtn = document.getElementById('sourcesClose');
-    if (!btn || !panel || !body) return;
-    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
-      c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    let cov = Array.isArray(COVERAGE) ? COVERAGE : [];
-    let gaps = Array.isArray(COVERAGE_GAPS) ? COVERAGE_GAPS : [];
-    // Bridge from the streaming poller (different scope) so the panel refreshes live.
-    window.__setSources = (c, g) => {
-      if (Array.isArray(c)) cov = c;
-      if (Array.isArray(g)) gaps = g;
-      if (!panel.hidden) render();
-    };
-    const sec = (title, lis) => lis ? '<div class="report-sec"><h4>' + esc(title) + '</h4><ul>' + lis + '</ul></div>' : '';
-    function render() {
-      const ran = cov.filter(r => r.status === 'ok' || r.status === 'empty');
-      const failed = cov.filter(r => r.status === 'gap');
-      const notEnabled = gaps.filter(g => /not configured|disabled/i.test(g.reason || ''));
-      if (!cov.length && !gaps.length) {
-        body.innerHTML = '<p class="muted">Source coverage appears once the map finishes building.</p>';
-        return;
-      }
-      let h = '';
-      h += sec('Searched', ran.map(r => '<li><b>' + esc(r.source) + '</b> · ' +
-        (r.status === 'ok' ? esc(r.count) + ' result' + (r.count === 1 ? '' : 's') : 'nothing found') +
-        '</li>').join(''));
-      h += sec('Couldn\'t check', failed.map(r => '<li><b>' + esc(r.source) + '</b> — ' +
-        esc(r.reason || 'unavailable') + '</li>').join(''));
-      if (notEnabled.length) h += '<div class="report-sec"><h4>Not enabled (' + notEnabled.length +
-        ')</h4><ul>' + notEnabled.map(g => '<li>' + esc(g.source) + '</li>').join('') + '</ul></div>';
-      body.innerHTML = h || '<p class="muted">No source activity recorded.</p>';
-    }
-    btn.addEventListener('click', () => {
-      panel.hidden = !panel.hidden;
-      if (!panel.hidden) { const r = document.getElementById('mapReport'); if (r) r.hidden = true; render(); }
-    });
-    if (closeBtn) closeBtn.addEventListener('click', () => { panel.hidden = true; });
   })();
 </script>
 <script src="/app/static/chat.js?v={{ asset_v }}"></script>

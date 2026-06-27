@@ -112,7 +112,7 @@ def test_available_connectors_respects_toggles():
         exif_enabled=False, sherlock_enabled=False, ignorant_enabled=False,
         # extended-search v2 keys/flags also in ambient .env
         tavily_api_key="", pdl_api_key="", apify_token="", bluesky_enabled=False,
-        intelx_api_key="",
+        intelx_api_key="", telegram_enabled=False,
     )
     names = {c.name for c in available_connectors(cfg)}
     assert names == {"holehe"}

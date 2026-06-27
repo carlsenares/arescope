@@ -47,6 +47,7 @@ self-audit hard rule; they are audit-logged.
 | **GitHub** | username/email → name, location, company, bio, commit-emails, activity | `api.github.com` (free token) | richest for devs |
 | **Reddit** | username → posts/comments, subreddits, karma, location tells | `/user/{u}.json` (free OAuth) | behavioural + location leakage |
 | **Gravatar** | email → avatar, display name, linked profiles | gravatar.com (no key) | the normal-tier PHOTO, from the verified seed |
+| **Telegram** | username → public t.me profile photo | `t.me/<username>` public preview | username-only; no phone-number lookup; emits a photo only when the public page exposes a non-default `og:image` |
 | **Photo EXIF** | uploaded image → GPS, device, timestamp | local parse (Pillow/exifread) | $0, high-impact; needs the photo input added to the form |
 | **Wayback** | name/username/url → deleted / historical profile versions | archive.org (free) | "what you thought you removed" |
 | **GHunt** | email → Google identity: profile PHOTO, Maps review COUNT + contributor link, YouTube | free, self-hosted | **install isolated (`pipx install ghunt`) — it pins httpx<0.28 and conflicts with the app**; auth via `ghunt login` (browser + GHunt Companion extension + a burner Google account) → creds at `~/.malfrats/ghunt/creds.m`; point `ARESCOPE_GHUNT_CREDS_PATH` at that file; fragile, name unreliable since 2024 |
@@ -125,6 +126,14 @@ for non-admins) — the mechanism the heavy sources needed.
 LinkedIn successors that are self-serve: **ScrapIn** (email/name → full profile) or **Apify**
 LinkedIn scraper. LinkedIn is greenlit as **admin-only / own-profile**, audit-logged — build next.
 
+**Messaging-app profile-photo scope (2026-06-27):** WhatsApp does not provide a public
+phone-number → profile-photo API; photos are shown only through the user's own contact graph and
+privacy settings, so scraping it would require logged-in contact abuse and is out of scope.
+Signal has no public profile lookup by design. Telegram is the only feasible messaging-app photo
+surface here, and only for public usernames: `t.me/<username>` may publish an `og:image` for that
+profile. The Telegram connector is therefore username-only and emits a `photo` identity attribute
+only when that public preview exposes a real profile image.
+
 **Not built yet:** photo-input+EXIF, LinkedIn (ScrapIn/Apify, admin-only), Apify (Instagram),
 Dehashed (plaintext breach: name/phone/address — the richest universal data), IntelX, FaceCheck/
 TinEye.
@@ -132,7 +141,7 @@ TinEye.
 ## Per-input summary (admin, no gate)
 
 - **email** → breaches+stealer+accounts (have) · Gravatar/Epieos identity · Dehashed · IntelX · discovered-handle unlock
-- **username** → Maigret existence (have) + **metadata** · GitHub · Reddit · Apify locked-platform · Wayback
+- **username** → Maigret existence (have) + **metadata** · GitHub · Reddit · Telegram public photo · Apify locked-platform · Wayback
 - **name** → broker removal catalog (have) · Brave web-mention search · IntelX
 - **ip** → Shodan host+services (have)
 - **photo** *(new input)* → EXIF · FaceCheck/TinEye reverse search

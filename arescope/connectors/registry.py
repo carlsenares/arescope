@@ -31,6 +31,7 @@ from arescope.connectors.reddit import RedditConnector
 from arescope.connectors.sherlock import SherlockConnector
 from arescope.connectors.shodan import ShodanConnector
 from arescope.connectors.tavily import TavilyConnector
+from arescope.connectors.telegram import TelegramConnector
 from arescope.connectors.pdl import PDLConnector
 from arescope.connectors.urlscan import UrlscanConnector
 
@@ -58,6 +59,7 @@ REGISTRY: list[Connector] = [
     TavilyConnector(),
     ApifyConnector(),
     InstagramWebConnector(),
+    TelegramConnector(),
     UrlscanConnector(),
     IntelXConnector(),
     IPQSPhoneConnector(),

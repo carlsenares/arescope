@@ -9,7 +9,7 @@
   <header class="results-head">
     <div>
       <span class="eyebrow">Analysis</span>
-      <h1>{{ scan.name or 'Your exposure report' }}</h1>
+      <h1>{{ scan.name or scan.label or 'Your exposure report' }}</h1>
       <p class="muted mono">scan {{ scan.id[:8] }} · {{ scan.started_at.strftime('%b %d, %Y · %H:%M') if scan.started_at else '' }}</p>
     </div>
     <div class="map-actions">

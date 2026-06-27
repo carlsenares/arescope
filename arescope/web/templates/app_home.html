@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · Arescope{% endblock %}
 {% block content %}
+{% set analyses = scans | rejectattr('mode', 'equalto', 'map') | list %}
+{% set analyses_total = analysis_total if analysis_total is defined else (total_analyses if total_analyses is defined else (scan_total if scan_total is defined else (scans_total if scans_total is defined else analyses|length))) %}
+{% set latest_analysis = analyses[0] if analyses else none %}
 <section class="dash">
 
   <header class="dash-head">
@@ -24,13 +27,13 @@
   <div class="stat-grid">
     <div class="stat">
       <span class="stat-label">Analyses run</span>
-      <span class="stat-value">{{ scans|length }}</span>
-      <span class="stat-foot">{% if scans %}most recent {{ scans[0].started_at.strftime('%b %d') if scans[0].started_at else '—' }}{% else %}none yet{% endif %}</span>
+      <span class="stat-value">{{ analyses_total }}</span>
+      <span class="stat-foot">{% if latest_analysis %}most recent {{ latest_analysis.started_at.strftime('%b %d') if latest_analysis.started_at else '—' }}{% else %}none yet{% endif %}</span>
     </div>
     <div class="stat">
       <span class="stat-label">Latest status</span>
-      <span class="stat-value cap">{% if scans %}{{ scans[0].status }}{% else %}—{% endif %}</span>
-      <span class="stat-foot">{% if scans %}scan {{ scans[0].id[:8] }}{% else %}run your first scan{% endif %}</span>
+      <span class="stat-value cap">{% if latest_analysis %}{{ latest_analysis.status }}{% else %}—{% endif %}</span>
+      <span class="stat-foot">{% if latest_analysis %}scan {{ latest_analysis.id[:8] }}{% else %}run your first scan{% endif %}</span>
     </div>
     <div class="stat">
       <span class="stat-label">Scan access</span>
@@ -46,22 +49,42 @@
   <div class="panel">
     <div class="panel-head">
       <h2>Recent analyses</h2>
-      {% if scans %}<a class="navlink" href="/app/new">Run another →</a>{% endif %}
+      {% if analyses %}<a class="navlink" href="/app/new">Run another →</a>{% endif %}
     </div>
 
-    {% if scans %}
+    {% if analyses %}
     <ul class="scan-list">
-      {% for sc in scans %}
-      <li class="scan-item" data-scan="{{ sc.id }}">
-        <a class="scan-row" href="{{ '/app/map/scan/' ~ sc.id if sc.mode == 'map' else '/app/scans/' ~ sc.id }}">
-          <span class="scan-name">{{ sc.name or ('Map ' if sc.mode == 'map' else 'Analysis ') ~ sc.id[:8] }}</span>
+      {% for sc in analyses %}
+      {% set row_inputs = sc.inputs if sc.inputs is defined and sc.inputs is not none else [] %}
+      {% set input_count = sc.input_count if sc.input_count is defined and sc.input_count is not none else (row_inputs|length if row_inputs else 1) %}
+      {% set input_label = input_count ~ ' input' ~ ('' if input_count == 1 else 's') %}
+      <li class="scan-item{% if loop.index > 5 %} js-extra-scan{% endif %}" data-scan="{{ sc.id }}" data-input-count="{{ input_count }}" data-fallback-label="{{ input_label }}" {% if loop.index > 5 and not show_all %}hidden{% endif %}>
+        <div class="scan-row">
+          <span class="scan-label">
+            <a class="scan-name" href="/app/scans/{{ sc.id }}">
+              <span class="js-scan-title-text">{{ sc.name or input_label }}</span>
+            </a>
+            <details class="scan-inputs js-input-info" {% if sc.name %}hidden{% endif %}>
+              <summary aria-label="Show masked inputs for this analysis">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              </summary>
+              <div class="scan-input-pop" role="group" aria-label="Masked inputs">
+                <span class="scan-input-title">Inputs supplied</span>
+                <ul>
+                  {% for inp in row_inputs %}
+                  <li><span>{{ inp.type|default('input') }}</span><strong>{{ inp.value|default('masked') }}</strong></li>
+                  {% else %}
+                  <li class="scan-input-empty">Masked inputs unavailable</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </details>
+          </span>
           <span class="scan-chips">
-            {% if sc.mode == 'map' %}<span class="chip chip-map" title="Identity map">map</span>{% endif %}
-            <span class="chip chip-muted js-offmap" title="Hidden from your exposure map" {% if sc.in_map or sc.mode == 'map' %}hidden{% endif %}>off map</span>
             <span class="chip chip-{{ sc.status }}">{{ sc.status }}</span>
           </span>
           <span class="scan-date muted">{{ sc.started_at.strftime('%b %d, %Y · %H:%M') if sc.started_at else '—' }}</span>
-        </a>
+        </div>
         <details class="row-menu">
           <summary aria-label="Analysis options">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
@@ -69,13 +92,7 @@
           <div class="row-pop">
             <div class="row-actions">
               <button type="button" class="row-action js-rename-toggle">Rename</button>
-              <form class="js-mapvis" method="post" action="/app/scans/{{ sc.id }}/map-visibility">
-                <input type="hidden" name="csrf" value="{{ csrf }}" />
-                <input type="hidden" name="include" value="{{ '0' if sc.in_map else '1' }}" />
-                <button type="submit" class="row-action js-mapvis-btn">
-                  {{ 'Hide from map' if sc.in_map else 'Show on map' }}
-                </button>
-              </form>
+              <button type="button" class="row-action row-action-danger js-delete-toggle">Delete</button>
             </div>
             <form class="rename-form js-rename" method="post" action="/app/scans/{{ sc.id }}/rename" hidden>
               <input type="hidden" name="csrf" value="{{ csrf }}" />
@@ -86,11 +103,22 @@
                 <button class="btn btn-ghost btn-sm" type="submit">Save</button>
               </div>
             </form>
+            <form class="delete-form js-delete" method="post" action="/app/scans/{{ sc.id }}/delete" hidden>
+              <input type="hidden" name="csrf" value="{{ csrf }}" />
+              <p>Delete this analysis?</p>
+              <div class="delete-row">
+                <button class="btn btn-ghost btn-sm js-delete-cancel" type="button">Cancel</button>
+                <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+              </div>
+            </form>
           </div>
         </details>
       </li>
       {% endfor %}
     </ul>
+    {% if analyses|length > 5 and not show_all %}
+    <button class="show-all-scans js-show-all-scans" type="button">Show all {{ analyses|length }} analyses</button>
+    {% endif %}
     {% else %}
     <div class="empty">
       <div class="empty-mark" aria-hidden="true">
@@ -106,8 +134,8 @@
 </section>
 
 <script>
-  // Per-row options menu: two-step (Rename / Hide) like Ask-Opus, and AJAX so the
-  // page never reloads or jumps to the top when you rename or toggle map visibility.
+  // Per-row options menu: two-step rename/delete, with AJAX so the page never reloads
+  // or jumps to the top when changing a row.
   (function () {
     // Resolve CSRF lazily — this script parses inside <main>, before the
     // `window.ARESCOPE_CSRF = …` line at the end of <body>.
@@ -120,9 +148,11 @@
         var pop = menu.querySelector('.row-pop');
         if (!pop) return;
         var actions = pop.querySelector('.row-actions');
-        var form = pop.querySelector('.js-rename');
+        var renameForm = pop.querySelector('.js-rename');
+        var deleteForm = pop.querySelector('.js-delete');
         if (actions) actions.hidden = false;
-        if (form) form.hidden = true;
+        if (renameForm) renameForm.hidden = true;
+        if (deleteForm) deleteForm.hidden = true;
       });
     });
 
@@ -139,17 +169,37 @@
       });
     });
 
-    // Toggle map visibility without a navigation.
-    document.querySelectorAll('form.js-mapvis').forEach(function (form) {
+    // "Delete" reveals a local confirmation before submitting.
+    document.querySelectorAll('.js-delete-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var pop = btn.closest('.row-pop');
+        var form = pop.querySelector('.js-delete');
+        var actions = pop.querySelector('.row-actions');
+        actions.hidden = true;
+        form.hidden = false;
+        var confirm = form.querySelector('button[type="submit"]');
+        if (confirm) confirm.focus();
+      });
+    });
+
+    document.querySelectorAll('.js-delete-cancel').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var pop = btn.closest('.row-pop');
+        var actions = pop.querySelector('.row-actions');
+        var form = pop.querySelector('.js-delete');
+        if (form) form.hidden = true;
+        if (actions) actions.hidden = false;
+      });
+    });
+
+    // Delete without a navigation; remove the row once the backend confirms.
+    document.querySelectorAll('form.js-delete').forEach(function (form) {
       form.addEventListener('submit', async function (e) {
         e.preventDefault();
         var item = form.closest('.scan-item');
-        var includeInput = form.querySelector('input[name="include"]');
-        var willInclude = includeInput.value === '1';  // showing it back on the map
         var body = new URLSearchParams();
         body.set('csrf', csrf());
-        body.set('include', includeInput.value);
-        var btn = form.querySelector('button');
+        var btn = form.querySelector('button[type="submit"]');
         btn.disabled = true;
         try {
           var r = await fetch(form.action, {
@@ -158,16 +208,19 @@
             body: body,
           });
           if (!r.ok) { btn.disabled = false; return; }
-          // Flip local state: the chip, the button label, and the next toggle value.
-          var chip = item.querySelector('.js-offmap');
-          if (chip) chip.hidden = willInclude;       // hide "off map" when shown again
-          includeInput.value = willInclude ? '0' : '1';
-          btn.textContent = willInclude ? 'Hide from map' : 'Show on map';
+          item.remove();
         } finally {
           btn.disabled = false;
         }
       });
     });
+
+    function fallbackLabel(item) {
+      if (item.dataset.fallbackLabel) return item.dataset.fallbackLabel;
+      var n = parseInt(item.dataset.inputCount || '1', 10);
+      if (!isFinite(n) || n < 1) n = 1;
+      return n + ' input' + (n === 1 ? '' : 's');
+    }
 
     // Rename without a navigation; update the row title in place.
     document.querySelectorAll('form.js-rename').forEach(function (form) {
@@ -188,8 +241,10 @@
           });
           if (!r.ok) { btn.disabled = false; return; }
           var d = await r.json();
-          var nameEl = item.querySelector('.scan-name');
-          if (nameEl) nameEl.textContent = d.name || ('Analysis ' + item.dataset.scan.slice(0, 8));
+          var nameEl = item.querySelector('.js-scan-title-text');
+          if (nameEl) nameEl.textContent = d.name || fallbackLabel(item);
+          var info = item.querySelector('.js-input-info');
+          if (info) info.hidden = !!d.name;
           var details = item.querySelector('.row-menu');
           if (details) details.open = false;          // close the menu on save
         } finally {
@@ -197,6 +252,16 @@
         }
       });
     });
+
+    var showAll = document.querySelector('.js-show-all-scans');
+    if (showAll) {
+      showAll.addEventListener('click', function () {
+        document.querySelectorAll('.js-extra-scan').forEach(function (item) {
+          item.hidden = false;
+        });
+        showAll.remove();
+      });
+    }
   })();
 </script>
 {% endblock %}
